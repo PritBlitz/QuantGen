@@ -84,8 +84,15 @@ function issue(user: UserDto): HttpResponse<AuthResponse> {
   })
 }
 
+/** Request amounts: at most 2 decimals (the backend returns 400 otherwise). */
 const isMoney = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d{1,15}(\.\d{1,4})?$/.test(v)
+  typeof v === 'string' && /^\d{1,15}(\.\d{1,2})?$/.test(v)
+const IST_DATE = /^\d{4}-\d{2}-\d{2}$/
+/** yyyy-MM-dd of an instant in Asia/Kolkata. */
+const istDate = (iso: string) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(iso))
+const last4 = (n: string) => `\u2022\u2022\u2022\u2022${n.slice(-4)}`
+const DAILY_LIMIT = new Decimal(500000)
 const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
 const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => a
 
@@ -122,7 +129,10 @@ function idempotent(request: Request, userId: string, body: unknown) {
     return {
       early:
         prior.hash === hash
-          ? HttpResponse.json(prior.body as object, { status: prior.status })
+          ? HttpResponse.json(prior.body as object, {
+              status: prior.status,
+              headers: { 'Idempotent-Replayed': 'true' },
+            })
           : error(
               409,
               'IDEMPOTENCY_CONFLICT',
@@ -289,6 +299,31 @@ export const handlers = [
     return HttpResponse.json(ownAccounts(user.id).map(publicAccount))
   }),
 
+  http.post(`${BASE}/accounts`, async ({ request }) => {
+    await delay(400)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    if (b.type !== 'SAVINGS' && b.type !== 'CHECKING')
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'type', message: 'must be SAVINGS or CHECKING' },
+      ])
+    if (ownAccounts(user.id).length >= 3)
+      return error(422, 'LIMIT_EXCEEDED', 'A customer can hold at most 3 accounts', request)
+    const acc = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      accountNumber: `5021${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`,
+      type: b.type === 'CHECKING' ? ('CHECKING' as const) : ('SAVINGS' as const),
+      status: 'ACTIVE' as const,
+      balance: '0.00',
+      currency: 'INR' as const,
+      createdAt: new Date().toISOString(),
+    }
+    db.accounts.set(acc.id, acc)
+    return HttpResponse.json(publicAccount(acc), { status: 201 })
+  }),
+
   http.get(`${BASE}/accounts/:id`, ({ request, params }) => {
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
@@ -331,9 +366,23 @@ export const handlers = [
     if (!acc || acc.userId !== user.id) return error(404, 'NOT_FOUND', 'Account not found', request)
     const url = new URL(request.url)
     const type = url.searchParams.get('type')
-    const items = db.transactions.filter(
-      (t) => t.accountId === acc.id && (!type || t.type === type),
-    )
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const badFrom = from !== null && !IST_DATE.test(from)
+    if (badFrom || (to !== null && !IST_DATE.test(to)))
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: badFrom ? 'from' : 'to', message: 'must be yyyy-MM-dd' },
+      ])
+    // Dates are IST calendar days, both inclusive; newest first.
+    const items = db.transactions.filter((t) => {
+      const d = istDate(t.createdAt)
+      return (
+        t.accountId === acc.id &&
+        (!type || t.type === type) &&
+        (!from || d >= from) &&
+        (!to || d <= to)
+      )
+    })
     return HttpResponse.json(paginate(items, url))
   }),
 
@@ -350,17 +399,46 @@ export const handlers = [
       return error(404, 'NOT_FOUND', 'Account not found', request)
     if (!isMoney(b.amount) || new Decimal(b.amount).lt(1))
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
-        { field: 'amount', message: 'must be at least 1.00' },
+        { field: 'amount', message: 'must be between 1.00 and 200000.00' },
       ])
     const amount = new Decimal(b.amount)
     if (amount.gt(200000))
       return error(422, 'LIMIT_EXCEEDED', 'Per-transfer limit is 200000.00', request)
     if (from.status === 'FROZEN') return error(422, 'ACCOUNT_FROZEN', 'Account is frozen', request)
     const to = [...db.accounts.values()].find((a) => a.accountNumber === b.toAccountNumber)
-    if (!to || to.id === from.id)
+    if (!to || to.id === from.id || to.status === 'CLOSED') {
+      const message = !to
+        ? 'account not found'
+        : to.id === from.id
+          ? 'must differ from the source account'
+          : 'account is closed'
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
-        { field: 'toAccountNumber', message: 'account not found' },
+        { field: 'toAccountNumber', message },
       ])
+    }
+    // Daily limit: transfers to OTHER people per IST day; own-account moves don't count.
+    if (to.userId !== user.id) {
+      const today = istDate(new Date().toISOString())
+      const ownNumbers = new Set(ownAccounts(user.id).map((a) => a.accountNumber))
+      const sentToday = db.transfers
+        .filter(
+          (t) =>
+            t.userId === user.id &&
+            !ownNumbers.has(t.toAccountNumber) &&
+            istDate(t.createdAt) === today,
+        )
+        .reduce((s, t) => s.plus(t.amount), new Decimal(0))
+      if (sentToday.plus(amount).gt(DAILY_LIMIT)) {
+        const left = DAILY_LIMIT.minus(sentToday)
+        const remaining = (left.isNegative() ? new Decimal(0) : left).toFixed(2)
+        return error(
+          422,
+          'LIMIT_EXCEEDED',
+          `Daily transfer limit reached; remaining today: ${remaining}`,
+          request,
+        )
+      }
+    }
     if (new Decimal(from.balance).lt(amount))
       return error(422, 'INSUFFICIENT_FUNDS', 'Insufficient funds', request)
     const toUser = [...db.users.values()].find((u) => u.user.id === to.userId)?.user
@@ -373,7 +451,7 @@ export const handlers = [
       amount,
       'TRANSFER',
       note ?? `Transfer to ${toUser.fullName}`,
-      toUser.fullName,
+      `To ${toUser.fullName} ${last4(to.accountNumber)}`,
       entry,
     )
     postLine(
@@ -382,7 +460,7 @@ export const handlers = [
       amount,
       'TRANSFER',
       note ?? `Transfer from ${user.fullName}`,
-      user.fullName,
+      `From ${user.fullName} ${last4(from.accountNumber)}`,
       entry,
     )
     const dto: TransferDto = {
@@ -410,7 +488,51 @@ export const handlers = [
   http.get(`${BASE}/beneficiaries`, ({ request }) => {
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
-    return HttpResponse.json([])
+    return HttpResponse.json(
+      db.beneficiaries.filter((x) => x.userId === user.id).map(({ userId: _u, ...x }) => x),
+    )
+  }),
+
+  http.post(`${BASE}/beneficiaries`, async ({ request }) => {
+    await delay(350)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    const nickname = typeof b.nickname === 'string' ? b.nickname.trim() : ''
+    if (!nickname || nickname.length > 50)
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'nickname', message: 'must be 1-50 characters' },
+      ])
+    const target = [...db.accounts.values()].find((a) => a.accountNumber === b.accountNumber)
+    const invalid = (status: number, message: string) =>
+      error(status, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'accountNumber', message },
+      ])
+    if (!target || target.status === 'CLOSED') return invalid(400, 'account not found')
+    if (target.userId === user.id) return invalid(400, 'is your own account')
+    if (
+      db.beneficiaries.some((x) => x.userId === user.id && x.accountNumber === target.accountNumber)
+    )
+      return invalid(409, 'is already saved')
+    const holder = [...db.users.values()].find((u) => u.user.id === target.userId)?.user
+    const dto = {
+      id: crypto.randomUUID(),
+      nickname,
+      accountNumber: target.accountNumber,
+      holderName: holder?.fullName ?? '',
+      createdAt: new Date().toISOString(),
+    }
+    db.beneficiaries.push({ ...dto, userId: user.id })
+    return HttpResponse.json(dto, { status: 201 })
+  }),
+
+  http.delete(`${BASE}/beneficiaries/:id`, ({ request, params }) => {
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const i = db.beneficiaries.findIndex((x) => x.id === params.id && x.userId === user.id)
+    if (i === -1) return error(404, 'NOT_FOUND', 'Beneficiary not found', request)
+    db.beneficiaries.splice(i, 1)
+    return new HttpResponse(null, { status: 204 })
   }),
 
   // §7.5 Trading

@@ -4,6 +4,7 @@
  */
 import type {
   AccountDto,
+  BeneficiaryDto,
   InstrumentDto,
   LoanDto,
   OrderDto,
@@ -31,6 +32,7 @@ export interface MockDb {
   accounts: Map<string, AccountDto & { userId: string }>
   transactions: TransactionDto[]
   transfers: Array<TransferDto & { userId: string }>
+  beneficiaries: Array<BeneficiaryDto & { userId: string }>
   instruments: Map<string, InstrumentDto & { open: string }>
   holdings: MockHolding[]
   orders: Array<OrderDto & { userId: string }>
@@ -74,6 +76,7 @@ export function createDb(): MockDb {
     accounts: new Map(),
     transactions: [],
     transfers: [],
+    beneficiaries: [],
     instruments: new Map(),
     holdings: [],
     orders: [],

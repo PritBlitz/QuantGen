@@ -11,6 +11,7 @@ import type {
   CreateBeneficiaryRequest,
   DepositRequest,
   InstrumentDto,
+  IsoDate,
   LoanApplicationRequest,
   LoanDetailDto,
   LoanDto,
@@ -62,7 +63,8 @@ export const accountsApi = {
     api
       .get<Page<TransactionDto>>(`/accounts/${seg(id)}/transactions`, { params })
       .then((r) => r.data),
-  statement: (id: string, params: { from?: string; to?: string }) =>
+  /** IST dates (yyyy-MM-dd); default last 30 days, max 366-day range. */
+  statement: (id: string, params: { from?: IsoDate; to?: IsoDate }) =>
     api
       .get<Blob>(`/accounts/${seg(id)}/statement`, {
         params: { ...params, format: 'csv' },

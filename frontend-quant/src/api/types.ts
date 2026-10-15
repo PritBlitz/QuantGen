@@ -127,9 +127,10 @@ export interface TransactionDto {
   createdAt: IsoDateTime
 }
 
+/** `from`/`to` are IST calendar dates (yyyy-MM-dd), both inclusive. Results are newest first. */
 export interface TransactionQuery extends PageQuery {
-  from?: IsoDateTime
-  to?: IsoDateTime
+  from?: IsoDate
+  to?: IsoDate
   type?: TransactionType
 }
 
