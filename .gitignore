@@ -1,0 +1,29 @@
+# IDEs
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Secrets (commit only .env.example)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Backend
+backend-quant/target/
+backend-quant/scaffold.zip
+*.log
+
+# Frontend
+node_modules/
+frontend-quant/dist/
+frontend-quant/coverage/
+frontend-quant/playwright-report/
+frontend-quant/test-results/
+
+# Claude local settings
+.claude/settings.local.json
