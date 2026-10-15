@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -16,6 +17,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.quantgen.common.error.ApiErrorWriter;
 import com.quantgen.common.error.ErrorCode;
+import com.quantgen.common.security.AccessTokenVerifier;
+import com.quantgen.common.security.JwtAuthenticationFilter;
 
 /**
  * Stateless, deny-by-default security (ARCHITECTURE §3 request pipeline).
@@ -30,8 +33,10 @@ public class SecurityConfig {
     private static final String[] PUBLIC_DOCS = {"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"};
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errorWriter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errorWriter,
+                                           AccessTokenVerifier tokenVerifier) throws Exception {
         http
+                .addFilterBefore(new JwtAuthenticationFilter(tokenVerifier), UsernamePasswordAuthenticationFilter.class)
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {
                 })
