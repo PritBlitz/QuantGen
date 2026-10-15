@@ -38,8 +38,10 @@ src/
 
 ## Commands
 ```bash
-npm run dev        # http://localhost:5173
-npm run build
+npm run dev        # http://localhost:5173, real backend on :8080 via the Vite proxy
+npm run dev:mock   # everything mocked with MSW, no backend needed
+npm run dev:hybrid # endpoints listed in src/mocks/live.ts hit the backend; the rest is mocked
+npm run build      # MSW, the mock worker and the demo-login button are stripped from prod builds
 npm run test       # vitest
 npm run e2e        # playwright
 npm run lint

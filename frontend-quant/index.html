@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en-IN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="QuantGen — banking, trading and loans on one double-entry ledger."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- External (not inline) so a strict CSP with script-src 'self' still allows it. Sets
+         data-theme before first paint to avoid a theme flash. -->
+    <script src="/theme-init.js"></script>
+    <title>QuantGen</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

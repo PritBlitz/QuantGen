@@ -1,0 +1,46 @@
+/*
+ * QuantGen design tokens (DESIGN.md §1). Dark is the default; light via [data-theme='light'].
+ * Every text/background pair here was checked for WCAG AA (≥ 4.5:1). Light-mode gain, loss,
+ * warn and accent are slightly darker than the original spec so they pass on every surface.
+ */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0b0d;
+  --surface: #111317;
+  --surface-2: #181b21;
+  --border: #23272f;
+  --text: #edeef0;
+  --text-muted: #8a909c;
+  --accent: #d2ff3a;
+  --accent-ink: #0a0b0d;
+  --gain: #2bd9a0;
+  --loss: #ff5a5f;
+  --warn: #ffb224;
+  --shadow-pop: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  --grain-opacity: 0.04;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f3ef;
+  --surface: #ffffff;
+  --surface-2: #eeebe5;
+  --border: #ddd8cf;
+  --text: #121316;
+  --text-muted: #5e6470;
+  --accent: #3350e6;
+  --accent-ink: #ffffff;
+  --gain: #07744e;
+  --loss: #c0262f;
+  --warn: #8f5600;
+  --shadow-pop: 0 24px 48px -16px rgb(18 19 22 / 0.18);
+  --grain-opacity: 0.03;
+}
+
+:root {
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-micro: 120ms;
+  --dur-ui: 240ms;
+  --dur-page: 320ms;
+}

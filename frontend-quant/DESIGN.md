@@ -24,23 +24,26 @@ variables, mapped into Tailwind v4 `@theme`.
 | `--border` | `#23272F` | `#DDD8CF` | Hairlines (1px) |
 | `--text` | `#EDEEF0` | `#121316` | Primary text |
 | `--text-muted` | `#8A909C` | `#5E6470` | Secondary |
-| `--accent` | `#D2FF3A` | `#3B5BFF` | CTAs, focus ring, active nav. **Never used for numbers** |
+| `--accent` | `#D2FF3A` | `#3350E6` | CTAs, focus ring, active nav. **Never used for numbers** |
 | `--accent-ink` | `#0A0B0D` | `#FFFFFF` | Text on the accent |
-| `--gain` | `#2BD9A0` | `#0F9D6B` | Positive P&L, credits |
-| `--loss` | `#FF5A5F` | `#D92D3A` | Negative P&L, debits, destructive |
-| `--warn` | `#FFB224` | `#B26B00` | Overdue, frozen |
+| `--gain` | `#2BD9A0` | `#07744E` | Positive P&L, credits |
+| `--loss` | `#FF5A5F` | `#C0262F` | Negative P&L, debits, destructive |
+| `--warn` | `#FFB224` | `#8F5600` | Overdue, frozen |
 
 Rules:
 - Gain and loss are **never conveyed by colour alone**. Always add a sign (`+`/`−`) and an arrow icon.
 - Text contrast must meet WCAG AA (4.5:1 for body text). Check every token pair you introduce.
+  (2026-10-16: light `--accent`, `--gain`, `--loss` and `--warn` were darkened from `#3B5BFF`,
+  `#0F9D6B`, `#D92D3A` and `#B26B00`, which measured 2.9–4.8:1 on light surfaces; every pair now
+  passes on `--bg`, `--surface` and `--surface-2`.)
 - One subtle SVG **noise/grain overlay** (3–4% opacity) on the landing page and auth pages only.
 
 ### Typography
 | Role | Font | Notes |
 |---|---|---|
-| Display | **Instrument Serif** (Google Fonts) | Landing headlines, big balance figure on the dashboard. Tight tracking (`-0.02em`) |
-| UI | **Geist** (`geist` npm) | Everything else |
-| Numbers / data | **Geist Mono** | All money, quantities, account numbers, prices. Always `font-variant-numeric: tabular-nums` |
+| Display | **Instrument Serif** (self-hosted via `@fontsource/instrument-serif`, so a strict CSP needs no font CDN) | Landing headlines, big balance figure on the dashboard. Tight tracking (`-0.02em`) |
+| UI | **Geist** (`@fontsource-variable/geist`; the `geist` npm package only ships `next/font` loaders) | Everything else |
+| Numbers / data | **Geist Mono** (`@fontsource-variable/geist-mono`) | All money, quantities, account numbers, prices. Always `font-variant-numeric: tabular-nums` |
 
 Scale (rem): 0.75 · 0.875 · 1 · 1.125 · 1.25 · 1.5 · 2 · 3 · 4.5 · 7 (landing hero only).
 Line-height: 1.5 for body, 1.1 for display.
