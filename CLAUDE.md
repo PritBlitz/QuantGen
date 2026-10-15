@@ -8,6 +8,8 @@ before cleverness. These rules apply to every session working in this repo.
 | Path | What | Owner session |
 |---|---|---|
 | `PRD.md` | Scope + **API contract (§7), the source of truth** | Shared; contract edits follow the protocol below |
+| `ARCHITECTURE.md` | How it's built: modules, ledger design, auth flow, data model, ADRs | Shared; update it when a design decision changes |
+| `docker-compose.dev.yml`, `.env.example` | Dev Postgres (port 5433), env var names | Shared |
 | `backend-quant/` | Spring Boot API (see `backend-quant/Setup.md`) | Backend session only |
 | `frontend-quant/` | React app (see `frontend-quant/CLAUDE.md`, `DESIGN.md`) | Frontend session only |
 | root `docker-compose.yml`, `.github/`, infra | Integration / deploy | Frontend session, from M6 onward |
@@ -58,4 +60,6 @@ or asking the other session. Don't guess on security or money.
 
 ## Environment
 Windows 11. Shells: PowerShell and Git Bash. JDK 25 (Temurin) at `C:\Users\ASUS\.jdks\temurin-25.0.4.1`
-(`JAVA_HOME`). Node 24, Docker available. Backend on `:8080`, frontend on `:5173`, Postgres on `:5432`.
+(`JAVA_HOME`). Node 24, Docker available. Backend on `:8080`, frontend on `:5173`, Postgres 17 (Docker, `docker-compose.dev.yml`) on
+**`:5433`**. A native PostgreSQL 18 Windows service owns `:5432`; it is not ours, so leave it alone.
+Architecture details: [`ARCHITECTURE.md`](ARCHITECTURE.md).

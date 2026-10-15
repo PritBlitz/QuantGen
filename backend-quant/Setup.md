@@ -26,7 +26,7 @@ the API contract the frontend is coding against.
   Lombok and some plugins lag behind non-LTS releases, so prefer 25. Run `java -version`
   first and tell the user if no JDK is on the PATH.
 - **Build:** Maven, through the **Maven wrapper** (`./mvnw`); no global Maven needed.
-- **Docker:** installed. Run Postgres from `backend-quant/docker-compose.dev.yml`.
+- **Docker:** Docker Desktop must be running. Postgres comes from the root `../docker-compose.dev.yml` (port 5433).
 - **Shell:** Windows, using Git Bash or PowerShell. Use `./mvnw` in Bash and `.\mvnw.cmd`
   in PowerShell.
 - `.idea/` already exists from IntelliJ. Leave it alone; the root `.gitignore` keeps it out of Git.
@@ -54,8 +54,12 @@ picks the current stable Spring Boot. Then add these dependencies to `pom.xml`:
 - `net.logstash.logback:logstash-logback-encoder` (JSON logs)
 - Test: `org.testcontainers:postgresql`, `junit-jupiter`
 
-Create `docker-compose.dev.yml` with **postgres:16** on port `5432`: database `quantgen`,
-user `quantgen`, password `quantgen` (dev only), plus a named volume.
+The dev database already exists: **`../docker-compose.dev.yml`** (repo root) runs
+**postgres:17-alpine** on **`localhost:5433`** with database `quantgen`, user `quantgen` and
+password `quantgen` (dev only). Port 5433 is used because a native PostgreSQL 18 service
+already occupies 5432 on this machine; don't touch that one. Use the
+`postgres:17-alpine` image in Testcontainers too. Read `../ARCHITECTURE.md` before
+writing `V1__init.sql`: the ledger model, invariants and DB guards are specified there.
 
 ## 4. Package layout
 ```
@@ -108,7 +112,7 @@ another module's repository. Everything that moves money calls
   system ledger accounts and instruments in migrations. Seed demo users and data **only**
   in the `dev` profile (use a `CommandLineRunner` with `@Profile("dev")`).
 - **Config:** `application.yml` holds the shared settings; `application-dev.yml` points at
-  localhost Postgres; `application-prod.yml` reads everything from env vars. Server port
+  `jdbc:postgresql://localhost:5433/quantgen`; `application-prod.yml` reads everything from env vars (names are in `../.env.example`). Server port
   is `8080`. CORS allows `http://localhost:5173`.
 - **Observability:** Actuator health; a filter that sets or echoes `X-Request-Id` and
   puts it into MDC; JSON logs in prod.
@@ -130,7 +134,7 @@ endpoints are now live.
 
 ## 7. Useful commands
 ```bash
-docker compose -f docker-compose.dev.yml up -d          # start Postgres
+docker compose -f ../docker-compose.dev.yml up -d       # start Postgres (localhost:5433)
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # run the API on :8080
 ./mvnw test                                             # unit tests
 ./mvnw verify                                           # unit + integration (Testcontainers)

@@ -1,0 +1,48 @@
+# Local development infrastructure for QuantGen.
+# Host port 5433 avoids clashing with the native PostgreSQL 18 service on 5432.
+#
+#   docker compose -f docker-compose.dev.yml up -d                  # Postgres only
+#   docker compose -f docker-compose.dev.yml --profile tools up -d  # + pgAdmin on :5051
+#   docker compose -f docker-compose.dev.yml exec postgres psql -U quantgen -d quantgen
+#
+# Credentials below are DEV-ONLY defaults; override them via a local .env (see .env.example).
+
+name: quantgen-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: quantgen-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quantgen}
+      POSTGRES_USER: ${POSTGRES_USER:-quantgen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quantgen}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - quantgen-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: quantgen-pgadmin
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@quantgen.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "127.0.0.1:5051:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  quantgen-pgdata:
