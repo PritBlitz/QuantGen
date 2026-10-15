@@ -2,3 +2,6 @@ qg:
   jwt:
     # Test-only secret.
     secret: dGVzdC1vbmx5LXF1YW50Z2VuLWp3dC1zZWNyZXQtbm90LWZvci1wcm9kdWN0aW9uLXVzZS0wMTIzNDU2Nzg5
+  auth:
+    # Test-only: cheap hashes keep integration tests fast. Production and dev use the default cost 12.
+    bcrypt-cost: 4

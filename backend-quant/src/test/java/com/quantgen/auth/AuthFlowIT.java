@@ -48,7 +48,7 @@ class AuthFlowIT extends IntegrationTest {
         assertThat((String) accounts.getFirst().get("account_number")).matches("[0-9]{12}");
 
         String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE email = ?", String.class, email);
-        assertThat(hash).startsWith("$2").contains("$12$");
+        assertThat(hash).startsWith("$2"); // BCrypt (cost is lowered in the test profile)
     }
 
     @Test

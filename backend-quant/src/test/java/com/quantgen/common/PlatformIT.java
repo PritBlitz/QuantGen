@@ -131,6 +131,9 @@ class PlatformIT extends IntegrationTest {
                     + "VALUES (?, ?, 'DEBIT', ?::numeric, 0)", entryId, BANK_CASH, amount);
             jdbc.update("INSERT INTO ledger_lines (journal_entry_id, ledger_account_id, direction, amount, balance_after) "
                     + "VALUES (?, ?, 'CREDIT', ?::numeric, 0)", entryId, INTEREST_INCOME, amount);
+            // Keep the cached balances consistent so reconciliation in other tests stays green.
+            jdbc.update("UPDATE ledger_accounts SET balance = balance + ?::numeric WHERE id IN (?, ?)",
+                    amount, BANK_CASH, INTEREST_INCOME);
         });
         return entryId;
     }
