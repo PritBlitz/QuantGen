@@ -33,5 +33,5 @@ export const NAV: NavItem[] = [
 
 export const SECONDARY_NAV: NavItem[] = [
   { to: '/notifications', label: 'Notifications', icon: Bell, milestone: 'M5' },
-  { to: '/profile', label: 'Profile', icon: UserRound, milestone: 'M5' },
+  { to: '/profile', label: 'Profile', icon: UserRound },
 ]

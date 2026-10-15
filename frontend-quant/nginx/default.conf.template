@@ -1,0 +1,82 @@
+# QuantGen SPA + same-origin reverse proxy (ARCHITECTURE §2: no CORS in prod).
+# Rendered by the nginx image's envsubst step: ${QG_API_UPSTREAM} → e.g. api:8080.
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}
+
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  server_tokens off;
+  client_max_body_size 64k;
+
+  # ── Security headers (ARCHITECTURE §9) ─────────────────────────────────────────────
+  # Scripts: 'self' only (no inline JS anywhere; the theme bootstrap is an external file).
+  # Styles: 'unsafe-inline' is needed for React style attributes and the <style> tags that
+  # Radix (scroll lock) and sonner inject at runtime. connect-src 'self' covers same-origin
+  # ws/wss in CSP3 browsers.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+  add_header Cross-Origin-Opener-Policy "same-origin" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  gzip on;
+  gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+  gzip_min_length 1024;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  # ── API + WebSocket → Spring Boot ─────────────────────────────────────────────────
+  location /api/ {
+    proxy_pass http://${QG_API_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+
+  location /ws {
+    proxy_pass http://${QG_API_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
+  }
+
+  # Hashed build assets: cache forever.
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    # add_header in a location drops the server-level ones, so repeat the essentials.
+    add_header X-Content-Type-Options "nosniff" always;
+    try_files $uri =404;
+  }
+
+  # SPA fallback; index.html is never cached so deploys take effect immediately.
+  location / {
+    try_files $uri $uri/ /index.html;
+    add_header Cache-Control "no-cache" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  }
+}
