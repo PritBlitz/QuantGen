@@ -30,7 +30,7 @@ const SAVINGS = 'a1f3c2d4-0001-4b5e-9c7d-111111111111'
 
 /** jsdom reports a narrow viewport, so the ticket opens as the mobile sheet. */
 async function openTicket(user: ReturnType<typeof userEvent.setup>, side: 'Buy' | 'Sell') {
-  const open = await screen.findByRole('button', { name: side, exact: true })
+  const open = await screen.findByRole('button', { name: new RegExp(`^${side}$`) })
   await waitFor(() => expect(open).toBeEnabled())
   await user.click(open)
   return screen.findByRole('dialog')

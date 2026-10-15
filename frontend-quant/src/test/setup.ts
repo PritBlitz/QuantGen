@@ -19,7 +19,7 @@ vi.mock('lightweight-charts', () => {
 })
 
 // Lazy routes are transformed on first import in tests; allow for that cold start.
-configure({ asyncUtilTimeout: 5000 })
+configure({ asyncUtilTimeout: 10_000 })
 
 // jsdom lacks matchMedia (used by motion's reduced-motion hook).
 if (!window.matchMedia) {

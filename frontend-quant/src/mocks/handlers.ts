@@ -20,7 +20,17 @@ import type {
   UserDto,
 } from '@/api/types'
 import { Decimal } from '@/lib/money'
-import { createDb, tickPrices, type MockDb } from './db'
+import {
+  eligibility,
+  emi,
+  LOAN_MAX,
+  LOAN_MIN,
+  schedule,
+  TENURE_MAX,
+  TENURE_MIN,
+  totals,
+} from '@/lib/emi'
+import { createDb, tickPrices, type MockDb, type MockLoan } from './db'
 
 const BASE = '/api/v1'
 const ACCESS_TTL_SECONDS = 900
@@ -94,6 +104,38 @@ const istDate = (iso: string) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(iso))
 const last4 = (n: string) => `\u2022\u2022\u2022\u2022${n.slice(-4)}`
 const DAILY_LIMIT = new Decimal(500000)
+
+const toLoanDto = ({
+  userId: _u,
+  monthlyIncome: _m,
+  disburseAccountId: _d,
+  purpose: _p,
+  decisionReason: _r,
+  schedule: _s,
+  ...l
+}: MockLoan) => l
+const toLoanDetail = ({ userId: _u, monthlyIncome: _m, disburseAccountId: _d, ...l }: MockLoan) => l
+
+const existingEmis = (userId: string) =>
+  db.loans
+    .filter((l) => l.userId === userId && l.status === 'ACTIVE')
+    .reduce((s, l) => s.plus(l.emi), new Decimal(0))
+
+function loanFieldErrors(b: Record<string, unknown>): FieldError[] {
+  const fe: FieldError[] = []
+  if (
+    !isMoney(b.amount) ||
+    new Decimal(String(b.amount)).lt(LOAN_MIN) ||
+    new Decimal(String(b.amount)).gt(LOAN_MAX)
+  )
+    fe.push({ field: 'amount', message: 'must be between 10000.00 and 1000000.00' })
+  const t = b.tenureMonths
+  if (typeof t !== 'number' || !Number.isInteger(t) || t < TENURE_MIN || t > TENURE_MAX)
+    fe.push({ field: 'tenureMonths', message: 'must be a whole number from 6 to 60' })
+  if (!isMoney(b.monthlyIncome) || new Decimal(String(b.monthlyIncome)).lte(0))
+    fe.push({ field: 'monthlyIncome', message: 'must be a positive amount' })
+  return fe
+}
 const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
 const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => a
 
@@ -702,9 +744,142 @@ export const handlers = [
     await delay(280)
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
-    return HttpResponse.json(
-      db.loans.filter((l) => l.userId === user.id).map(({ userId: _u, ...l }) => l),
+    return HttpResponse.json(db.loans.filter((l) => l.userId === user.id).map(toLoanDto))
+  }),
+
+  http.post(`${BASE}/loans/quote`, async ({ request }) => {
+    await delay(200)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    const fe = loanFieldErrors(b)
+    if (fe.length) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+    const rows = schedule(String(b.amount), Number(b.tenureMonths))
+    const { totalInterest, totalPayable } = totals(rows)
+    const e = emi(String(b.amount), Number(b.tenureMonths))
+    const verdict = eligibility(String(b.amount), e, String(b.monthlyIncome), existingEmis(user.id))
+    return HttpResponse.json({
+      emi: e.toFixed(2),
+      totalInterest: totalInterest.toFixed(2),
+      totalPayable: totalPayable.toFixed(2),
+      eligible: verdict.eligible,
+      ...(verdict.reason ? { reason: verdict.reason } : {}),
+    })
+  }),
+
+  http.post(`${BASE}/loans`, async ({ request }) => {
+    await delay(600)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    const fe = loanFieldErrors(b)
+    const purpose = typeof b.purpose === 'string' ? b.purpose.trim() : ''
+    if (purpose.length < 3 || purpose.length > 200)
+      fe.push({ field: 'purpose', message: 'must be 3-200 characters' })
+    const acc = db.accounts.get(String(b.disburseAccountId))
+    if (!acc || acc.userId !== user.id)
+      fe.push({ field: 'disburseAccountId', message: 'account not found' })
+    if (fe.length) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+    const verdict = eligibility(
+      String(b.amount),
+      emi(String(b.amount), Number(b.tenureMonths)),
+      String(b.monthlyIncome),
+      existingEmis(user.id),
     )
+    if (!verdict.eligible)
+      return error(422, 'LOAN_NOT_ELIGIBLE', verdict.reason ?? 'Not eligible', request)
+    const loan: MockLoan = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      amount: new Decimal(String(b.amount)).toFixed(2),
+      tenureMonths: Number(b.tenureMonths),
+      annualRate: '12.00',
+      emi: emi(String(b.amount), Number(b.tenureMonths)).toFixed(2),
+      status: 'PENDING',
+      outstandingPrincipal: '0.00',
+      nextDueDate: null,
+      createdAt: new Date().toISOString(),
+      purpose,
+      decisionReason: null,
+      schedule: [],
+      monthlyIncome: new Decimal(String(b.monthlyIncome)).toFixed(2),
+      disburseAccountId: String(b.disburseAccountId),
+    }
+    db.loans.unshift(loan)
+    return HttpResponse.json(toLoanDto(loan), { status: 201 })
+  }),
+
+  http.get(`${BASE}/loans/:id`, async ({ request, params }) => {
+    await delay(250)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const loan = db.loans.find((l) => l.id === params.id && l.userId === user.id)
+    if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
+    return HttpResponse.json(toLoanDetail(loan))
+  }),
+
+  http.post(`${BASE}/loans/:id/repay`, async ({ request, params }) => {
+    await delay(550)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    const idem = idempotent(request, user.id, { id: params.id, ...b })
+    if (idem.early) return idem.early
+    const loan = db.loans.find((l) => l.id === params.id && l.userId === user.id)
+    if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
+    if (loan.status !== 'ACTIVE') return error(409, 'INVALID_STATE', 'Loan is not active', request)
+    const acc = db.accounts.get(String(b.accountId))
+    if (!acc || acc.userId !== user.id) return error(404, 'NOT_FOUND', 'Account not found', request)
+    if (acc.status === 'FROZEN') return error(422, 'ACCOUNT_FROZEN', 'Account is frozen', request)
+    const unpaid = loan.schedule.filter((r) => r.status !== 'PAID')
+    const next = unpaid[0]
+    if (!next) return error(409, 'INVALID_STATE', 'Nothing due', request)
+    if (b.amount !== undefined && !isMoney(b.amount))
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'amount', message: 'must be a positive amount with at most 2 decimals' },
+      ])
+    const amount = new Decimal(typeof b.amount === 'string' ? b.amount : next.emi)
+    const maxDue = unpaid.reduce((s, r) => s.plus(r.emi), new Decimal(0))
+    if (amount.lt(1) || amount.gt(maxDue))
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'amount', message: `must be between 1.00 and ${maxDue.toFixed(2)}` },
+      ])
+    if (new Decimal(acc.balance).lt(amount))
+      return error(422, 'INSUFFICIENT_FUNDS', 'Insufficient funds', request)
+
+    // Oldest dues first: whole instalments, then any remainder prepays principal.
+    let left = amount
+    let principalPaid = new Decimal(0)
+    let interestPaid = new Decimal(0)
+    const now = new Date().toISOString()
+    for (const row of unpaid) {
+      if (left.lt(row.emi)) break
+      row.status = 'PAID'
+      row.paidAt = now
+      left = left.minus(row.emi)
+      principalPaid = principalPaid.plus(row.principal)
+      interestPaid = interestPaid.plus(row.interest)
+    }
+    principalPaid = principalPaid.plus(left)
+    postLine(acc, 'DEBIT', amount, 'LOAN_REPAYMENT', 'Loan repayment', null, crypto.randomUUID())
+    const outstanding = new Decimal(loan.outstandingPrincipal).minus(principalPaid)
+    loan.outstandingPrincipal = (outstanding.isNegative() ? new Decimal(0) : outstanding).toFixed(2)
+    const stillDue = loan.schedule.find((r) => r.status !== 'PAID')
+    loan.nextDueDate = stillDue?.dueDate ?? null
+    if (new Decimal(loan.outstandingPrincipal).isZero() || !stillDue) {
+      loan.status = 'CLOSED'
+      loan.nextDueDate = null
+    }
+    const dto = {
+      id: crypto.randomUUID(),
+      loanId: loan.id,
+      amount: amount.toFixed(2),
+      principalPaid: principalPaid.toFixed(2),
+      interestPaid: interestPaid.toFixed(2),
+      createdAt: now,
+    }
+    idem.save(201, dto)
+    return HttpResponse.json(dto, { status: 201 })
   }),
 
   // §7.8 Notifications

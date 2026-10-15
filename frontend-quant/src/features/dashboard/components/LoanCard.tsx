@@ -1,47 +1,13 @@
-import { motion, useReducedMotion } from 'motion/react'
 import { Calculator } from 'lucide-react'
 import { Link } from 'react-router'
 import { Money } from '@/components/Money'
+import { ProgressRing } from '@/components/ProgressRing'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Decimal, ratio } from '@/lib/money'
-import { EASE_OUT_EXPO } from '@/lib/motion'
 import { formatDate } from '@/lib/time'
 import { useLoans } from '../hooks'
 import { CardError, DashCard } from './CardShell'
-
-const R = 42
-const C = 2 * Math.PI * R
-
-function ProgressRing({ value, label }: { value: number; label: string }) {
-  const reduce = useReducedMotion()
-  return (
-    <div className="relative size-32 shrink-0">
-      <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label={label}>
-        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="8" />
-        <motion.circle
-          cx="50"
-          cy="50"
-          r={R}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={C}
-          initial={{ strokeDashoffset: reduce ? C * (1 - value) : C }}
-          animate={{ strokeDashoffset: C * (1 - value) }}
-          transition={{ duration: reduce ? 0 : 0.9, ease: EASE_OUT_EXPO }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center" aria-hidden="true">
-        <div>
-          <p className="num text-xl font-semibold">{Math.round(value * 100)}%</p>
-          <p className="text-[0.6875rem] text-muted">repaid</p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function LoanCard({ className }: { className?: string }) {
   const { data, isPending, isError, refetch } = useLoans()

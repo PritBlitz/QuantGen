@@ -6,12 +6,13 @@ import type {
   AccountDto,
   BeneficiaryDto,
   InstrumentDto,
-  LoanDto,
+  LoanDetailDto,
   OrderDto,
   TransactionDto,
   TransferDto,
   UserDto,
 } from '@/api/types'
+import { schedule } from '@/lib/emi'
 import { Decimal } from '@/lib/money'
 
 export interface MockUser {
@@ -27,6 +28,12 @@ export interface MockHolding {
   realizedPnl: string
 }
 
+export type MockLoan = LoanDetailDto & {
+  userId: string
+  monthlyIncome: string
+  disburseAccountId: string
+}
+
 export interface MockDb {
   users: Map<string, MockUser>
   accounts: Map<string, AccountDto & { userId: string }>
@@ -36,7 +43,7 @@ export interface MockDb {
   instruments: Map<string, InstrumentDto & { open: string }>
   holdings: MockHolding[]
   orders: Array<OrderDto & { userId: string }>
-  loans: Array<LoanDto & { userId: string }>
+  loans: MockLoan[]
   idempotency: Map<string, { hash: string; status: number; body: unknown }>
   failedLogins: Map<string, number[]>
   unread: Map<string, number>
@@ -236,18 +243,7 @@ export function createDb(): MockDb {
     },
   )
 
-  db.loans.push({
-    id: 'b0a11111-2222-4333-8444-555566667777',
-    userId: DEMO_USER_ID,
-    amount: '200000.0000',
-    tenureMonths: 24,
-    annualRate: '12.00',
-    emi: '9414.6900',
-    status: 'ACTIVE',
-    outstandingPrincipal: '142318.4600',
-    nextDueDate: '2026-11-05',
-    createdAt: '2026-03-28T10:00:00Z',
-  })
+  db.loans.push(seededLoan())
 
   db.unread.set(DEMO_USER_ID, 3)
   return db
@@ -266,5 +262,62 @@ export function tickPrices(db: MockDb) {
     inst.price = next.toFixed(2)
     inst.changePct24h = pct(inst.price, inst.open)
     inst.updatedAt = now
+  }
+}
+
+/** yyyy-mm-dd, `months` after 2026-04-05 (the seeded loan's first due date). */
+export function addMonths(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.split('-').map((x) => Number.parseInt(x, 10)) as [
+    number,
+    number,
+    number,
+  ]
+  const total = m - 1 + months
+  const yy = y + Math.floor(total / 12)
+  const mm = (total % 12) + 1
+  return `${yy}-${String(mm).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/** Build a loan's instalment schedule (F-LOAN-3) starting at `firstDue`. */
+export function buildSchedule(amount: string, months: number, firstDue: string) {
+  return schedule(amount, months).map((r) => ({
+    installmentNo: r.installmentNo,
+    dueDate: addMonths(firstDue, r.installmentNo - 1),
+    emi: r.emi.toFixed(2),
+    principal: r.principal.toFixed(2),
+    interest: r.interest.toFixed(2),
+    status: 'PENDING' as const,
+    paidAt: null as string | null,
+  }))
+}
+
+/** ₹2,00,000 over 24 months, 7 EMIs paid: numbers come from the real schedule. */
+function seededLoan(): MockLoan {
+  const sched = buildSchedule('200000', 24, '2026-04-05')
+  const paidCount = 7
+  sched.slice(0, paidCount).forEach((row) => {
+    row.status = 'PAID' as never
+    row.paidAt = `${row.dueDate}T00:30:00Z`
+  })
+  const first = sched[0]
+  const next = sched[paidCount]
+  if (!first || !next) throw new Error('seed schedule too short')
+  const outstanding = sched.slice(paidCount).reduce((s, r) => s.plus(r.principal), new Decimal(0))
+  return {
+    id: 'b0a11111-2222-4333-8444-555566667777',
+    userId: DEMO_USER_ID,
+    amount: '200000.00',
+    tenureMonths: 24,
+    annualRate: '12.00',
+    emi: first.emi,
+    status: 'ACTIVE',
+    outstandingPrincipal: outstanding.toFixed(2),
+    nextDueDate: next.dueDate,
+    createdAt: '2026-03-28T10:00:00Z',
+    purpose: 'Home renovation',
+    decisionReason: 'Meets income and EMI criteria',
+    schedule: sched,
+    monthlyIncome: '85000.00',
+    disburseAccountId: 'a1f3c2d4-0001-4b5e-9c7d-111111111111',
   }
 }

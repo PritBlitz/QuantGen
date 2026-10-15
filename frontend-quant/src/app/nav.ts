@@ -28,7 +28,7 @@ export const NAV: NavItem[] = [
   { to: '/markets', label: 'Markets', icon: CandlestickChart, mobile: true },
   { to: '/portfolio', label: 'Portfolio', icon: BriefcaseBusiness },
   { to: '/orders', label: 'Orders', icon: ReceiptText },
-  { to: '/loans', label: 'Loans', icon: HandCoins, mobile: true, milestone: 'M4' },
+  { to: '/loans', label: 'Loans', icon: HandCoins, mobile: true },
 ]
 
 export const SECONDARY_NAV: NavItem[] = [
