@@ -5,3 +5,6 @@ qg:
   auth:
     # Test-only: cheap hashes keep integration tests fast. Production and dev use the default cost 12.
     bcrypt-cost: 4
+  market:
+    # Tests drive PriceSimulator.tick() explicitly for deterministic prices.
+    simulator-enabled: false

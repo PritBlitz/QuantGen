@@ -16,6 +16,9 @@ spring:
     locations: classpath:db/migration
   jackson:
     time-zone: UTC
+    deserialization:
+      # Reject 1.5 for an integer field (e.g. order quantity) instead of silently truncating it.
+      accept-float-as-int: false
   threads:
     virtual:
       enabled: true
@@ -49,5 +52,8 @@ springdoc:
   packages-to-scan: com.quantgen
 
 qg:
+  market:
+    simulator-enabled: true
+    tick-millis: 3000
   cors:
     allowed-origins: ${QG_CORS_ORIGINS:http://localhost:5173}
