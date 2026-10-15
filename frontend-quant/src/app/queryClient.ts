@@ -16,3 +16,10 @@ export function createQueryClient() {
     },
   })
 }
+
+declare module '@tanstack/react-query' {
+  interface Register {
+    // Every query/mutation error passes through the axios interceptor → ApiError.
+    defaultError: ApiError
+  }
+}

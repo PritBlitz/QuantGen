@@ -22,8 +22,8 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, mobile: true },
-  { to: '/accounts', label: 'Accounts', icon: Wallet, mobile: true, milestone: 'M2' },
-  { to: '/transfer', label: 'Transfer', icon: ArrowLeftRight, mobile: true, milestone: 'M2' },
+  { to: '/accounts', label: 'Accounts', icon: Wallet, mobile: true },
+  { to: '/transfer', label: 'Transfer', icon: ArrowLeftRight, mobile: true },
   { to: '/markets', label: 'Markets', icon: CandlestickChart, mobile: true, milestone: 'M3' },
   { to: '/portfolio', label: 'Portfolio', icon: BriefcaseBusiness, milestone: 'M3' },
   { to: '/loans', label: 'Loans', icon: HandCoins, mobile: true, milestone: 'M4' },

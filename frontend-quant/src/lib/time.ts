@@ -39,3 +39,20 @@ export function formatRelative(iso: string, now: number = Date.now()): string {
   if (abs < 86_400) return rtf.format(Math.round(diffSec / 3600), 'hour')
   return formatAbsolute(iso)
 }
+
+const istDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' })
+
+/** Today's date in IST as yyyy-MM-dd (the backend's date filters are IST calendar days). */
+export function todayIST(now: Date = new Date()): string {
+  return istDateFmt.format(now)
+}
+
+/** yyyy-MM-dd in IST, `days` before today. */
+export function daysAgoIST(days: number, now: Date = new Date()): string {
+  return istDateFmt.format(new Date(now.getTime() - days * 86_400_000))
+}
+
+/** Whole days between two yyyy-MM-dd dates (b − a). */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
+}

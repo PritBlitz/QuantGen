@@ -60,6 +60,25 @@ export const routes: RouteObject[] = [
                   Component: (await import('@/features/dashboard/DashboardPage')).DashboardPage,
                 }),
               },
+              {
+                path: 'accounts',
+                lazy: async () => ({
+                  Component: (await import('@/features/accounts/AccountsPage')).AccountsPage,
+                }),
+              },
+              {
+                path: 'accounts/:id',
+                lazy: async () => ({
+                  Component: (await import('@/features/accounts/AccountDetailPage'))
+                    .AccountDetailPage,
+                }),
+              },
+              {
+                path: 'transfer',
+                lazy: async () => ({
+                  Component: (await import('@/features/transfers/TransferPage')).TransferPage,
+                }),
+              },
               ...comingSoon,
             ],
           },

@@ -144,10 +144,26 @@ export function createDb(): MockDb {
       number,
     ]
   > = [
-    [savings.id, 'CREDIT', '25000.0000', 'TRANSFER', 'Transfer from Priya Nair', 'Priya Nair', 14],
+    [
+      savings.id,
+      'CREDIT',
+      '25000.0000',
+      'TRANSFER',
+      'Transfer from Priya Nair',
+      'From Priya Nair ••••5518',
+      14,
+    ],
     [checking.id, 'DEBIT', '6425.0000', 'TRADE', 'Bought 5 × QGEN', null, 95],
     [savings.id, 'DEBIT', '9414.6900', 'LOAN_REPAYMENT', 'EMI 7 of 24', null, 60 * 26],
-    [savings.id, 'DEBIT', '12000.0000', 'TRANSFER', 'Rent — October', 'Meera Iyer', 60 * 50],
+    [
+      savings.id,
+      'DEBIT',
+      '12000.0000',
+      'TRANSFER',
+      'Rent — October',
+      'To Meera Iyer ••••2290',
+      60 * 50,
+    ],
     [
       checking.id,
       'CREDIT',

@@ -402,8 +402,11 @@ export const handlers = [
         { field: 'amount', message: 'must be between 1.00 and 200000.00' },
       ])
     const amount = new Decimal(b.amount)
+    // Backend: over the per-transfer max is a 400 on "amount"; only the daily cap is 422.
     if (amount.gt(200000))
-      return error(422, 'LIMIT_EXCEEDED', 'Per-transfer limit is 200000.00', request)
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'amount', message: 'must be at most 200000.00' },
+      ])
     if (from.status === 'FROZEN') return error(422, 'ACCOUNT_FROZEN', 'Account is frozen', request)
     const to = [...db.accounts.values()].find((a) => a.accountNumber === b.toAccountNumber)
     if (!to || to.id === from.id || to.status === 'CLOSED') {
