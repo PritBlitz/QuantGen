@@ -79,6 +79,30 @@ export const routes: RouteObject[] = [
                   Component: (await import('@/features/transfers/TransferPage')).TransferPage,
                 }),
               },
+              {
+                path: 'markets',
+                lazy: async () => ({
+                  Component: (await import('@/features/markets/MarketsPage')).MarketsPage,
+                }),
+              },
+              {
+                path: 'markets/:symbol',
+                lazy: async () => ({
+                  Component: (await import('@/features/markets/InstrumentPage')).InstrumentPage,
+                }),
+              },
+              {
+                path: 'portfolio',
+                lazy: async () => ({
+                  Component: (await import('@/features/portfolio/PortfolioPage')).PortfolioPage,
+                }),
+              },
+              {
+                path: 'orders',
+                lazy: async () => ({
+                  Component: (await import('@/features/portfolio/OrdersPage')).OrdersPage,
+                }),
+              },
               ...comingSoon,
             ],
           },

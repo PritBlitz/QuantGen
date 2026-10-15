@@ -9,6 +9,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/accounts', milestone: 'M2' },
   { prefix: '/api/v1/transfers', milestone: 'M2' },
   { prefix: '/api/v1/beneficiaries', milestone: 'M2' },
+  { prefix: '/api/v1/market/', milestone: 'M3' },
+  { prefix: '/api/v1/orders', milestone: 'M3' },
+  { prefix: '/api/v1/portfolio', milestone: 'M3' },
 ]
 
 export const isLive = (pathname: string) => LIVE_PREFIXES.some((l) => pathname.startsWith(l.prefix))

@@ -46,5 +46,10 @@ export default tseslint.config(
     files: ['src/lib/prefs.ts', 'e2e/**'],
     rules: { 'no-restricted-globals': 'off' },
   },
+  {
+    // In tests a failed `!` fails the test loudly, which is what we want.
+    files: ['**/*.test.{ts,tsx}', 'e2e/**'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
   prettier,
 )

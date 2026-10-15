@@ -45,6 +45,12 @@ export function moneyErrorCopy(
       }
       return { title: 'This is over a limit.', detail: e.message, next: 'edit' }
     }
+    case 'INSUFFICIENT_HOLDINGS':
+      return {
+        title: 'You don’t hold enough shares to sell that many.',
+        detail: 'Lower the quantity, or check your portfolio.',
+        next: 'edit',
+      }
     case 'ACCOUNT_FROZEN':
       return {
         title: 'This account is frozen.',

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useIdleTimeout, useLogout, useSilentRefresh } from '@/features/auth/session'
 import { useAuthStore } from '@/features/auth/store'
+import { useLivePriceFeed } from '@/features/markets/hooks'
 import { pageVariants, pageVariantsReduced } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { CommandPalette } from '../CommandPalette'
@@ -25,6 +26,7 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   useSilentRefresh()
+  useLivePriceFeed()
   const onIdle = useCallback(() => void logout('idle'), [logout])
   const { secondsLeft, stayActive } = useIdleTimeout(onIdle)
 

@@ -58,7 +58,7 @@ export function CommandPalette({
           <Item onSelect={run(() => void navigate('/transfer'))} icon={<Plus />}>
             Transfer money
           </Item>
-          <Item onSelect={run(() => void navigate('/markets'))} icon={<Plus />}>
+          <Item onSelect={run(() => void navigate('/markets/QGEN'))} icon={<Plus />}>
             Buy QGEN
           </Item>
           <Item onSelect={run(toggleTheme)} icon={theme === 'dark' ? <Sun /> : <Moon />}>

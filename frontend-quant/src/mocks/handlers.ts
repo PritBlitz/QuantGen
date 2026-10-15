@@ -11,6 +11,7 @@ import type {
   ErrorCode,
   FieldError,
   HoldingDto,
+  OrderDto,
   Page,
   PortfolioDto,
   PricePointDto,
@@ -546,24 +547,114 @@ export const handlers = [
     return HttpResponse.json([...db.instruments.values()].map(({ open: _o, ...i }) => i))
   }),
 
+  http.get(`${BASE}/market/instruments/:symbol`, async ({ request, params }) => {
+    await delay(200)
+    if (!userFrom(request)) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    maybeTick()
+    const inst = db.instruments.get(String(params.symbol).toUpperCase())
+    if (!inst) return error(404, 'NOT_FOUND', 'Instrument not found', request)
+    const { open: _o, ...dto } = inst
+    return HttpResponse.json(dto)
+  }),
+
   http.get(`${BASE}/market/instruments/:symbol/history`, ({ request, params }) => {
     if (!userFrom(request)) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
-    const inst = db.instruments.get(String(params.symbol))
+    const inst = db.instruments.get(String(params.symbol).toUpperCase())
     if (!inst) return error(404, 'NOT_FOUND', 'Instrument not found', request)
     const range = new URL(request.url).searchParams.get('range') ?? '1D'
+    if (!['1H', '1D', '1W'].includes(range))
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'range', message: 'must be one of 1H, 1D, 1W' },
+      ])
     const span = range === '1H' ? 3_600_000 : range === '1W' ? 7 * 86_400_000 : 86_400_000
     const points = 60
-    // Walk backwards from the current price so the series ends on it.
-    let p = new Decimal(inst.price)
+    // Drift from the open price to the current price with bounded noise, so the line agrees
+    // with changePct24h. Oldest first, like the backend.
+    const end = new Decimal(inst.price)
+    const startPrice = range === '1H' ? end.times('0.998') : new Decimal(inst.open)
     const out: PricePointDto[] = []
     for (let i = 0; i < points; i++) {
-      out.unshift({
-        t: new Date(Date.now() - (i * span) / points).toISOString(),
-        price: p.toFixed(2),
+      const f = new Decimal(i).div(points - 1)
+      const trend = startPrice.plus(end.minus(startPrice).times(f))
+      const noise = i === points - 1 ? 0 : Math.round((Math.random() - 0.5) * 60) // ±0.3%
+      out.push({
+        t: new Date(Date.now() - ((points - 1 - i) * span) / (points - 1)).toISOString(),
+        price: trend.times(new Decimal(10_000 + noise).div(10_000)).toFixed(2),
       })
-      p = p.times(new Decimal(10_000 + Math.round((Math.random() - 0.5) * 120)).div(10_000))
     }
     return HttpResponse.json(out)
+  }),
+
+  http.post(`${BASE}/orders`, async ({ request }) => {
+    await delay(550)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const b = (await request.json()) as Record<string, unknown>
+    const idem = idempotent(request, user.id, b)
+    if (idem.early) return idem.early
+    const acc = db.accounts.get(String(b.accountId))
+    if (!acc || acc.userId !== user.id) return error(404, 'NOT_FOUND', 'Account not found', request)
+    const symbol = typeof b.symbol === 'string' ? b.symbol.toUpperCase() : ''
+    const inst = db.instruments.get(symbol)
+    const fe: FieldError[] = []
+    if (!inst) fe.push({ field: 'symbol', message: 'unknown instrument' })
+    if (b.side !== 'BUY' && b.side !== 'SELL')
+      fe.push({ field: 'side', message: 'must be BUY or SELL' })
+    const qty = b.quantity
+    if (typeof qty !== 'number' || !Number.isInteger(qty) || qty < 1 || qty > 10000)
+      fe.push({ field: 'quantity', message: 'must be a whole number from 1 to 10000' })
+    if (fe.length || !inst || typeof qty !== 'number')
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+    if (acc.status === 'FROZEN') return error(422, 'ACCOUNT_FROZEN', 'Account is frozen', request)
+    maybeTick()
+    const price = new Decimal(inst.price)
+    const total = price.times(qty).toDecimalPlaces(2)
+    let holding = db.holdings.find((h) => h.userId === user.id && h.symbol === symbol)
+    if (b.side === 'BUY') {
+      if (new Decimal(acc.balance).lt(total))
+        return error(422, 'INSUFFICIENT_FUNDS', 'Insufficient funds', request)
+      postLine(acc, 'DEBIT', total, 'TRADE', `Bought ${qty} × ${symbol}`, null, crypto.randomUUID())
+      if (!holding) {
+        holding = { userId: user.id, symbol, quantity: 0, avgCost: '0.00', realizedPnl: '0' }
+        db.holdings.push(holding)
+      }
+      const newQty = holding.quantity + qty
+      holding.avgCost = new Decimal(holding.avgCost)
+        .times(holding.quantity)
+        .plus(total)
+        .div(newQty)
+        .toDecimalPlaces(2)
+        .toFixed(2)
+      holding.quantity = newQty
+    } else {
+      if (!holding || holding.quantity < qty)
+        return error(422, 'INSUFFICIENT_HOLDINGS', 'Not enough shares to sell', request)
+      postLine(acc, 'CREDIT', total, 'TRADE', `Sold ${qty} × ${symbol}`, null, crypto.randomUUID())
+      holding.realizedPnl = new Decimal(holding.realizedPnl)
+        .plus(price.minus(holding.avgCost).times(qty))
+        .toFixed(4)
+      holding.quantity -= qty
+    }
+    const dto: OrderDto = {
+      id: crypto.randomUUID(),
+      symbol,
+      side: b.side as OrderDto['side'],
+      quantity: qty,
+      price: price.toFixed(2),
+      total: total.toFixed(2),
+      status: 'FILLED',
+      createdAt: new Date().toISOString(),
+    }
+    db.orders.unshift({ ...dto, userId: user.id })
+    idem.save(201, dto)
+    return HttpResponse.json(dto, { status: 201 })
+  }),
+
+  http.get(`${BASE}/orders`, ({ request }) => {
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const items = db.orders.filter((o) => o.userId === user.id).map(({ userId: _u, ...o }) => o)
+    return HttpResponse.json(paginate(items, new URL(request.url)))
   }),
 
   http.get(`${BASE}/portfolio`, async ({ request }) => {

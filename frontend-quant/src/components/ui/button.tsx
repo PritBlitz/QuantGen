@@ -18,7 +18,7 @@ const buttonVariants = cva(
         secondary: 'bg-surface-2 text-text hairline hover:border-muted/40',
         ghost: 'text-text hover:bg-surface-2',
         outline: 'hairline text-text hover:bg-surface-2',
-        destructive: 'bg-loss text-white hover:opacity-90',
+        destructive: 'bg-loss text-bg hover:opacity-90',
         link: 'text-text underline-offset-4 hover:underline px-0 h-auto',
       },
       size: {

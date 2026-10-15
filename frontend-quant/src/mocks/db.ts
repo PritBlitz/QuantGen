@@ -218,20 +218,20 @@ export function createDb(): MockDb {
   }
 
   db.holdings.push(
-    { userId: DEMO_USER_ID, symbol: 'QGEN', quantity: 40, avgCost: '1180.2500', realizedPnl: '0' },
+    { userId: DEMO_USER_ID, symbol: 'QGEN', quantity: 40, avgCost: '1180.25', realizedPnl: '0' },
     {
       userId: DEMO_USER_ID,
       symbol: 'TCS',
       quantity: 12,
-      avgCost: '3890.0000',
+      avgCost: '3890.00',
       realizedPnl: '1240.5000',
     },
-    { userId: DEMO_USER_ID, symbol: 'HDFC', quantity: 30, avgCost: '1745.1000', realizedPnl: '0' },
+    { userId: DEMO_USER_ID, symbol: 'HDFC', quantity: 30, avgCost: '1745.10', realizedPnl: '0' },
     {
       userId: DEMO_USER_ID,
       symbol: 'ITC',
       quantity: 100,
-      avgCost: '451.8000',
+      avgCost: '451.80',
       realizedPnl: '-310.0000',
     },
   )

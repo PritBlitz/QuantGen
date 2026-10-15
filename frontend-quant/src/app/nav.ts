@@ -5,6 +5,7 @@ import {
   CandlestickChart,
   HandCoins,
   LayoutDashboard,
+  ReceiptText,
   UserRound,
   Wallet,
   type LucideIcon,
@@ -24,8 +25,9 @@ export const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, mobile: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, mobile: true },
   { to: '/transfer', label: 'Transfer', icon: ArrowLeftRight, mobile: true },
-  { to: '/markets', label: 'Markets', icon: CandlestickChart, mobile: true, milestone: 'M3' },
-  { to: '/portfolio', label: 'Portfolio', icon: BriefcaseBusiness, milestone: 'M3' },
+  { to: '/markets', label: 'Markets', icon: CandlestickChart, mobile: true },
+  { to: '/portfolio', label: 'Portfolio', icon: BriefcaseBusiness },
+  { to: '/orders', label: 'Orders', icon: ReceiptText },
   { to: '/loans', label: 'Loans', icon: HandCoins, mobile: true, milestone: 'M4' },
 ]
 
