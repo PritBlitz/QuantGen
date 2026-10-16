@@ -4,8 +4,22 @@
  */
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
-import { accountsApi, loansApi, marketApi, paymentsApi } from './endpoints'
-import type { PageQuery, PriceRange, TransactionQuery } from './types'
+import {
+  accountsApi,
+  adminApi,
+  loansApi,
+  marketApi,
+  notificationsApi,
+  paymentsApi,
+} from './endpoints'
+import type {
+  AdminLoanQuery,
+  AdminUserQuery,
+  AuditLogQuery,
+  PageQuery,
+  PriceRange,
+  TransactionQuery,
+} from './types'
 
 export const queryKeys = {
   accounts: ['accounts'] as const,
@@ -22,6 +36,14 @@ export const queryKeys = {
   instrument: (symbol: string) => ['market', 'instruments', symbol] as const,
   history: (symbol: string, range: PriceRange) =>
     ['market', 'instruments', symbol, 'history', range] as const,
+  notifications: (unreadOnly: boolean) => ['notifications', 'list', { unreadOnly }] as const,
+  unreadCount: ['notifications', 'unread-count'] as const,
+  adminStats: ['admin', 'stats'] as const,
+  adminUsers: (q: AdminUserQuery) => ['admin', 'users', q] as const,
+  adminUser: (id: string) => ['admin', 'users', 'detail', id] as const,
+  adminLoans: (q: AdminLoanQuery) => ['admin', 'loans', q] as const,
+  auditLogs: (q: AuditLogQuery) => ['admin', 'audit-logs', q] as const,
+  reconcile: ['admin', 'reconcile'] as const,
 }
 
 export const useAccounts = () =>
@@ -74,3 +96,56 @@ export function useInvalidateMoney() {
     [qc],
   )
 }
+
+// §7.8 Notifications
+export const useNotifications = (unreadOnly: boolean) =>
+  useQuery({
+    queryKey: queryKeys.notifications(unreadOnly),
+    queryFn: () => notificationsApi.list(unreadOnly),
+    placeholderData: keepPreviousData,
+  })
+
+export const useUnreadCount = () =>
+  useQuery({
+    queryKey: queryKeys.unreadCount,
+    queryFn: notificationsApi.unreadCount,
+    refetchInterval: 60_000,
+  })
+
+// §7.7 Admin
+export const useAdminStats = () =>
+  useQuery({ queryKey: queryKeys.adminStats, queryFn: adminApi.stats })
+
+export const useAdminUsers = (q: AdminUserQuery) =>
+  useQuery({
+    queryKey: queryKeys.adminUsers(q),
+    queryFn: () => adminApi.users(q),
+    placeholderData: keepPreviousData,
+  })
+
+export const useAdminUser = (id: string) =>
+  useQuery({ queryKey: queryKeys.adminUser(id), queryFn: () => adminApi.user(id) })
+
+export const useAdminLoans = (q: AdminLoanQuery) =>
+  useQuery({
+    queryKey: queryKeys.adminLoans(q),
+    queryFn: () => adminApi.loans(q),
+    placeholderData: keepPreviousData,
+  })
+
+export const useAuditLogs = (q: AuditLogQuery) =>
+  useQuery({
+    queryKey: queryKeys.auditLogs(q),
+    queryFn: () => adminApi.auditLogs(q),
+    placeholderData: keepPreviousData,
+  })
+
+/** On demand only: reconciliation scans the whole ledger, so it never auto-refetches. */
+export const useReconcile = () =>
+  useQuery({
+    queryKey: queryKeys.reconcile,
+    queryFn: adminApi.reconcile,
+    enabled: false,
+    staleTime: Infinity,
+    retry: false,
+  })

@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/features/auth/store'
 import { db } from './handlers'
+import { signInAs } from '@/test/utils'
 import { DEMO_USER_ID } from './db'
 
 // The M2 screens are built against these mocks, so they must follow the backend's
@@ -145,6 +146,73 @@ describe('mock M2 rules', () => {
     await expect(add('777788889999')).rejects.toMatchObject({
       status: 409,
       code: 'VALIDATION_FAILED',
+    })
+  })
+})
+
+describe('mock M5 rules (PRD §7.7/§7.8)', () => {
+  const PRIYA_LOAN = 'c0000000-0000-4000-8000-000000000001'
+
+  it('denies every admin endpoint to customers with 403', async () => {
+    signInAs('CUSTOMER')
+    for (const call of [
+      () => api.get('/admin/stats'),
+      () => api.get('/admin/users'),
+      () => api.get('/admin/loans'),
+      () => api.get('/admin/audit-logs'),
+      () => api.get('/admin/ledger/reconcile'),
+      () => api.post(`/admin/loans/${PRIYA_LOAN}/approve`, {}),
+      () => api.patch(`/admin/accounts/${SAVINGS}/status`, { status: 'FROZEN', reason: 'testing' }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    }
+    expect(db.loans.find((l) => l.id === PRIYA_LOAN)?.status).toBe('PENDING')
+  })
+
+  it('approves a pending loan exactly once; a second decision is 409 INVALID_STATE', async () => {
+    signInAs('ADMIN')
+    const ok = await api.post(`/admin/loans/${PRIYA_LOAN}/approve`, {})
+    expect(ok.data).toMatchObject({ status: 'ACTIVE', outstandingPrincipal: '300000.00' })
+    await expect(api.post(`/admin/loans/${PRIYA_LOAN}/approve`, {})).rejects.toMatchObject({
+      status: 409,
+      code: 'INVALID_STATE',
+    })
+    await expect(
+      api.post(`/admin/loans/${PRIYA_LOAN}/reject`, { reason: 'too late now' }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('rejects a freeze without a reason, and a no-op status change', async () => {
+    signInAs('ADMIN')
+    await expect(
+      api.patch(`/admin/accounts/${SAVINGS}/status`, { status: 'FROZEN', reason: ' ' }),
+    ).rejects.toMatchObject({ status: 400, fieldErrors: [{ field: 'reason' }] })
+    await expect(
+      api.patch(`/admin/accounts/${SAVINGS}/status`, { status: 'ACTIVE', reason: 'already on' }),
+    ).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE' })
+  })
+
+  it('returns 404, not 403, for another user’s notification', async () => {
+    signInAs('ADMIN')
+    const demoNotification = db.notifications.find((n) => n.userId === DEMO_USER_ID)!
+    await expect(api.patch(`/notifications/${demoNotification.id}/read`)).rejects.toMatchObject({
+      status: 404,
+      code: 'NOT_FOUND',
+    })
+    expect(demoNotification.read).toBe(false)
+  })
+
+  it('notifies the recipient of a transfer (MONEY_RECEIVED), not the sender', async () => {
+    signIn()
+    addOtherUserAccount('777788889999')
+    await transfer(
+      { fromAccountId: SAVINGS, toAccountNumber: '777788889999', amount: '500.00' },
+      crypto.randomUUID(),
+    )
+    expect(db.notifications[0]).toMatchObject({
+      userId: '11111111-2222-4333-8444-555555555555',
+      type: 'MONEY_RECEIVED',
+      body: '₹500.00 from Aarav Sharma into ••••9999.',
     })
   })
 })

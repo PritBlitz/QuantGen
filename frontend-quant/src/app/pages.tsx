@@ -1,33 +1,24 @@
-import { ArrowLeft, Hammer } from 'lucide-react'
-import { Link, useLocation } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { NAV, SECONDARY_NAV } from './nav'
+import { useAuthStore } from '@/features/auth/store'
+import { homeFor } from './nav'
 
-/** Placeholder for pages scheduled in later milestones (PRD §10). */
-export function ComingSoonPage() {
-  const { pathname } = useLocation()
-  const item = [...NAV, ...SECONDARY_NAV].find((n) => n.to === pathname)
+/** 404 inside the app shell (unknown in-app route, or a page this role can't see). */
+export function InShellNotFound() {
+  const role = useAuthStore((s) => s.user?.role)
   return (
-    <div className="space-y-6">
-      <h1 className="font-display text-4xl">{item?.label ?? 'Coming soon'}</h1>
-      <Card className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2">
-          <Hammer aria-hidden="true" className="size-4 text-muted" />
-        </span>
-        <div className="flex-1">
-          <p className="font-medium">This screen is being built.</p>
-          <p className="text-sm text-muted">
-            It ships with milestone {item?.milestone ?? 'soon'}. Your dashboard has a live summary
-            in the meantime.
-          </p>
-        </div>
-        <Button variant="secondary" asChild>
-          <Link to="/dashboard">
-            <ArrowLeft aria-hidden="true" /> Dashboard
+    <div className="grid place-items-center py-20 text-center">
+      <div>
+        <p className="num text-sm text-muted">404</p>
+        <h1 className="mt-2 font-display text-5xl">Nothing here.</h1>
+        <p className="mt-3 text-muted">That page doesn’t exist, or it moved.</p>
+        <Button asChild className="mt-8">
+          <Link to={homeFor(role)}>
+            <ArrowLeft aria-hidden="true" /> Back to {role === 'ADMIN' ? 'overview' : 'dashboard'}
           </Link>
         </Button>
-      </Card>
+      </div>
     </div>
   )
 }

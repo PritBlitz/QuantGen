@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { errorMessage, toApiError } from '@/api/errors'
 import { FormField } from '@/components/FormField'
+import { homeFor } from '@/app/nav'
 import { Button } from '@/components/ui/button'
 import { useLogin } from '../session'
 import { loginSchema, type LoginValues } from '../schemas'
@@ -43,7 +44,7 @@ export function LoginPage() {
       onSuccess: (res) => {
         // Only same-app paths, never an absolute URL (open-redirect guard).
         const from = state.from?.startsWith('/') && !state.from.startsWith('//') ? state.from : null
-        void navigate(from ?? '/dashboard', { replace: true })
+        void navigate(from ?? homeFor(res.user.role), { replace: true })
         toast.success(`Welcome back, ${res.user.fullName.split(' ')[0]}`)
       },
       onError: (err) => {

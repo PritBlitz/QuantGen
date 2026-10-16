@@ -1,10 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bell, ChevronDown, Command as CommandIcon, LogOut, UserRound } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useCallback, useState } from 'react'
 import { Link, NavLink, useLocation, useOutlet } from 'react-router'
-import { notificationsApi } from '@/api/endpoints'
+import { useUnreadCount } from '@/api/queries'
 import { Logo, LogoMark } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
@@ -15,7 +14,7 @@ import { useLivePriceFeed } from '@/features/markets/hooks'
 import { pageVariants, pageVariantsReduced } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { CommandPalette } from '../CommandPalette'
-import { NAV } from '../nav'
+import { homeFor, useMainNav } from '../nav'
 
 export function AppShell() {
   const location = useLocation()
@@ -30,11 +29,10 @@ export function AppShell() {
   const onIdle = useCallback(() => void logout('idle'), [logout])
   const { secondsLeft, stayActive } = useIdleTimeout(onIdle)
 
-  const unread = useQuery({
-    queryKey: ['notifications', 'unread-count'],
-    queryFn: notificationsApi.unreadCount,
-    refetchInterval: 60_000,
-  })
+  const nav = useMainNav()
+  const home = homeFor(user?.role)
+  const isAdmin = user?.role === 'ADMIN'
+  const unread = useUnreadCount()
   const unreadCount = unread.data?.count ?? 0
 
   return (
@@ -48,14 +46,20 @@ export function AppShell() {
 
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-border px-4 py-5 lg:flex">
-        <Link to="/dashboard" className="px-2" aria-label="QuantGen dashboard">
+        <Link to={home} className="px-2" aria-label="QuantGen home">
           <Logo />
         </Link>
-        <nav aria-label="Main" className="mt-10 flex flex-col gap-0.5">
-          {NAV.map((item) => (
+        {isAdmin && (
+          <p className="mt-8 px-3 text-[0.6875rem] font-medium uppercase tracking-wider text-muted">
+            Operations
+          </p>
+        )}
+        <nav aria-label="Main" className={cn('flex flex-col gap-0.5', isAdmin ? 'mt-2' : 'mt-10')}>
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.end}
               className={({ isActive }) =>
                 cn(
                   'group flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-sm transition-colors',
@@ -93,7 +97,7 @@ export function AppShell() {
       <div className="flex min-w-0 flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-bg/80 px-4 backdrop-blur-md sm:px-6">
-          <Link to="/dashboard" className="lg:hidden" aria-label="QuantGen dashboard">
+          <Link to={home} className="lg:hidden" aria-label="QuantGen home">
             <LogoMark />
           </Link>
           <div className="ml-auto flex items-center gap-1">
@@ -123,10 +127,14 @@ export function AppShell() {
             <ThemeToggle />
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button variant="ghost" className="gap-2 px-2" aria-label="Account menu">
-                  <span className="grid size-7 place-items-center rounded-full bg-surface-2 text-xs font-semibold hairline">
+                <Button variant="ghost" className="gap-2 px-2">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-7 place-items-center rounded-full bg-surface-2 text-xs font-semibold hairline"
+                  >
                     {initials(user?.fullName)}
                   </span>
+                  <span className="sr-only">Account menu</span>
                   <ChevronDown aria-hidden="true" className="hidden text-muted sm:block" />
                 </Button>
               </DropdownMenu.Trigger>
@@ -176,25 +184,31 @@ export function AppShell() {
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
-        {NAV.filter((i) => i.mobile).map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                'flex flex-col items-center gap-1 py-2.5 text-[0.6875rem] transition-colors',
-                isActive ? 'text-text' : 'text-muted',
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <item.icon aria-hidden="true" className={cn('size-5', isActive && 'text-accent')} />
-                {item.label}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {nav
+          .filter((i) => i.mobile)
+          .map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center gap-1 py-2.5 text-[0.6875rem] transition-colors',
+                  isActive ? 'text-text' : 'text-muted',
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon
+                    aria-hidden="true"
+                    className={cn('size-5', isActive && 'text-accent')}
+                  />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
+          ))}
       </nav>
 
       <CommandPalette

@@ -4,15 +4,17 @@
  */
 import type {
   AccountDto,
+  AuditLogDto,
   BeneficiaryDto,
   InstrumentDto,
   LoanDetailDto,
+  NotificationDto,
   OrderDto,
   TransactionDto,
   TransferDto,
   UserDto,
 } from '@/api/types'
-import { schedule } from '@/lib/emi'
+import { emi, schedule } from '@/lib/emi'
 import { Decimal } from '@/lib/money'
 
 export interface MockUser {
@@ -46,7 +48,8 @@ export interface MockDb {
   loans: MockLoan[]
   idempotency: Map<string, { hash: string; status: number; body: unknown }>
   failedLogins: Map<string, number[]>
-  unread: Map<string, number>
+  notifications: Array<NotificationDto & { userId: string }>
+  auditLogs: AuditLogDto[]
 }
 
 export const DEMO_USER_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
@@ -90,7 +93,8 @@ export function createDb(): MockDb {
     loans: [],
     idempotency: new Map(),
     failedLogins: new Map(),
-    unread: new Map(),
+    notifications: [],
+    auditLogs: [],
   }
 
   db.users.set('demo@quantgen.dev', {
@@ -245,8 +249,241 @@ export function createDb(): MockDb {
 
   db.loans.push(seededLoan())
 
-  db.unread.set(DEMO_USER_ID, 3)
+  seedCustomers(db)
+  seedNotifications(db)
+  seedAuditLogs(db)
   return db
+}
+
+/** Other customers, so the admin screens have a queue and a user list to work with. */
+function seedCustomers(db: MockDb) {
+  const people: Array<{
+    id: string
+    name: string
+    email: string
+    phone: string
+    joined: string
+    accounts: Array<[string, string, AccountDto['type'], AccountDto['status'], string]>
+    pendingLoan?: [string, string, number, string, string]
+  }> = [
+    {
+      id: '11110000-0000-4000-8000-000000000001',
+      name: 'Priya Nair',
+      email: 'priya.nair@example.com',
+      phone: '+919811100001',
+      joined: '2026-07-19T06:30:00Z',
+      accounts: [
+        [
+          'a2000000-0000-4000-8000-000000000001',
+          '502190125518',
+          'SAVINGS',
+          'ACTIVE',
+          '318420.5000',
+        ],
+      ],
+      pendingLoan: [
+        'c0000000-0000-4000-8000-000000000001',
+        '300000.00',
+        36,
+        '110000.00',
+        'Small business working capital',
+      ],
+    },
+    {
+      id: '11110000-0000-4000-8000-000000000002',
+      name: 'Meera Iyer',
+      email: 'meera.iyer@example.com',
+      phone: '+919811100002',
+      joined: '2026-08-02T12:10:00Z',
+      accounts: [
+        ['a2000000-0000-4000-8000-000000000002', '502193342290', 'SAVINGS', 'ACTIVE', '96210.0000'],
+        [
+          'a2000000-0000-4000-8000-000000000003',
+          '502193347731',
+          'CHECKING',
+          'ACTIVE',
+          '12400.0000',
+        ],
+      ],
+    },
+    {
+      id: '11110000-0000-4000-8000-000000000003',
+      name: 'Rohan Mehta',
+      email: 'rohan.mehta@example.com',
+      phone: '+919811100003',
+      joined: '2026-09-11T09:45:00Z',
+      accounts: [
+        ['a2000000-0000-4000-8000-000000000004', '502195560614', 'SAVINGS', 'FROZEN', '2150.0000'],
+      ],
+    },
+    {
+      id: '11110000-0000-4000-8000-000000000004',
+      name: 'Kavya Reddy',
+      email: 'kavya.reddy@example.com',
+      phone: '+919811100004',
+      joined: '2026-10-09T15:20:00Z',
+      accounts: [
+        ['a2000000-0000-4000-8000-000000000005', '502197784402', 'SAVINGS', 'ACTIVE', '45000.0000'],
+      ],
+      pendingLoan: [
+        'c0000000-0000-4000-8000-000000000002',
+        '50000.00',
+        12,
+        '42000.00',
+        'Laptop for freelance work',
+      ],
+    },
+  ]
+  for (const p of people) {
+    db.users.set(p.email, {
+      password: 'Customer@1234',
+      user: {
+        id: p.id,
+        fullName: p.name,
+        email: p.email,
+        phone: p.phone,
+        role: 'CUSTOMER',
+        createdAt: p.joined,
+      },
+    })
+    for (const [id, accountNumber, type, status, balance] of p.accounts) {
+      db.accounts.set(id, {
+        id,
+        userId: p.id,
+        accountNumber,
+        type,
+        status,
+        balance,
+        currency: 'INR',
+        createdAt: p.joined,
+      })
+    }
+    if (p.pendingLoan) {
+      const [id, amount, tenureMonths, monthlyIncome, purpose] = p.pendingLoan
+      const disburse = p.accounts[0]
+      if (!disburse) throw new Error('seed customer without an account')
+      db.loans.push({
+        id,
+        userId: p.id,
+        amount,
+        tenureMonths,
+        annualRate: '12.00',
+        emi: emi(amount, tenureMonths).toFixed(2),
+        status: 'PENDING',
+        outstandingPrincipal: '0.00',
+        nextDueDate: null,
+        createdAt: iso(60 * 5 + tenureMonths),
+        purpose,
+        decisionReason: null,
+        schedule: [],
+        monthlyIncome,
+        disburseAccountId: disburse[0],
+      })
+    }
+  }
+}
+
+function seedNotifications(db: MockDb) {
+  const rows: Array<[NotificationDto['type'], string, string, number, boolean]> = [
+    [
+      'MONEY_RECEIVED',
+      'Money received',
+      '₹25,000.00 from Priya Nair into Savings ••••4821.',
+      14,
+      false,
+    ],
+    [
+      'EMI_DUE',
+      'EMI due soon',
+      'EMI 8 of 24 (₹9,414.69) on your home renovation loan is due in 5 days.',
+      60 * 3,
+      false,
+    ],
+    [
+      'EMI_PAID',
+      'EMI paid',
+      'EMI 7 of 24 (₹9,414.69) was paid from Savings ••••4821.',
+      60 * 26,
+      false,
+    ],
+    [
+      'LOAN_APPROVED',
+      'Loan approved',
+      'Your ₹2,00,000.00 loan was approved and disbursed into Savings ••••4821.',
+      60 * 24 * 30,
+      true,
+    ],
+  ]
+  rows.forEach(([type, title, body, minsAgo, read], i) => {
+    db.notifications.push({
+      id: `0a0a0a0a-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      userId: DEMO_USER_ID,
+      type,
+      title,
+      body,
+      read,
+      createdAt: iso(minsAgo),
+    })
+  })
+}
+
+function seedAuditLogs(db: MockDb) {
+  const rows: Array<
+    [string | null, string | null, string, string | null, string | null, string | null, number]
+  > = [
+    [DEMO_USER_ID, 'demo@quantgen.dev', 'LOGIN_SUCCESS', 'USER', DEMO_USER_ID, null, 20],
+    [null, 'unknown@example.com', 'LOGIN_FAILED', null, null, 'Invalid credentials', 45],
+    [
+      ADMIN_USER_ID,
+      'admin@quantgen.dev',
+      'ACCOUNT_FROZEN',
+      'ACCOUNT',
+      'a2000000-0000-4000-8000-000000000004',
+      'Account ••••0614 frozen: suspected card fraud reported by customer',
+      60 * 30,
+    ],
+    [
+      DEMO_USER_ID,
+      'demo@quantgen.dev',
+      'LARGE_TRANSFER',
+      'TRANSFER',
+      null,
+      '₹1,50,000.00 to ••••2290',
+      60 * 50,
+    ],
+    [
+      ADMIN_USER_ID,
+      'admin@quantgen.dev',
+      'LOAN_APPROVED',
+      'LOAN',
+      'b0a11111-2222-4333-8444-555566667777',
+      'Meets income and EMI criteria',
+      60 * 24 * 30,
+    ],
+    [
+      ADMIN_USER_ID,
+      'admin@quantgen.dev',
+      'LOGIN_SUCCESS',
+      'USER',
+      ADMIN_USER_ID,
+      null,
+      60 * 24 * 30 + 5,
+    ],
+  ]
+  rows.forEach(([actorId, actorEmail, action, targetType, targetId, details, minsAgo], i) => {
+    db.auditLogs.push({
+      id: `0d0d0d0d-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      actorId,
+      actorEmail,
+      action,
+      targetType,
+      targetId,
+      details,
+      ip: i % 2 ? '10.0.0.24' : '127.0.0.1',
+      requestId: `req-${String(i).padStart(4, '0')}`,
+      createdAt: iso(minsAgo),
+    })
+  })
 }
 
 /** Random walk, bounded and never ≤ ₹1 (mirrors F-TRD-2), applied lazily on read. */

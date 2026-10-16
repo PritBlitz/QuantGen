@@ -1,13 +1,52 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
-import { GuestOnly, RequireAuth, SessionSplash } from './guards'
-import { NAV, SECONDARY_NAV } from './nav'
-import { ComingSoonPage, NotFoundPage, RouteErrorPage } from './pages'
+import { GuestOnly, RequireAdmin, RequireAuth, SessionSplash } from './guards'
+import { NotFoundPage, RouteErrorPage } from './pages'
 import { Root } from './Root'
 
-// Route-level code splitting: the landing page never downloads the app shell, and vice versa.
-const comingSoon: RouteObject[] = [...NAV, ...SECONDARY_NAV]
-  .filter((n) => n.milestone)
-  .map((n) => ({ path: n.to.slice(1), Component: ComingSoonPage }))
+// Route-level code splitting: the landing page never downloads the app shell, and vice versa,
+// and customers never download the admin console.
+const admin: RouteObject = {
+  path: 'admin',
+  Component: RequireAdmin,
+  children: [
+    {
+      index: true,
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminOverviewPage')).AdminOverviewPage,
+      }),
+    },
+    {
+      path: 'users',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminUsersPage')).AdminUsersPage,
+      }),
+    },
+    {
+      path: 'users/:id',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminUserDetailPage')).AdminUserDetailPage,
+      }),
+    },
+    {
+      path: 'loans',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminLoansPage')).AdminLoansPage,
+      }),
+    },
+    {
+      path: 'audit',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminAuditPage')).AdminAuditPage,
+      }),
+    },
+    {
+      path: 'reconcile',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminReconcilePage')).AdminReconcilePage,
+      }),
+    },
+  ],
+}
 
 export const routes: RouteObject[] = [
   {
@@ -121,7 +160,14 @@ export const routes: RouteObject[] = [
                   Component: (await import('@/features/profile/ProfilePage')).ProfilePage,
                 }),
               },
-              ...comingSoon,
+              {
+                path: 'notifications',
+                lazy: async () => ({
+                  Component: (await import('@/features/notifications/NotificationsPage'))
+                    .NotificationsPage,
+                }),
+              },
+              admin,
             ],
           },
         ],

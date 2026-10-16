@@ -140,19 +140,22 @@ export function InstrumentPage() {
                   </Tabs.Trigger>
                 ))}
               </Tabs.List>
-              <div className="mt-4">
-                {history.isPending ? (
-                  <Skeleton className="h-72 sm:h-96" />
-                ) : history.isError ? (
-                  <CardError what="the chart" onRetry={() => void history.refetch()} />
-                ) : (
-                  <PriceChart
-                    points={history.data}
-                    live={range === '1H' ? i : undefined}
-                    label={`${symbol} price, last ${range}`}
-                  />
-                )}
-              </div>
+              {/* One panel per tab so each trigger's aria-controls resolves. */}
+              {RANGES.map((r) => (
+                <Tabs.Content key={r} value={r} className="mt-4 focus-visible:outline-none">
+                  {r !== range ? null : history.isPending ? (
+                    <Skeleton className="h-72 sm:h-96" />
+                  ) : history.isError ? (
+                    <CardError what="the chart" onRetry={() => void history.refetch()} />
+                  ) : (
+                    <PriceChart
+                      points={history.data}
+                      live={range === '1H' ? i : undefined}
+                      label={`${symbol} price, last ${range}`}
+                    />
+                  )}
+                </Tabs.Content>
+              ))}
             </Tabs.Root>
           </Card>
 

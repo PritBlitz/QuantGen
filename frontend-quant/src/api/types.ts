@@ -292,12 +292,112 @@ export interface RepaymentDto {
   createdAt: IsoDateTime
 }
 
+// §7.7 Admin ───────────────────────────────────────────────────────────────────────
+export interface AdminUserDto {
+  id: Uuid
+  fullName: string
+  email: string
+  phone: string
+  role: Role
+  accountCount: number
+  createdAt: IsoDateTime
+}
+
+export interface AdminUserDetailDto extends AdminUserDto {
+  accounts: AccountDto[]
+  loans: LoanDto[]
+}
+
+export interface AdminUserQuery extends PageQuery {
+  q?: string
+}
+
+export interface AccountStatusRequest {
+  status: Extract<AccountStatus, 'ACTIVE' | 'FROZEN'>
+  reason: string
+}
+
+export interface LoanApplicant {
+  userId: Uuid
+  fullName: string
+  email: string
+}
+
+export interface AdminLoanDto extends LoanDto {
+  applicant: LoanApplicant
+  monthlyIncome: MoneyString
+  purpose: string
+  decisionReason: string | null
+}
+
+export interface AdminLoanQuery extends PageQuery {
+  status?: LoanStatus
+}
+
+export interface LoanDecisionRequest {
+  reason?: string
+}
+
+export interface StatsDto {
+  totalUsers: number
+  totalDeposits: MoneyString
+  activeLoans: number
+  outstandingPrincipal: MoneyString
+  tradesToday: number
+}
+
+export interface AuditLogDto {
+  id: Uuid
+  actorId: Uuid | null
+  actorEmail: string | null
+  action: string
+  targetType: string | null
+  targetId: string | null
+  details: string | null
+  ip: string | null
+  requestId: string | null
+  createdAt: IsoDateTime
+}
+
+export interface AuditLogQuery extends PageQuery {
+  actor?: string
+  action?: string
+}
+
+export interface ReconcileMismatch {
+  ledgerAccountId: Uuid
+  /** Null for system accounts (BANK_CASH, LOAN_RECEIVABLE, ...). */
+  accountNumber: string | null
+  cachedBalance: MoneyString
+  ledgerBalance: MoneyString
+}
+
+export interface ReconcileDto {
+  balanced: boolean
+  ledgerSum: MoneyString
+  mismatches: ReconcileMismatch[]
+}
+
 // §7.8 Notifications ───────────────────────────────────────────────────────────────
-// NotificationDto's fields are not yet defined in PRD §7; the backend will add them at M5.
-// Until then only the unread count is typed.
+export type NotificationType =
+  | 'MONEY_RECEIVED'
+  | 'LOAN_APPROVED'
+  | 'LOAN_REJECTED'
+  | 'EMI_DUE'
+  | 'EMI_PAID'
+  | 'EMI_OVERDUE'
+  | 'ACCOUNT_FROZEN'
+  | 'ACCOUNT_UNFROZEN'
+
+export interface NotificationDto {
+  id: Uuid
+  type: NotificationType
+  title: string
+  body: string
+  read: boolean
+  createdAt: IsoDateTime
+}
+
 export interface UnreadCountDto {
   count: number
 }
-
-// §7.7 Admin: AdminUserDto, AdminUserDetailDto, StatsDto, AuditLogDto and the loan
-// "applicant" shape are not yet defined in PRD §7 (backend proposes them at M5).

@@ -3,7 +3,8 @@ import { LogOut, Moon, Plus, Search, Sun } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useTheme } from '@/lib/theme'
-import { NAV, SECONDARY_NAV } from './nav'
+import { SECONDARY_NAV, useMainNav } from './nav'
+import { useAuthStore } from '@/features/auth/store'
 
 /** ⌘K / Ctrl+K palette (DESIGN.md §3.4). */
 export function CommandPalette({
@@ -16,6 +17,8 @@ export function CommandPalette({
   onLogout: () => void
 }) {
   const navigate = useNavigate()
+  const nav = useMainNav()
+  const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN')
   const theme = useTheme((s) => s.theme)
   const toggleTheme = useTheme((s) => s.toggle)
 
@@ -55,18 +58,26 @@ export function CommandPalette({
           No results.
         </Command.Empty>
         <Group heading="Actions">
-          <Item onSelect={run(() => void navigate('/transfer'))} icon={<Plus />}>
-            Transfer money
-          </Item>
-          <Item onSelect={run(() => void navigate('/markets/QGEN'))} icon={<Plus />}>
-            Buy QGEN
-          </Item>
+          {isAdmin ? (
+            <Item onSelect={run(() => void navigate('/admin/loans'))} icon={<Plus />}>
+              Review pending loans
+            </Item>
+          ) : (
+            <>
+              <Item onSelect={run(() => void navigate('/transfer'))} icon={<Plus />}>
+                Transfer money
+              </Item>
+              <Item onSelect={run(() => void navigate('/markets/QGEN'))} icon={<Plus />}>
+                Buy QGEN
+              </Item>
+            </>
+          )}
           <Item onSelect={run(toggleTheme)} icon={theme === 'dark' ? <Sun /> : <Moon />}>
             Switch to {theme === 'dark' ? 'light' : 'dark'} theme
           </Item>
         </Group>
         <Group heading="Go to">
-          {[...NAV, ...SECONDARY_NAV].map((item) => (
+          {[...nav, ...SECONDARY_NAV].map((item) => (
             <Item key={item.to} onSelect={run(() => void navigate(item.to))} icon={<item.icon />}>
               {item.label}
             </Item>

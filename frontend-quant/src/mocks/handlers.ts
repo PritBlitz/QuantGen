@@ -6,11 +6,14 @@
 import { delay, http, HttpResponse } from 'msw'
 import type {
   AccountDto,
+  AdminLoanDto,
+  AdminUserDto,
   AuthResponse,
   ErrorBody,
   ErrorCode,
   FieldError,
   HoldingDto,
+  NotificationDto,
   OrderDto,
   Page,
   PortfolioDto,
@@ -30,7 +33,7 @@ import {
   TENURE_MIN,
   totals,
 } from '@/lib/emi'
-import { createDb, tickPrices, type MockDb, type MockLoan } from './db'
+import { addMonths, buildSchedule, createDb, tickPrices, type MockDb, type MockLoan } from './db'
 
 const BASE = '/api/v1'
 const ACCESS_TTL_SECONDS = 900
@@ -73,12 +76,77 @@ function userFrom(request: Request): UserDto | null {
     import.meta.env.VITE_MOCKS_HYBRID === 'true' &&
     /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/.test(header)
   ) {
-    return db.users.get('demo@quantgen.dev')?.user ?? null
+    return (
+      db.users.get(jwtIsAdmin(header) ? 'admin@quantgen.dev' : 'demo@quantgen.dev')?.user ?? null
+    )
   }
   const m = /^Bearer mock\.([0-9a-f-]{36})\.[0-9a-f-]+$/.exec(header)
   if (!m) return null
   for (const { user } of db.users.values()) if (user.id === m[1]) return user
   return null
+}
+
+/** Hybrid mode only: peek at the (unverified) JWT payload to pick the matching mock user. */
+function jwtIsAdmin(header: string): boolean {
+  try {
+    const payload = header.split('.')[1] ?? ''
+    return /"ADMIN"|ROLE_ADMIN/.test(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch {
+    return false
+  }
+}
+
+/** 401 when signed out, 403 for non-admins (the real backend's deny-by-default). */
+function adminFrom(
+  request: Request,
+): { admin: UserDto; denied: null } | { admin: null; denied: Response } {
+  const user = userFrom(request)
+  if (!user)
+    return { admin: null, denied: error(401, 'UNAUTHORIZED', 'Authentication required', request) }
+  if (user.role !== 'ADMIN')
+    return { admin: null, denied: error(403, 'FORBIDDEN', 'Access denied', request) }
+  return { admin: user, denied: null }
+}
+
+function notify(userId: string, type: NotificationDto['type'], title: string, body: string) {
+  db.notifications.unshift({
+    id: crypto.randomUUID(),
+    userId,
+    type,
+    title,
+    body,
+    read: false,
+    createdAt: new Date().toISOString(),
+  })
+}
+
+function audit(
+  actor: UserDto,
+  action: string,
+  targetType: string | null,
+  targetId: string | null,
+  details: string | null,
+) {
+  db.auditLogs.unshift({
+    id: crypto.randomUUID(),
+    actorId: actor.id,
+    actorEmail: actor.email,
+    action,
+    targetType,
+    targetId,
+    details,
+    ip: '127.0.0.1',
+    requestId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  })
+}
+
+/** Notification copy only (mock side); grouping is done on the string, no float maths. */
+function inr(v: Decimal | string): string {
+  const [whole = '0', frac = '00'] = new Decimal(v).toFixed(2).split('.')
+  const last3 = whole.slice(-3)
+  const rest = whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',')
+  return `₹${rest ? `${rest},` : ''}${last3}.${frac}`
 }
 
 function issue(user: UserDto): HttpResponse<AuthResponse> {
@@ -135,6 +203,24 @@ function loanFieldErrors(b: Record<string, unknown>): FieldError[] {
   if (!isMoney(b.monthlyIncome) || new Decimal(String(b.monthlyIncome)).lte(0))
     fe.push({ field: 'monthlyIncome', message: 'must be a positive amount' })
   return fe
+}
+function toAdminUser(user: UserDto): AdminUserDto {
+  return { ...user, accountCount: ownAccounts(user.id).length }
+}
+
+function toAdminLoan(loan: MockLoan): AdminLoanDto {
+  const applicant = [...db.users.values()].find((u) => u.user.id === loan.userId)?.user
+  return {
+    ...toLoanDto(loan),
+    applicant: {
+      userId: loan.userId,
+      fullName: applicant?.fullName ?? 'Unknown',
+      email: applicant?.email ?? '',
+    },
+    monthlyIncome: loan.monthlyIncome,
+    purpose: loan.purpose,
+    decisionReason: loan.decisionReason,
+  }
 }
 const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
 const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => a
@@ -520,6 +606,21 @@ export const handlers = [
       createdAt: new Date().toISOString(),
     }
     db.transfers.unshift({ ...dto, userId: user.id })
+    if (toUser.id !== user.id)
+      notify(
+        toUser.id,
+        'MONEY_RECEIVED',
+        'Money received',
+        `${inr(amount)} from ${user.fullName} into ${last4(to.accountNumber)}.`,
+      )
+    if (amount.gte(100000))
+      audit(
+        user,
+        'LARGE_TRANSFER',
+        'TRANSFER',
+        dto.id,
+        `${inr(amount)} to ${last4(to.accountNumber)}`,
+      )
     idem.save(201, dto)
     return HttpResponse.json(dto, { status: 201 })
   }),
@@ -878,14 +979,246 @@ export const handlers = [
       interestPaid: interestPaid.toFixed(2),
       createdAt: now,
     }
+    notify(
+      user.id,
+      'EMI_PAID',
+      loan.status === 'CLOSED' ? 'Loan closed' : 'Repayment received',
+      `${inr(amount)} was applied to your loan from ${last4(acc.accountNumber)}.`,
+    )
     idem.save(201, dto)
     return HttpResponse.json(dto, { status: 201 })
   }),
 
+  // §7.7 Admin
+  http.get(`${BASE}/admin/stats`, async ({ request }) => {
+    await delay(300)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    const customerIds = new Set(
+      [...db.users.values()].filter((u) => u.user.role === 'CUSTOMER').map((u) => u.user.id),
+    )
+    const deposits = [...db.accounts.values()]
+      .filter((a) => customerIds.has(a.userId))
+      .reduce((s, a) => s.plus(a.balance), new Decimal(0))
+    const active = db.loans.filter((l) => l.status === 'ACTIVE')
+    const today = istDate(new Date().toISOString())
+    return HttpResponse.json({
+      totalUsers: db.users.size,
+      totalDeposits: deposits.toFixed(4),
+      activeLoans: active.length,
+      outstandingPrincipal: active
+        .reduce((s, l) => s.plus(l.outstandingPrincipal), new Decimal(0))
+        .toFixed(4),
+      tradesToday: db.orders.filter((o) => o.status === 'FILLED' && istDate(o.createdAt) === today)
+        .length,
+    })
+  }),
+
+  http.get(`${BASE}/admin/users`, async ({ request }) => {
+    await delay(280)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    const url = new URL(request.url)
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
+    const rows = [...db.users.values()]
+      .map((u) => toAdminUser(u.user))
+      .filter((u) => !q || [u.fullName, u.email, u.phone].some((f) => f.toLowerCase().includes(q)))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return HttpResponse.json(paginate(rows, url))
+  }),
+
+  http.get(`${BASE}/admin/users/:id`, async ({ request, params }) => {
+    await delay(260)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    const entry = [...db.users.values()].find((u) => u.user.id === params.id)
+    if (!entry) return error(404, 'NOT_FOUND', 'User not found', request)
+    return HttpResponse.json({
+      ...toAdminUser(entry.user),
+      accounts: ownAccounts(entry.user.id).map(publicAccount),
+      loans: db.loans.filter((l) => l.userId === entry.user.id).map(toLoanDto),
+    })
+  }),
+
+  http.patch(`${BASE}/admin/accounts/:id/status`, async ({ request, params }) => {
+    await delay(450)
+    const { admin, denied } = adminFrom(request)
+    if (denied) return denied
+    const b = (await request.json()) as Record<string, unknown>
+    const fe: FieldError[] = []
+    if (b.status !== 'ACTIVE' && b.status !== 'FROZEN')
+      fe.push({ field: 'status', message: 'must be ACTIVE or FROZEN' })
+    const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
+    if (reason.length < 5 || reason.length > 500)
+      fe.push({ field: 'reason', message: 'must be 5-500 characters' })
+    if (fe.length) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+    const acc = db.accounts.get(String(params.id))
+    if (!acc) return error(404, 'NOT_FOUND', 'Account not found', request)
+    if (acc.status === 'CLOSED' || acc.status === b.status)
+      return error(409, 'INVALID_STATE', `Account is already ${acc.status.toLowerCase()}`, request)
+    acc.status = b.status as 'ACTIVE' | 'FROZEN'
+    const frozen = acc.status === 'FROZEN'
+    audit(
+      admin,
+      frozen ? 'ACCOUNT_FROZEN' : 'ACCOUNT_UNFROZEN',
+      'ACCOUNT',
+      acc.id,
+      `Account ${last4(acc.accountNumber)}: ${reason}`,
+    )
+    notify(
+      acc.userId,
+      frozen ? 'ACCOUNT_FROZEN' : 'ACCOUNT_UNFROZEN',
+      frozen ? 'Account frozen' : 'Account unfrozen',
+      frozen
+        ? `Account ${last4(acc.accountNumber)} was frozen. It can still receive money. Reason: ${reason}`
+        : `Account ${last4(acc.accountNumber)} is active again.`,
+    )
+    return HttpResponse.json(publicAccount(acc))
+  }),
+
+  http.get(`${BASE}/admin/loans`, async ({ request }) => {
+    await delay(280)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const rows = db.loans
+      .filter((l) => !status || l.status === status)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(toAdminLoan)
+    return HttpResponse.json(paginate(rows, url))
+  }),
+
+  http.post(`${BASE}/admin/loans/:id/approve`, async ({ request, params }) => {
+    await delay(650)
+    const { admin, denied } = adminFrom(request)
+    if (denied) return denied
+    const b = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const reason = typeof b.reason === 'string' && b.reason.trim() ? b.reason.trim() : null
+    if (reason && reason.length > 500)
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'reason', message: 'must be at most 500 characters' },
+      ])
+    const loan = db.loans.find((l) => l.id === params.id)
+    if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
+    if (loan.status !== 'PENDING')
+      return error(409, 'INVALID_STATE', 'Loan is not pending', request)
+    const acc = db.accounts.get(loan.disburseAccountId)
+    if (!acc) return error(409, 'INVALID_STATE', 'Disbursal account missing', request)
+    // APPROVED → ACTIVE in one step: disburse (LOAN_RECEIVABLE → customer), build the schedule.
+    postLine(
+      acc,
+      'CREDIT',
+      new Decimal(loan.amount),
+      'LOAN_DISBURSAL',
+      'Loan disbursal',
+      null,
+      crypto.randomUUID(),
+    )
+    loan.schedule = buildSchedule(
+      loan.amount,
+      loan.tenureMonths,
+      addMonths(istDate(new Date().toISOString()), 1),
+    )
+    loan.status = 'ACTIVE'
+    loan.outstandingPrincipal = new Decimal(loan.amount).toFixed(2)
+    loan.nextDueDate = loan.schedule[0]?.dueDate ?? null
+    loan.decisionReason = reason ?? 'Approved'
+    audit(admin, 'LOAN_APPROVED', 'LOAN', loan.id, reason)
+    notify(
+      loan.userId,
+      'LOAN_APPROVED',
+      'Loan approved',
+      `Your ${inr(loan.amount)} loan was approved and disbursed into ${last4(acc.accountNumber)}.`,
+    )
+    return HttpResponse.json(toLoanDto(loan))
+  }),
+
+  http.post(`${BASE}/admin/loans/:id/reject`, async ({ request, params }) => {
+    await delay(500)
+    const { admin, denied } = adminFrom(request)
+    if (denied) return denied
+    const b = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
+    if (reason.length < 5 || reason.length > 500)
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'reason', message: 'must be 5-500 characters' },
+      ])
+    const loan = db.loans.find((l) => l.id === params.id)
+    if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
+    if (loan.status !== 'PENDING')
+      return error(409, 'INVALID_STATE', 'Loan is not pending', request)
+    loan.status = 'REJECTED'
+    loan.decisionReason = reason
+    audit(admin, 'LOAN_REJECTED', 'LOAN', loan.id, reason)
+    notify(
+      loan.userId,
+      'LOAN_REJECTED',
+      'Loan application declined',
+      `Your ${inr(loan.amount)} application was declined. Reason: ${reason}`,
+    )
+    return HttpResponse.json(toLoanDto(loan))
+  }),
+
+  http.get(`${BASE}/admin/audit-logs`, async ({ request }) => {
+    await delay(260)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    const url = new URL(request.url)
+    const actor = (url.searchParams.get('actor') ?? '').trim().toLowerCase()
+    const action = (url.searchParams.get('action') ?? '').trim()
+    const rows = db.auditLogs.filter(
+      (a) =>
+        (!actor || (a.actorEmail ?? '').toLowerCase().includes(actor)) &&
+        (!action || a.action === action),
+    )
+    return HttpResponse.json(paginate(rows, url))
+  }),
+
+  http.get(`${BASE}/admin/ledger/reconcile`, async ({ request }) => {
+    await delay(900)
+    const { denied } = adminFrom(request)
+    if (denied) return denied
+    return HttpResponse.json({ balanced: true, ledgerSum: '0.0000', mismatches: [] })
+  }),
+
   // §7.8 Notifications
+  http.get(`${BASE}/notifications`, async ({ request }) => {
+    await delay(220)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const unreadOnly = new URL(request.url).searchParams.get('unreadOnly') === 'true'
+    return HttpResponse.json(
+      db.notifications
+        .filter((n) => n.userId === user.id && (!unreadOnly || !n.read))
+        .slice(0, 50)
+        .map(({ userId: _u, ...n }) => n),
+    )
+  }),
+
   http.get(`${BASE}/notifications/unread-count`, ({ request }) => {
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
-    return HttpResponse.json({ count: db.unread.get(user.id) ?? 0 })
+    return HttpResponse.json({
+      count: db.notifications.filter((n) => n.userId === user.id && !n.read).length,
+    })
+  }),
+
+  http.patch(`${BASE}/notifications/:id/read`, async ({ request, params }) => {
+    await delay(120)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    const n = db.notifications.find((x) => x.id === params.id && x.userId === user.id)
+    if (!n) return error(404, 'NOT_FOUND', 'Notification not found', request)
+    n.read = true
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.post(`${BASE}/notifications/read-all`, async ({ request }) => {
+    await delay(160)
+    const user = userFrom(request)
+    if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
+    for (const n of db.notifications) if (n.userId === user.id) n.read = true
+    return new HttpResponse(null, { status: 204 })
   }),
 ]

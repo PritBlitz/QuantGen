@@ -1,11 +1,23 @@
 /**
  * Typed functions for every customer-facing endpoint in PRD §7. Paths, verbs and bodies
- * match the contract exactly. Admin endpoints (§7.7) are added once their DTOs are defined.
+ * match the contract exactly.
  */
 import { api, idempotencyHeader } from './client'
 import type {
   AccountDto,
+  AccountStatusRequest,
+  AdminLoanDto,
+  AdminLoanQuery,
+  AdminUserDetailDto,
+  AdminUserDto,
+  AdminUserQuery,
+  AuditLogDto,
+  AuditLogQuery,
   AuthResponse,
+  LoanDecisionRequest,
+  NotificationDto,
+  ReconcileDto,
+  StatsDto,
   BeneficiaryDto,
   CreateAccountRequest,
   CreateBeneficiaryRequest,
@@ -120,8 +132,32 @@ export const loansApi = {
       .then((r) => r.data),
 }
 
-// §7.8 Notifications (list/read wait for NotificationDto to be defined)
+// §7.7 Admin (role ADMIN; the server enforces it, the UI only hides the routes)
+export const adminApi = {
+  users: (params: AdminUserQuery = {}) =>
+    api.get<Page<AdminUserDto>>('/admin/users', { params }).then((r) => r.data),
+  user: (id: string) => api.get<AdminUserDetailDto>(`/admin/users/${seg(id)}`).then((r) => r.data),
+  setAccountStatus: (id: string, body: AccountStatusRequest) =>
+    api.patch<AccountDto>(`/admin/accounts/${seg(id)}/status`, body).then((r) => r.data),
+  loans: (params: AdminLoanQuery = {}) =>
+    api.get<Page<AdminLoanDto>>('/admin/loans', { params }).then((r) => r.data),
+  approveLoan: (id: string, body: LoanDecisionRequest) =>
+    api.post<LoanDto>(`/admin/loans/${seg(id)}/approve`, body).then((r) => r.data),
+  rejectLoan: (id: string, body: Required<LoanDecisionRequest>) =>
+    api.post<LoanDto>(`/admin/loans/${seg(id)}/reject`, body).then((r) => r.data),
+  stats: () => api.get<StatsDto>('/admin/stats').then((r) => r.data),
+  auditLogs: (params: AuditLogQuery = {}) =>
+    api.get<Page<AuditLogDto>>('/admin/audit-logs', { params }).then((r) => r.data),
+  reconcile: () => api.get<ReconcileDto>('/admin/ledger/reconcile').then((r) => r.data),
+}
+
+// §7.8 Notifications
 export const notificationsApi = {
+  list: (unreadOnly = false) =>
+    api
+      .get<NotificationDto[]>('/notifications', { params: unreadOnly ? { unreadOnly } : {} })
+      .then((r) => r.data),
   unreadCount: () => api.get<UnreadCountDto>('/notifications/unread-count').then((r) => r.data),
   markRead: (id: string) => api.patch(`/notifications/${seg(id)}/read`).then(() => undefined),
+  markAllRead: () => api.post('/notifications/read-all').then(() => undefined),
 }
