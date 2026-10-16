@@ -12,7 +12,8 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/market/', milestone: 'M3' },
   { prefix: '/api/v1/orders', milestone: 'M3' },
   { prefix: '/api/v1/portfolio', milestone: 'M3' },
+  { prefix: '/api/v1/admin/ledger/reconcile', milestone: 'M2' },
 ]
-// M4 (/api/v1/loans) not live yet.
+// Not live yet: M4 /api/v1/loans; M5 /api/v1/admin/* (except reconcile) and /api/v1/notifications.
 
 export const isLive = (pathname: string) => LIVE_PREFIXES.some((l) => pathname.startsWith(l.prefix))

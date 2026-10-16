@@ -285,7 +285,7 @@ the STOMP `CONNECT` header `Authorization`.
 `AdminLoanDto = LoanDto + {applicant: {userId, fullName, email}, monthlyIncome, purpose, decisionReason}` (the "LoanDto + applicant" row above; `status` filter is optional, newest first)
 `StatsDto = {totalUsers, totalDeposits, activeLoans, outstandingPrincipal, tradesToday}` (`totalDeposits` and `outstandingPrincipal` are money strings; "today" is the IST calendar day)
 `AuditLogDto = {id, actorId, actorEmail, action, targetType, targetId, details, ip, requestId, createdAt}` (`actor` filters by email substring; `action` is exact; newest first; `details` never contains secrets or full account numbers)
-`ReconcileDto = {balanced, ledgerSum, mismatches: [{ledgerAccountId, accountNumber, cachedBalance, ledgerBalance}]}` (`accountNumber` is null for system accounts)
+`ReconcileDto = {balanced, ledgerSum, mismatches: [{ledgerAccountId, code, cachedBalance, computedBalance}]}` (`code` is the system account code such as `BANK_CASH`, null for customer accounts; `computedBalance` is the sum of that account's ledger lines)
 
 Freeze/unfreeze and loan decisions write an audit log entry and notify the customer.
 Approve and reject return `409 INVALID_STATE` unless the loan is `PENDING`.

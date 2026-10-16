@@ -366,10 +366,11 @@ export interface AuditLogQuery extends PageQuery {
 
 export interface ReconcileMismatch {
   ledgerAccountId: Uuid
-  /** Null for system accounts (BANK_CASH, LOAN_RECEIVABLE, ...). */
-  accountNumber: string | null
+  /** System account code (BANK_CASH, LOAN_RECEIVABLE, ...); null for customer accounts. */
+  code: string | null
   cachedBalance: MoneyString
-  ledgerBalance: MoneyString
+  /** Sum of the account's ledger lines. */
+  computedBalance: MoneyString
 }
 
 export interface ReconcileDto {

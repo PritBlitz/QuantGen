@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { CardError } from '@/features/dashboard/components/CardShell'
-import { maskShort } from '@/lib/mask'
 import { Decimal } from '@/lib/money'
 import { EASE_OUT_EXPO } from '@/lib/motion'
 import { formatAbsolute } from '@/lib/time'
@@ -146,10 +145,10 @@ export function AdminReconcilePage() {
                           className="border-b border-border last:border-0"
                         >
                           <td className="px-5 py-3">
-                            {m.accountNumber ? (
-                              <span className="num">{maskShort(m.accountNumber)}</span>
+                            {m.code ? (
+                              <span className="num">{m.code}</span>
                             ) : (
-                              <span className="text-muted">System account</span>
+                              <span className="text-muted">Customer account</span>
                             )}
                             <span
                               className="num block text-xs text-muted"
@@ -162,11 +161,11 @@ export function AdminReconcilePage() {
                             <Money value={m.cachedBalance} />
                           </td>
                           <td className="py-3 pr-3 text-right">
-                            <Money value={m.ledgerBalance} />
+                            <Money value={m.computedBalance} />
                           </td>
                           <td className="py-3 pr-5 text-right">
                             <Money
-                              value={new Decimal(m.cachedBalance).minus(m.ledgerBalance)}
+                              value={new Decimal(m.cachedBalance).minus(m.computedBalance)}
                               tone="pnl"
                             />
                           </td>
