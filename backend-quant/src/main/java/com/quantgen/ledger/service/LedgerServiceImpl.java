@@ -208,6 +208,14 @@ class LedgerServiceImpl implements LedgerService {
 
     @Override
     @Transactional(readOnly = true)
+    public BigDecimal totalCustomerBalances() {
+        BigDecimal sum = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(balance), 0) FROM ledger_accounts WHERE kind = 'CUSTOMER'", BigDecimal.class);
+        return sum == null ? BigDecimal.ZERO : sum;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<LedgerLineView> history(UUID ledgerAccountId, Instant from, Instant to, JournalType type,
                                         Pageable pageable) {
         return type == null

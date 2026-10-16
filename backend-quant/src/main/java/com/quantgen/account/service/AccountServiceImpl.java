@@ -5,10 +5,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -104,6 +106,16 @@ class AccountServiceImpl implements AccountService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<UUID, Long> countAccountsByUser(Collection<UUID> userIds) {
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return accounts.countByUserIds(userIds).stream()
+                .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public AccountDto getAccount(UUID userId, UUID accountId) {
         Account account = owned(userId, accountId);
         return toDto(account, ledger.balanceOf(account.getId()));
@@ -181,6 +193,9 @@ class AccountServiceImpl implements AccountService {
         Account account = accounts.findById(accountId).orElseThrow(() -> ApiException.notFound("Account"));
         if (account.getStatus() == AccountStatus.CLOSED) {
             throw new ApiException(ErrorCode.INVALID_STATE, "Account is closed");
+        }
+        if (account.getStatus() == status) {
+            throw new ApiException(ErrorCode.INVALID_STATE, "Account is already " + status.name().toLowerCase());
         }
         account.changeStatus(status);
         accounts.flush();

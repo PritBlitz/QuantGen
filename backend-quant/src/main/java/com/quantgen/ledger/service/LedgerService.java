@@ -49,6 +49,9 @@ public interface LedgerService {
         return balance;
     }
 
+    /** Sum of all customer balances: what the bank owes its depositors (admin stats). */
+    BigDecimal totalCustomerBalances();
+
     /** An account's lines in [from, to), newest first, optionally of one type. */
     Page<LedgerLineView> history(UUID ledgerAccountId, Instant from, Instant to, JournalType type, Pageable pageable);
 

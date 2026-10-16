@@ -2,7 +2,9 @@ package com.quantgen.account.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +55,13 @@ public interface AccountService {
     /** Admin: all accounts of a user. */
     List<AccountDto> accountsOfUser(UUID userId);
 
-    /** Admin: freeze or unfreeze (F-ADM-2). Serialized with postings on the same account. */
+    /** Admin: number of accounts (any status) per user; users without accounts are omitted. */
+    Map<UUID, Long> countAccountsByUser(Collection<UUID> userIds);
+
+    /**
+     * Admin: freeze or unfreeze (F-ADM-2). Serialized with postings on the same account; INVALID_STATE if
+     * the account already has that status (checked under the lock). Call it before reading the account
+     * in the same transaction, so the status check sees the latest committed row.
+     */
     AccountDto changeStatus(UUID accountId, AccountStatus status);
 }

@@ -8,3 +8,6 @@ qg:
   market:
     # Tests drive PriceSimulator.tick() explicitly for deterministic prices.
     simulator-enabled: false
+  rate-limit:
+    # Integration tests register and log in many users from 127.0.0.1; RateLimitFilterTest covers the limiter.
+    enabled: false

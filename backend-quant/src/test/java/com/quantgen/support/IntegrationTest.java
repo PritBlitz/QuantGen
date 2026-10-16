@@ -74,6 +74,20 @@ public abstract class IntegrationTest {
         return send(builder.build());
     }
 
+    protected Response patchJson(String path, Object body, Map<String, String> headers) {
+        HttpRequest.Builder builder = request(path)
+                .header("Content-Type", "application/json")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(
+                        body instanceof String s ? s : json.writeValueAsString(body)));
+        headers.forEach(builder::header);
+        return send(builder.build());
+    }
+
+    protected Response patch(String path, String bearer) {
+        return send(request(path).header("Authorization", "Bearer " + bearer)
+                .method("PATCH", HttpRequest.BodyPublishers.noBody()).build());
+    }
+
     public record Response(HttpResponse<String> raw, JsonMapper json) {
 
         public int status() {
