@@ -1,0 +1,29 @@
+# Prod profile: everything comes from the environment (names in ../.env.example). No defaults for
+# credentials or secrets: startup fails if QG_DB_URL / QG_DB_USER / QG_DB_PASSWORD / QG_JWT_SECRET are
+# missing, and JwtService rejects a secret shorter than 32 bytes. Add the "demo" profile
+# (SPRING_PROFILES_ACTIVE=prod,demo) to seed the PRD §10 demo users.
+spring:
+  datasource:
+    url: ${QG_DB_URL}
+    username: ${QG_DB_USER}
+    password: ${QG_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${QG_DB_POOL_SIZE:20}
+      connection-timeout: 5000
+
+server:
+  # Behind nginx: trust X-Forwarded-For/-Proto from private-network proxies only (Tomcat RemoteIpValve
+  # defaults), so audit logs and rate limits see the real client IP and clients can't spoof it.
+  forward-headers-strategy: native
+  shutdown: graceful
+
+qg:
+  jwt:
+    secret: ${QG_JWT_SECRET}
+  cors:
+    allowed-origins: ${QG_CORS_ORIGINS}
+
+logging:
+  level:
+    root: INFO
+    com.quantgen: INFO

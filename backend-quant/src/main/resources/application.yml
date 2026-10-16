@@ -57,6 +57,10 @@ qg:
     tick-millis: 3000
   cors:
     allowed-origins: ${QG_CORS_ORIGINS:http://localhost:5173}
+  demo:
+    # Used only by the dev/demo seeder (DemoDataSeeder). Change both on any public deployment.
+    admin-password: ${QG_DEMO_ADMIN_PASSWORD:Admin@1234}
+    user-password: ${QG_DEMO_USER_PASSWORD:Demo@1234}
   rate-limit:
     # Per-IP limits on /api/v1/auth/** (RateLimitFilter). Only switch off for automated e2e runs.
     enabled: ${QG_RATE_LIMIT_ENABLED:true}

@@ -105,4 +105,9 @@ public class User {
         failedWindowStart = null;
         lockedUntil = null;
     }
+
+    /** Replaces the stored BCrypt hash (demo seeding only; there is no password-change endpoint in v1). */
+    public void changePasswordHash(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
 }

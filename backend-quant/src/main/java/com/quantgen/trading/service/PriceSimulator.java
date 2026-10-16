@@ -1,9 +1,11 @@
 package com.quantgen.trading.service;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -86,6 +88,37 @@ public class PriceSimulator {
             messaging.convertAndSend(TOPIC, prices);
         }
         return prices == null ? List.of() : prices;
+    }
+
+    /**
+     * Demo seeding: fills {@code window} of history at {@code step} intervals so the 1D and 1W charts have
+     * data on a fresh install. Each path is a random walk that ends exactly at the current price. Does
+     * nothing if ticks older than an hour already exist. Returns the number of ticks inserted.
+     */
+    public int backfill(Duration window, Duration step) {
+        Integer inserted = tx.execute(status -> {
+            Instant now = clock.instant();
+            Integer old = jdbc.queryForObject("SELECT count(*) FROM (SELECT 1 FROM price_ticks WHERE ts < ? LIMIT 1) t",
+                    Integer.class, Timestamp.from(now.minus(Duration.ofHours(1))));
+            if (old != null && old > 0) {
+                return 0;
+            }
+            int steps = (int) (window.toSeconds() / step.toSeconds());
+            List<Object[]> rows = new ArrayList<>();
+            jdbc.query("SELECT symbol, price FROM instruments ORDER BY symbol", rs -> {
+                String symbol = rs.getString(1);
+                BigDecimal anchor = rs.getBigDecimal(2);
+                // Walk forward from the current price, then read the path backwards in time.
+                BigDecimal p = anchor;
+                for (int k = 1; k <= steps; k++) {
+                    p = PriceWalk.next(p, anchor, random.nextGaussian());
+                    rows.add(new Object[] {symbol, p, Timestamp.from(now.minus(step.multipliedBy(k)))});
+                }
+            });
+            jdbc.batchUpdate("INSERT INTO price_ticks (symbol, price, ts) VALUES (?, ?, ?)", rows);
+            return rows.size();
+        });
+        return inserted == null ? 0 : inserted;
     }
 
     /** Keeps 7 days of ticks (ARCHITECTURE §6). */
