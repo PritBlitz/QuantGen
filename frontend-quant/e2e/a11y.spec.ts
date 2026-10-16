@@ -15,16 +15,37 @@ const APP = [
 ] as const
 
 async function audit(page: Page, label: string) {
-  // Let entrance animations finish so contrast is measured on final colours.
-  await page.waitForTimeout(900)
+  // Measure contrast on final colours, not mid-transition (a fixed delay was flaky under
+  // parallel load). motion tweens the page wrapper's opacity via inline styles, which
+  // getAnimations() can't see, so also wait until exactly one fully opaque page is mounted,
+  // on two samples 250 ms apart (so a page that's about to exit doesn't count as settled).
+  await page.waitForLoadState('networkidle')
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'))
+  const settled = () =>
+    page.evaluate(() => {
+      const main = document.getElementById('main')
+      if (!main) return true
+      const pages = [...main.children] as HTMLElement[]
+      return pages.length === 1 && getComputedStyle(pages[0]!).opacity === '1'
+    })
+  await expect
+    .poll(async () => (await settled()) && (await page.waitForTimeout(250), await settled()), {
+      timeout: 15_000,
+    })
+    .toBe(true)
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     // Decorative grain overlay and chart canvases aren't content.
     .exclude('canvas')
     .analyze()
+  // Include the offending HTML and contrast numbers so a failure is diagnosable from CI logs.
   const summary = results.violations.map(
     (v) =>
-      `${label}: [${v.impact}] ${v.id} — ${v.help} (${v.nodes.length}× e.g. ${v.nodes[0]?.target.join(' ')})`,
+      `${label}: [${v.impact}] ${v.id} — ${v.help} (${v.nodes.length}×)\n` +
+      v.nodes
+        .slice(0, 3)
+        .map((n) => `    ${n.html.slice(0, 160)}\n      ${n.failureSummary ?? ''}`)
+        .join('\n'),
   )
   expect(summary, summary.join('\n')).toEqual([])
 }
@@ -57,6 +78,7 @@ for (const theme of ['dark', 'light'] as const) {
         // Screens outside the mobile tab bar: load by URL (the refresh cookie restores the session).
         if (await link.count()) await link.click()
         else await page.goto(`/${name.toLowerCase()}`)
+        await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`))
         await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
         await audit(page, `${theme} ${name}`)
       }
@@ -66,6 +88,7 @@ for (const theme of ['dark', 'light'] as const) {
         .filter({ visible: true })
         .click()
       await page.getByRole('link', { name: 'QGEN' }).filter({ visible: true }).first().click()
+      await expect(page).toHaveURL(/\/markets\/QGEN$/)
       await audit(page, `${theme} instrument`)
       await page.getByRole('link', { name: /^notifications/i }).click()
       await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible()
@@ -80,12 +103,19 @@ for (const theme of ['dark', 'light'] as const) {
       await page.getByRole('button', { name: /^sign in/i }).click()
       await expect(page).toHaveURL(/\/admin$/)
       await audit(page, `${theme} admin overview`)
-      for (const name of ['Users', 'Loan queue', 'Audit log', 'Reconcile']) {
+      const ADMIN_PATHS: Record<string, string> = {
+        Users: 'users',
+        'Loan queue': 'loans',
+        'Audit log': 'audit',
+        Reconcile: 'reconcile',
+      }
+      for (const [name, path] of Object.entries(ADMIN_PATHS)) {
         await page
           .getByRole('navigation', { name: 'Main' })
           .getByRole('link', { name, exact: true })
           .filter({ visible: true })
           .click()
+        await expect(page).toHaveURL(new RegExp(`/admin/${path}$`))
         if (name === 'Reconcile') {
           await page.getByRole('button', { name: 'Run reconciliation' }).click()
           await expect(page.getByText('Balanced', { exact: true })).toBeVisible()
@@ -102,6 +132,7 @@ for (const theme of ['dark', 'light'] as const) {
         .filter({ visible: true })
         .first()
         .click()
+      await expect(page.getByRole('heading', { name: 'Meera Iyer' })).toBeVisible()
       await audit(page, `${theme} admin user`)
       await page.getByRole('button', { name: 'Freeze Savings ••••2290' }).click()
       await audit(page, `${theme} admin freeze dialog`)

@@ -43,7 +43,10 @@ export function LoginPage() {
     login.mutate(values, {
       onSuccess: (res) => {
         // Only same-app paths, never an absolute URL (open-redirect guard).
-        const from = state.from?.startsWith('/') && !state.from.startsWith('//') ? state.from : null
+        const safe = state.from?.startsWith('/') && !state.from.startsWith('//') ? state.from : null
+        // Only return to a page meant for this role (an admin never lands on the customer app).
+        const isAdmin = res.user.role === 'ADMIN'
+        const from = safe && safe.startsWith('/admin') === isAdmin ? safe : null
         void navigate(from ?? homeFor(res.user.role), { replace: true })
         toast.success(`Welcome back, ${res.user.fullName.split(' ')[0]}`)
       },

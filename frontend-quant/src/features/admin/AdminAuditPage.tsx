@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { formatAbsolute } from '@/lib/time'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
+import { usePageClamp } from '@/lib/usePageClamp'
 import { AUDIT_ACTIONS, auditAction } from './labels'
 
 const ALL = '__all'
@@ -32,6 +33,7 @@ export function AdminAuditPage() {
     page,
     size: 25,
   })
+  usePageClamp(data, page, setPage)
 
   return (
     <div>
@@ -92,7 +94,7 @@ export function AdminAuditPage() {
             Clear the filters to see everything.
           </EmptyState>
         ) : (
-          <div className={isPlaceholderData ? 'opacity-60' : undefined}>
+          <div className={isPlaceholderData ? 'opacity-60' : undefined} inert={isPlaceholderData}>
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <caption className="sr-only">Audit log</caption>

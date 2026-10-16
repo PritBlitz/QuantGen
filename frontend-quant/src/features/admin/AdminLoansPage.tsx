@@ -16,13 +16,15 @@ import { CardError } from '@/features/dashboard/components/CardShell'
 import { LOAN_STATUS } from '@/features/loans/labels'
 import { Decimal } from '@/lib/money'
 import { formatRelative } from '@/lib/time'
+import { usePageClamp } from '@/lib/usePageClamp'
 import { cn } from '@/lib/utils'
 import { ReasonDialog } from './components/ReasonDialog'
 import { useApproveLoan, useRejectLoan } from './hooks'
 
-type Filter = Extract<LoanStatus, 'PENDING' | 'ACTIVE' | 'REJECTED' | 'CLOSED'> | 'ALL'
+type Filter = Extract<LoanStatus, 'PENDING' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CLOSED'> | 'ALL'
 const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: 'PENDING', label: 'Pending' },
+  { value: 'APPROVED', label: 'Approved' },
   { value: 'ACTIVE', label: 'Active' },
   { value: 'REJECTED', label: 'Rejected' },
   { value: 'CLOSED', label: 'Closed' },
@@ -56,6 +58,7 @@ export function AdminLoansPage() {
     page,
     size: 10,
   })
+  usePageClamp(data, page, setPage)
   const approve = useApproveLoan()
   const reject = useRejectLoan()
 
@@ -100,7 +103,10 @@ export function AdminLoansPage() {
           </EmptyState>
         </Card>
       ) : (
-        <div className={cn('space-y-3', isPlaceholderData && 'opacity-60')}>
+        <div
+          className={cn('space-y-3', isPlaceholderData && 'opacity-60')}
+          inert={isPlaceholderData}
+        >
           <ul className="space-y-3">
             {data.content.map((l) => (
               <LoanCard

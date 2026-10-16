@@ -59,8 +59,11 @@ export function ReasonDialog({
   /** Resolve on success; throw the API error on failure (it's shown inline). */
   onConfirm: (reason: string) => Promise<unknown>
 }) {
+  // While the request is in flight the dialog can't be dismissed (Esc / overlay), so a late
+  // success can never close a different dialog opened in the meantime.
+  const [busy, setBusy] = useState(false)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o || !busy) && onOpenChange(o)}>
       <DialogContent title={title} description={description}>
         {/* Keyed by `open` so each opening starts empty. */}
         {open && (
@@ -73,6 +76,7 @@ export function ReasonDialog({
             destructive={destructive}
             onConfirm={onConfirm}
             onCancel={() => onOpenChange(false)}
+            onBusyChange={setBusy}
           />
         )}
       </DialogContent>
@@ -89,6 +93,7 @@ function ReasonForm({
   destructive,
   onConfirm,
   onCancel,
+  onBusyChange,
 }: {
   summary?: ReactNode
   reasonLabel: string
@@ -98,6 +103,7 @@ function ReasonForm({
   destructive?: boolean
   onConfirm: (reason: string) => Promise<unknown>
   onCancel: () => void
+  onBusyChange: (busy: boolean) => void
 }) {
   const id = useId()
   const [reason, setReason] = useState('')
@@ -114,6 +120,7 @@ function ReasonForm({
     setTouched(true)
     if (!parsed.success || pending) return
     setPending(true)
+    onBusyChange(true)
     setFailure(null)
     setServerField(null)
     try {
@@ -125,6 +132,7 @@ function ReasonForm({
       else setFailure(err)
     } finally {
       setPending(false)
+      onBusyChange(false)
     }
   }
 

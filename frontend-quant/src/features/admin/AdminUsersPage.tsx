@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { formatDate } from '@/lib/time'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
+import { usePageClamp } from '@/lib/usePageClamp'
 
 const PAGE_SIZE = 20
 
@@ -25,6 +26,7 @@ export function AdminUsersPage() {
     page,
     size: PAGE_SIZE,
   })
+  usePageClamp(data, page, setPage)
 
   return (
     <div>
@@ -74,7 +76,7 @@ export function AdminUsersPage() {
             Try part of a name, an email address or a phone number.
           </EmptyState>
         ) : (
-          <div className={isPlaceholderData ? 'opacity-60' : undefined}>
+          <div className={isPlaceholderData ? 'opacity-60' : undefined} inert={isPlaceholderData}>
             <table className="hidden w-full text-sm md:table">
               <caption className="sr-only">Users</caption>
               <thead>

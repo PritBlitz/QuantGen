@@ -146,3 +146,56 @@ describe('users and audit', () => {
     expect(await screen.findByText('Balanced')).toBeInTheDocument()
   })
 })
+
+describe('review fixes', () => {
+  it('steps back a page when the last row on the current page is decided', async () => {
+    signInAs('ADMIN')
+    // 11 pending in total (2 seeded + 9 more): page 2 holds exactly one.
+    const template = db.loans.find((l) => l.id === KAVYA_LOAN)!
+    for (let i = 0; i < 9; i++)
+      db.loans.push({
+        ...template,
+        id: `c0000000-0000-4000-8000-1000000000${String(i).padStart(2, '0')}`,
+        createdAt: '2026-10-16T09:00:00Z',
+      })
+    const user = userEvent.setup()
+    renderApp('/admin/loans')
+    await user.click(await screen.findByRole('button', { name: 'Next page' }))
+    const last = await screen.findByRole('button', { name: /approve priya nair/i })
+    await user.click(last)
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Approve and disburse' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findAllByRole('button', { name: /approve kavya reddy/i })).not.toHaveLength(
+      0,
+    )
+    expect(screen.queryByText('The queue is empty')).not.toBeInTheDocument()
+  })
+
+  it('cannot be dismissed with Escape while the decision is in flight', async () => {
+    signInAs('ADMIN')
+    server.use(
+      http.post(`/api/v1/admin/loans/${PRIYA_LOAN}/approve`, async () => {
+        await delay(300)
+        return undefined
+      }),
+    )
+    const user = userEvent.setup()
+    renderApp('/admin/loans')
+    await user.click(await screen.findByRole('button', { name: /approve priya nair/i }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Approve and disburse' }))
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('sends an admin to /admin even when the expired session was on a customer page', async () => {
+    const user = userEvent.setup()
+    const { router } = renderApp('/dashboard')
+    await user.type(await screen.findByLabelText('Email'), 'admin@quantgen.dev')
+    await user.type(screen.getByLabelText('Password', { exact: true }), 'Admin@1234')
+    await user.click(screen.getByRole('button', { name: /^sign in/i }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
+  })
+})
