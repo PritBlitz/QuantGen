@@ -1,36 +1,26 @@
 # Frontend → Backend handoff
 
-## 2026-10-16
+## 2026-10-16 (end of day): all v1 milestones integrated
 
-Messages sent to `backend-quant-15`; it showed "waiting" the whole time, so they may not have
-been read yet. This file is the durable copy.
+Every PRD §7 endpoint is live and `src/mocks/live.ts` lists them all, so hybrid mode now
+behaves the same as the real API.
 
-**Contract (PRD §7.7/§7.8, commits f5cdad0 and 6225140).** Additive, frontend built against it:
-- `AdminUserDto`, `AdminUserDetailDto`, `AdminLoanDto`, `StatsDto`, `AuditLogDto` as written in §7.7.
-- `ReconcileDto` now matches the already-implemented endpoint: mismatches are
-  `{ledgerAccountId, code, cachedBalance, computedBalance}`.
-- `NotificationDto = {id, type, title, body, read, createdAt}` (type = existing `NotificationType`
-  enum), list newest first and capped at 50, and another user's notification returns 404.
-- **New:** `POST /notifications/read-all` → `204`.
-- Approve/reject on a non-PENDING loan → `409 INVALID_STATE`. Freeze/unfreeze and loan
-  decisions are audited and notify the customer.
+**Contract changes today:** all additive, all agreed and shipped by the backend.
+- §7.7 Admin and §7.8 Notification DTOs, plus `POST /notifications/read-all` (f5cdad0).
+- `ReconcileDto` mismatches follow the implementation: `{ledgerAccountId, code, cachedBalance, computedBalance}`
+  (6225140).
+- `amountDue` on loan schedule rows, because repayments can be partial (353975f / backend 5ba0695).
 
-**Audit action names the UI knows:** existing `USER_REGISTERED, LOGIN_SUCCESS, LOGIN_FAILED,
-LOGIN_LOCKED, LOGIN_BLOCKED, LOGOUT, REFRESH_TOKEN_REUSE, LARGE_TRANSFER`; please use
-`ACCOUNT_FROZEN`, `ACCOUNT_UNFROZEN` (targetType `ACCOUNT`, details `Account ••••1234: <reason>`),
-`LOAN_APPROVED`, `LOAN_REJECTED` (targetType `LOAN`, details = reason) for M5.
+**Verified end to end:**
+- `e2e/live.spec.ts` passes against the dev API and against the production compose stack
+  (`QG_BASE_URL=http://localhost:8088`). It covers register → deposit → transfer → buy, and
+  apply → admin approve/disburse → repay `amountDue` → notifications → freeze → audit.
+- The backend independently verified the compose stack: Secure/HttpOnly/SameSite=Strict
+  cookie, API not published and running as uid 10001, real client IP in the audit log.
 
-**M6 needs from backend:**
-1. `backend-quant/Dockerfile`: multi-stage, JRE 25 runtime, non-root, `wget` available (the
-   compose healthcheck runs `wget -qO- http://127.0.0.1:8080/actuator/health`).
-2. `application-prod.yml` reading `QG_DB_URL/USER/PASSWORD`, `QG_JWT_SECRET`, `QG_CORS_ORIGINS`
-   (today these exist only in the dev profile, so `SPRING_PROFILES_ACTIVE=prod` can't start);
-   `server.forward-headers-strategy` so audit IPs aren't the nginx IP; and the name of the
-   demo-seed profile for the live demo.
+**Working agreement:** we share one git index, so commit with explicit paths
+(`git commit -- <paths>`).
 
-**Verified live against backend M1–M3:** the OpenAPI DTOs match `src/api/types.ts` field for
-field; `e2e/live.spec.ts` (`QG_LIVE=1`) passes register → deposit → transfer → buy; the JWT
-carries `role`.
-
-**Still mocked (flip in `src/mocks/live.ts` when announced):** `/loans` (M4),
-`/admin/*` except reconcile, and `/notifications` (M5).
+**Open items / ideas (not blocking v1):**
+- F-ACC-6 PDF statements (stretch goal); CSV is done.
+- First real GitHub Actions run (nothing has been pushed yet).

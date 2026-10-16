@@ -85,7 +85,13 @@ npm run test          # Vitest: money maths, forms, flows against PRD-exact mock
 npm run e2e           # Playwright: login → transfer → buy, admin approve/freeze,
                       #   and a WCAG 2.1 AA axe audit of every screen, both themes, 1440 px + 360 px
 QG_LIVE=1 npx playwright test e2e/live.spec.ts --project=desktop
-                      # the real UI against the real API: register → deposit → transfer → buy
+                      # the real UI against the real API (dev backend on :8080):
+                      #   register → deposit → transfer → buy, and apply → admin approve →
+                      #   repay → notifications → freeze → audit
+QG_LIVE=1 QG_BASE_URL=http://localhost:8088 npx playwright test e2e/live.spec.ts --project=desktop
+                      # the same, against the production compose stack (nginx + prod API)
+# Each run registers 2 users; the API allows 10 registrations/hour per IP. For repeated runs,
+# start the backend with QG_RATE_LIMIT_ENABLED=false (never in production).
 
 cd backend-quant
 ./mvnw verify         # unit + Testcontainers integration, incl. 100 parallel transfers on one account
