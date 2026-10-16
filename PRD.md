@@ -278,7 +278,17 @@ the STOMP `CONNECT` header `Authorization`.
 | POST | `/admin/loans/{id}/reject` | `{reason}` | `200 LoanDto` |
 | GET | `/admin/stats` | | `200 StatsDto` |
 | GET | `/admin/audit-logs` | `?page&size&actor&action` | `200 Page<AuditLogDto>` |
-| GET | `/admin/ledger/reconcile` | | `200 {balanced, ledgerSum, mismatches: []}` |
+| GET | `/admin/ledger/reconcile` | | `200 ReconcileDto` |
+
+`AdminUserDto = {id, fullName, email, phone, role, accountCount, createdAt}` (`q` matches name, email or phone, case-insensitive)
+`AdminUserDetailDto = AdminUserDto + {accounts: AccountDto[], loans: LoanDto[]}`
+`AdminLoanDto = LoanDto + {applicant: {userId, fullName, email}, monthlyIncome, purpose, decisionReason}` (the "LoanDto + applicant" row above; `status` filter is optional, newest first)
+`StatsDto = {totalUsers, totalDeposits, activeLoans, outstandingPrincipal, tradesToday}` (`totalDeposits` and `outstandingPrincipal` are money strings; "today" is the IST calendar day)
+`AuditLogDto = {id, actorId, actorEmail, action, targetType, targetId, details, ip, requestId, createdAt}` (`actor` filters by email substring; `action` is exact; newest first; `details` never contains secrets or full account numbers)
+`ReconcileDto = {balanced, ledgerSum, mismatches: [{ledgerAccountId, accountNumber, cachedBalance, ledgerBalance}]}` (`accountNumber` is null for system accounts)
+
+Freeze/unfreeze and loan decisions write an audit log entry and notify the customer.
+Approve and reject return `409 INVALID_STATE` unless the loan is `PENDING`.
 
 ### 7.8 Notifications
 | Method | Path | Response |
@@ -286,6 +296,13 @@ the STOMP `CONNECT` header `Authorization`.
 | GET | `/notifications?unreadOnly=` | `200 NotificationDto[]` |
 | PATCH | `/notifications/{id}/read` | `204` |
 | GET | `/notifications/unread-count` | `200 {count}` |
+| POST | `/notifications/read-all` | `204` |
+
+`NotificationDto = {id, type, title, body, read, createdAt}`, where `type` is one of
+`MONEY_RECEIVED`, `LOAN_APPROVED`, `LOAN_REJECTED`, `EMI_DUE`, `EMI_PAID`, `EMI_OVERDUE`,
+`ACCOUNT_FROZEN`, `ACCOUNT_UNFROZEN`. The list is newest first and capped at the 50 most
+recent. Another user's notification returns `404`. `read-all` was added in v1.0 for the
+"mark all as read" action.
 
 ## 8. Data model (core tables)
 `users`, `refresh_tokens`, `accounts`, `ledger_accounts`, `journal_entries`,
