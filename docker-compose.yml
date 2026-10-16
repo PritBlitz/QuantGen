@@ -1,0 +1,83 @@
+# QuantGen production-style stack (PRD M6, ARCHITECTURE §11).
+#
+#   cp .env.example .env            # then set real secrets (never commit .env)
+#   docker compose up -d --build
+#   open http://localhost:${QG_WEB_PORT:-8088}
+#
+# Only the web container is published. nginx serves the SPA and reverse-proxies /api and /ws
+# to the API, so the browser sees one origin (no CORS). Postgres and the API stay on the
+# private network. Secrets have no defaults here: compose refuses to start without them.
+
+name: quantgen
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quantgen}
+      POSTGRES_USER: ${POSTGRES_USER:-quantgen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  api:
+    build: ./backend-quant
+    image: ${QG_IMAGE_PREFIX:-quantgen}-api:${QG_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${QG_SPRING_PROFILES:-prod}
+      QG_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-quantgen}
+      QG_DB_USER: ${POSTGRES_USER:-quantgen}
+      QG_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      QG_JWT_SECRET: ${QG_JWT_SECRET:?set QG_JWT_SECRET in .env (openssl rand -base64 48)}
+      # Same-origin through nginx; only needed if the SPA is served from elsewhere.
+      QG_CORS_ORIGINS: ${QG_CORS_ORIGINS:-http://localhost:8088}
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 3s
+      start_period: 60s
+      retries: 10
+    networks: [backend, edge]
+
+  web:
+    build: ./frontend-quant
+    image: ${QG_IMAGE_PREFIX:-quantgen}-web:${QG_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      QG_API_UPSTREAM: api:8080
+    ports:
+      - "${QG_WEB_BIND:-127.0.0.1}:${QG_WEB_PORT:-8088}:8080"
+    networks: [edge]
+    read_only: true
+    # Owned by the image's unprivileged nginx user (101); a root-owned tmpfs leaves nginx
+    # unable to render its config template, and it then starts serving nothing.
+    tmpfs:
+      - /tmp:uid=101,gid=101
+      - /etc/nginx/conf.d:uid=101,gid=101
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+volumes:
+  pgdata:

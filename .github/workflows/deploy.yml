@@ -1,0 +1,49 @@
+# Manual deploy of an image tag to the demo VM over SSH (ARCHITECTURE §11).
+# Required repository secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS.
+# The VM holds its own .env with the real secrets; nothing secret is sent from here.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag to deploy (a commit SHA from CI, or "main")
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: demo
+    steps:
+      - name: Validate tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: '[[ "$TAG" =~ ^(main|[0-9a-f]{7,40})$ ]] || { echo "::error::bad tag"; exit 1; }'
+      - name: Configure SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+      - name: Pull and restart
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          TAG: ${{ inputs.tag }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          PREFIX="ghcr.io/${OWNER,,}/quantgen"
+          ssh "$USER@$HOST" "cd ~/quantgen && git pull --ff-only && \
+            QG_IMAGE_PREFIX=$PREFIX QG_TAG=$TAG docker compose pull api web && \
+            QG_IMAGE_PREFIX=$PREFIX QG_TAG=$TAG docker compose up -d --no-build && \
+            docker image prune -f"
