@@ -248,10 +248,14 @@ class LoanIT extends IntegrationTest {
         JsonNode d = detail(s, loanId);
         assertThat(d.get("outstandingPrincipal").asString()).isEqualTo("99500.00");
         assertThat(d.get("schedule").get(0).get("status").asString()).isEqualTo("PENDING");
+        assertThat(d.get("schedule").get(0).get("amountDue").asString()).isEqualTo("7384.88");
+        assertThat(d.get("schedule").get(1).get("amountDue").asString()).isEqualTo("8884.88");
         // Without an amount, the remainder of the partly paid instalment is what's due next.
         JsonNode next = repay(s, loanId, account, null, UUID.randomUUID()).jsonBody();
         assertThat(next.get("amount").asString()).isEqualTo("7384.88");
-        assertThat(detail(s, loanId).get("schedule").get(0).get("status").asString()).isEqualTo("PAID");
+        JsonNode paidRow = detail(s, loanId).get("schedule").get(0);
+        assertThat(paidRow.get("status").asString()).isEqualTo("PAID");
+        assertThat(paidRow.get("amountDue").asString()).isEqualTo("0.00");
     }
 
     @Test

@@ -455,7 +455,7 @@ public class LoanService {
 
     static InstallmentDto toDto(LoanInstallment i) {
         return new InstallmentDto(i.getInstallmentNo(), i.getDueDate(), i.getEmi(), i.getPrincipal(), i.getInterest(),
-                i.getStatus(), i.getPaidAt());
+                i.remaining(), i.getStatus(), i.getPaidAt());
     }
 
     private static String blankToNull(String s) {

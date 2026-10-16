@@ -48,8 +48,9 @@ public final class LoanDtos {
                           Instant createdAt) {
     }
 
+    /** {@code amountDue} is what is still owed on the instalment (emi when untouched, 0 when PAID). */
     public record InstallmentDto(int installmentNo, LocalDate dueDate, BigDecimal emi, BigDecimal principal,
-                                 BigDecimal interest, InstallmentStatus status, Instant paidAt) {
+                                 BigDecimal interest, BigDecimal amountDue, InstallmentStatus status, Instant paidAt) {
     }
 
     /** LoanDto + {purpose, decisionReason, schedule}. */
