@@ -264,7 +264,10 @@ the STOMP `CONNECT` header `Authorization`.
 | POST 🔒💰 | `/loans/{id}/repay` | `{accountId, amount?}` | `201 RepaymentDto` |
 
 `LoanDto = {id, amount, tenureMonths, annualRate, emi, status, outstandingPrincipal, nextDueDate, createdAt}`
-`LoanDetailDto = LoanDto + {purpose, decisionReason, schedule: [{installmentNo, dueDate, emi, principal, interest, status, paidAt}]}`
+`LoanDetailDto = LoanDto + {purpose, decisionReason, schedule: [{installmentNo, dueDate, emi, principal, interest, amountDue, status, paidAt}]}`
+(`amountDue` was added at M4 because repayments can be partial. It is what is still owed on that
+instalment: equal to `emi` when untouched, less after a partial payment, `"0.00"` when `PAID`.
+A repay with no `amount` charges exactly the oldest unpaid instalment's `amountDue`.)
 `RepaymentDto = {id, loanId, amount, principalPaid, interestPaid, createdAt}`
 
 ### 7.7 Admin (role `ADMIN`)
