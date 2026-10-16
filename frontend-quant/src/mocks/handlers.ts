@@ -186,7 +186,8 @@ const toLoanDetail = ({ userId: _u, monthlyIncome: _m, disburseAccountId: _d, ..
 
 const existingEmis = (userId: string) =>
   db.loans
-    .filter((l) => l.userId === userId && l.status === 'ACTIVE')
+    // Backend M4: pending applications count too, so a second one can be ineligible.
+    .filter((l) => l.userId === userId && (l.status === 'ACTIVE' || l.status === 'PENDING'))
     .reduce((s, l) => s.plus(l.emi), new Decimal(0))
 
 function loanFieldErrors(b: Record<string, unknown>): FieldError[] {
@@ -907,6 +908,13 @@ export const handlers = [
       disburseAccountId: String(b.disburseAccountId),
     }
     db.loans.unshift(loan)
+    audit(
+      user,
+      'LOAN_APPLIED',
+      'LOAN',
+      loan.id,
+      `amount=${loan.amount} tenureMonths=${loan.tenureMonths}`,
+    )
     return HttpResponse.json(toLoanDto(loan), { status: 201 })
   }),
 
@@ -939,8 +947,9 @@ export const handlers = [
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
         { field: 'amount', message: 'must be a positive amount with at most 2 decimals' },
       ])
-    const amount = new Decimal(typeof b.amount === 'string' ? b.amount : next.emi)
-    const maxDue = unpaid.reduce((s, r) => s.plus(r.emi), new Decimal(0))
+    // Backend M4: no amount = exactly the oldest unpaid instalment's amountDue.
+    const amount = new Decimal(typeof b.amount === 'string' ? b.amount : next.amountDue)
+    const maxDue = unpaid.reduce((s, r) => s.plus(r.amountDue), new Decimal(0))
     if (amount.lt(1) || amount.gt(maxDue))
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
         { field: 'amount', message: `must be between 1.00 and ${maxDue.toFixed(2)}` },
@@ -948,20 +957,29 @@ export const handlers = [
     if (new Decimal(acc.balance).lt(amount))
       return error(422, 'INSUFFICIENT_FUNDS', 'Insufficient funds', request)
 
-    // Oldest dues first: whole instalments, then any remainder prepays principal.
+    // Backend M4: oldest first, interest before principal within each instalment; the last
+    // instalment touched may be paid partially (its amountDue drops).
     let left = amount
     let principalPaid = new Decimal(0)
     let interestPaid = new Decimal(0)
     const now = new Date().toISOString()
     for (const row of unpaid) {
-      if (left.lt(row.emi)) break
-      row.status = 'PAID'
-      row.paidAt = now
-      left = left.minus(row.emi)
-      principalPaid = principalPaid.plus(row.principal)
-      interestPaid = interestPaid.plus(row.interest)
+      if (left.lte(0)) break
+      const due = new Decimal(row.amountDue)
+      const paidBefore = new Decimal(row.emi).minus(due)
+      const interestOwed = new Decimal(row.interest).minus(paidBefore)
+      const interestLeft = interestOwed.isNegative() ? new Decimal(0) : interestOwed
+      const pay = left.lt(due) ? left : due
+      const toInterest = pay.lt(interestLeft) ? pay : interestLeft
+      interestPaid = interestPaid.plus(toInterest)
+      principalPaid = principalPaid.plus(pay.minus(toInterest))
+      row.amountDue = due.minus(pay).toFixed(2)
+      left = left.minus(pay)
+      if (new Decimal(row.amountDue).isZero()) {
+        row.status = 'PAID'
+        row.paidAt = now
+      }
     }
-    principalPaid = principalPaid.plus(left)
     postLine(acc, 'DEBIT', amount, 'LOAN_REPAYMENT', 'Loan repayment', null, crypto.randomUUID())
     const outstanding = new Decimal(loan.outstandingPrincipal).minus(principalPaid)
     loan.outstandingPrincipal = (outstanding.isNegative() ? new Decimal(0) : outstanding).toFixed(2)
@@ -982,7 +1000,7 @@ export const handlers = [
     notify(
       user.id,
       'EMI_PAID',
-      loan.status === 'CLOSED' ? 'Loan closed' : 'Repayment received',
+      loan.status === 'CLOSED' ? 'Loan closed' : 'EMI paid',
       `${inr(amount)} was applied to your loan from ${last4(acc.accountNumber)}.`,
     )
     idem.save(201, dto)
@@ -1003,7 +1021,8 @@ export const handlers = [
     const active = db.loans.filter((l) => l.status === 'ACTIVE')
     const today = istDate(new Date().toISOString())
     return HttpResponse.json({
-      totalUsers: db.users.size,
+      // Backend M5: customers only.
+      totalUsers: customerIds.size,
       totalDeposits: deposits.toFixed(4),
       activeLoans: active.length,
       outstandingPrincipal: active
@@ -1103,6 +1122,8 @@ export const handlers = [
     if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
     if (loan.status !== 'PENDING')
       return error(409, 'INVALID_STATE', 'Loan is not pending', request)
+    if (loan.userId === admin.id)
+      return error(409, 'INVALID_STATE', 'You can’t decide your own application', request)
     const acc = db.accounts.get(loan.disburseAccountId)
     if (!acc) return error(409, 'INVALID_STATE', 'Disbursal account missing', request)
     // APPROVED → ACTIVE in one step: disburse (LOAN_RECEIVABLE → customer), build the schedule.
@@ -1148,6 +1169,8 @@ export const handlers = [
     if (!loan) return error(404, 'NOT_FOUND', 'Loan not found', request)
     if (loan.status !== 'PENDING')
       return error(409, 'INVALID_STATE', 'Loan is not pending', request)
+    if (loan.userId === admin.id)
+      return error(409, 'INVALID_STATE', 'You can’t decide your own application', request)
     loan.status = 'REJECTED'
     loan.decisionReason = reason
     audit(admin, 'LOAN_REJECTED', 'LOAN', loan.id, reason)

@@ -268,6 +268,8 @@ export interface LoanInstallmentDto {
   emi: MoneyString
   principal: MoneyString
   interest: MoneyString
+  /** Still owed on this instalment: emi when untouched, less after a partial payment, "0.00" when PAID. */
+  amountDue: MoneyString
   status: InstallmentStatus
   paidAt: IsoDateTime | null
 }

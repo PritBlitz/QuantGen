@@ -24,7 +24,8 @@ export function RepayPanel({ loan, accounts }: { loan: LoanDetailDto; accounts: 
   const usable = accounts.filter((a) => a.status === 'ACTIVE')
   const unpaid = loan.schedule.filter((r) => r.status !== 'PAID')
   const next = unpaid[0]
-  const maxDue = unpaid.reduce((s, r) => s.plus(r.emi), new Decimal(0))
+  // amountDue (not emi): a partly paid instalment only owes its remainder (PRD §7.6).
+  const maxDue = unpaid.reduce((s, r) => s.plus(r.amountDue), new Decimal(0))
   const [accountId, setAccountId] = useState(usable[0]?.id ?? '')
   const [mode, setMode] = useState<'next' | 'custom'>('next')
   const [custom, setCustom] = useState('')
@@ -34,7 +35,7 @@ export function RepayPanel({ loan, accounts }: { loan: LoanDetailDto; accounts: 
   const invalidate = useInvalidateMoney()
 
   const account = usable.find((a) => a.id === accountId)
-  const amount = mode === 'next' ? (next?.emi ?? '0') : custom
+  const amount = mode === 'next' ? (next?.amountDue ?? '0') : custom
 
   if (!next) return <p className="text-sm text-muted">Nothing is due on this loan.</p>
   if (usable.length === 0)
@@ -180,7 +181,12 @@ export function RepayPanel({ loan, accounts }: { loan: LoanDetailDto; accounts: 
             EMI {next.installmentNo} of {loan.tenureMonths} · due {formatDate(next.dueDate)}
             {next.status === 'OVERDUE' && <span className="text-warn"> · overdue</span>}
           </p>
-          <Money value={next.emi} className="mt-1 block text-2xl font-medium" />
+          <Money value={next.amountDue} className="mt-1 block text-2xl font-medium" />
+          {toDecimal(next.amountDue).lt(next.emi) && (
+            <p className="mt-0.5 text-xs text-muted">
+              Remaining of <Money value={next.emi} /> (part already paid)
+            </p>
+          )}
         </div>
       ) : (
         <AmountInput

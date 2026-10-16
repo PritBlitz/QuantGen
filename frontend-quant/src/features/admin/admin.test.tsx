@@ -25,8 +25,8 @@ describe('admin access', () => {
     renderApp('/admin')
     expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
     const figures = await screen.findByRole('region', { name: 'Key figures' })
-    // demo + admin + 4 seeded customers
-    expect(await within(figures).findByText('6')).toBeInTheDocument()
+    // Customers only (backend M5): demo + 4 seeded customers.
+    expect(await within(figures).findByText('5')).toBeInTheDocument()
     expect(
       await screen.findByRole('heading', { name: /loan queues*2 pending/i }),
     ).toBeInTheDocument()

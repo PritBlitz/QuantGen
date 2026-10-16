@@ -151,6 +151,11 @@ export function LoanDetailPage() {
                         </div>
                         <div className="text-right">
                           <Money value={r.emi} className="text-sm" />
+                          {r.status !== 'PAID' && toDecimal(r.amountDue).lt(r.emi) && (
+                            <p className="text-xs text-muted">
+                              <Money value={r.amountDue} /> left
+                            </p>
+                          )}
                           <div className="mt-0.5">
                             <Badge tone={st.tone}>
                               {isNext && r.status === 'PENDING' ? 'Next' : st.label}

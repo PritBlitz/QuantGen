@@ -10,7 +10,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    // QG_BASE_URL targets an already-running build (e.g. the compose stack on :8088).
+    baseURL: process.env.QG_BASE_URL ?? 'http://localhost:5173',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -20,11 +21,13 @@ export default defineConfig({
     },
     { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 360, height: 780 } } },
   ],
-  webServer: {
-    // QG_LIVE=1 runs the real API path (Vite proxy → :8080) for e2e/live.spec.ts.
-    command: process.env.QG_LIVE ? 'npm run dev' : 'npm run dev:mock',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: process.env.QG_BASE_URL
+    ? undefined
+    : {
+        // QG_LIVE=1 runs the real API path (Vite proxy → :8080) for e2e/live.spec.ts.
+        command: process.env.QG_LIVE ? 'npm run dev' : 'npm run dev:mock',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60_000,
+      },
 })

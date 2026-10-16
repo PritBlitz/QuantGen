@@ -105,3 +105,29 @@ describe('loan application', () => {
     expect(screen.getByRole('button', { name: /apply for/i })).toBeDisabled()
   })
 })
+
+describe('partial repayment (amountDue, PRD §7.6)', () => {
+  it('a custom partial payment leaves the remainder as amountDue and shows it in the schedule', async () => {
+    signIn()
+    const user = userEvent.setup()
+    renderApp(`/loans/${LOAN}`)
+    const repay = await screen.findByRole('complementary', { name: 'Repay' })
+    await user.click(await within(repay).findByRole('radio', { name: 'Custom amount' }))
+    await user.type(within(repay).getByLabelText('Amount'), '5000')
+    await user.click(within(repay).getByRole('button', { name: 'Review repayment' }))
+    await user.click(await within(repay).findByRole('button', { name: /pay ₹5,000\.00/i }))
+    expect(
+      await within(repay).findByRole('img', { name: 'Repayment confirmed' }),
+    ).toBeInTheDocument()
+
+    const row = db.loans.find((l) => l.id === LOAN)!.schedule[7]!
+    expect(row).toMatchObject({ status: 'PENDING', amountDue: '4414.69' })
+    // Interest is paid first within the instalment.
+    expect(db.loans.find((l) => l.id === LOAN)!.outstandingPrincipal).not.toBe('0.00')
+    expect(
+      await screen.findByText(
+        (_, el) => el?.tagName === 'P' && el.textContent === '₹4,414.69 left',
+      ),
+    ).toBeInTheDocument()
+  })
+})

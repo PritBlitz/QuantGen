@@ -523,6 +523,7 @@ export function buildSchedule(amount: string, months: number, firstDue: string) 
     emi: r.emi.toFixed(2),
     principal: r.principal.toFixed(2),
     interest: r.interest.toFixed(2),
+    amountDue: r.emi.toFixed(2),
     status: 'PENDING' as const,
     paidAt: null as string | null,
   }))
@@ -534,6 +535,7 @@ function seededLoan(): MockLoan {
   const paidCount = 7
   sched.slice(0, paidCount).forEach((row) => {
     row.status = 'PAID' as never
+    row.amountDue = '0.00'
     row.paidAt = `${row.dueDate}T00:30:00Z`
   })
   const first = sched[0]
