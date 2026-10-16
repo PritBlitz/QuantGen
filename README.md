@@ -72,7 +72,9 @@ docker compose up -d --build
 
 Only the `web` container is published. nginx serves the SPA and reverse-proxies `/api`
 and `/ws` to the API, so the browser sees one origin (no CORS). Postgres and the API sit
-on an internal network. Compose refuses to start without the secrets.
+on an internal network. Compose refuses to start without the secrets. The `demo` profile
+(on by default) seeds the demo users; set `QG_DEMO_ADMIN_PASSWORD` / `QG_DEMO_USER_PASSWORD`
+on any public deployment.
 
 ## Tests
 

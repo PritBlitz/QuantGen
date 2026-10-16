@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS: Record<
   LARGE_TRANSFER: { label: 'Large transfer', tone: 'accent' },
   ACCOUNT_FROZEN: { label: 'Account frozen', tone: 'warn' },
   ACCOUNT_UNFROZEN: { label: 'Account unfrozen', tone: 'gain' },
+  LOAN_APPLIED: { label: 'Loan applied', tone: 'neutral' },
   LOAN_APPROVED: { label: 'Loan approved', tone: 'gain' },
   LOAN_REJECTED: { label: 'Loan rejected', tone: 'loss' },
 }

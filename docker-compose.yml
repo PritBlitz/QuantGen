@@ -37,7 +37,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: ${QG_SPRING_PROFILES:-prod}
+      # "demo" seeds the PRD §10 demo users; drop it for a clean bank.
+      SPRING_PROFILES_ACTIVE: ${QG_SPRING_PROFILES:-prod,demo}
+      # Change these on any public deployment (the defaults are published in the README).
+      QG_DEMO_ADMIN_PASSWORD: ${QG_DEMO_ADMIN_PASSWORD:-Admin@1234}
+      QG_DEMO_USER_PASSWORD: ${QG_DEMO_USER_PASSWORD:-Demo@1234}
       QG_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-quantgen}
       QG_DB_USER: ${POSTGRES_USER:-quantgen}
       QG_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
