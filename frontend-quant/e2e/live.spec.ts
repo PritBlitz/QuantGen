@@ -63,6 +63,11 @@ test('register → deposit → open account → own transfer → buy, all server
 
   // Buy 1 share of the cheapest-feeling instrument at the live price.
   await go(page, 'Markets')
+  // F-TRD-2: STOMP connected (not the REST polling fallback) and ticks actually arrive.
+  await expect(page.getByText('Live', { exact: true }).first()).toBeVisible()
+  const table = page.getByRole('table').first()
+  const before = await table.innerText()
+  await expect.poll(() => table.innerText(), { timeout: 12_000 }).not.toBe(before)
   await page.getByRole('link', { name: 'WIPR' }).filter({ visible: true }).first().click()
   const ticket = page.getByRole('complementary', { name: 'Order ticket' })
   await ticket.getByLabel('Quantity').fill('1')
