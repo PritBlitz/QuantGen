@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import com.quantgen.common.money.MoneyAmount;
+import com.quantgen.common.web.TextRules;
 import com.quantgen.payment.domain.TransferStatus;
 
 /** PRD §7.4 request and response bodies. */
@@ -18,7 +19,7 @@ public final class PaymentDtos {
     private PaymentDtos() {
     }
 
-    private static final String NO_CONTROL_CHARS = "^[^\\p{Cntrl}]*$";
+    private static final String NO_CONTROL_CHARS = TextRules.NO_CONTROL_CHARS;
 
     /** F-PAY-3: ₹1 to ₹2,00,000 per transfer. */
     public record TransferRequest(

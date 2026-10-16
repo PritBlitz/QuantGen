@@ -10,10 +10,12 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.quantgen.common.money.MoneyAmount;
+import com.quantgen.common.web.TextRules;
 import com.quantgen.loan.domain.InstallmentStatus;
 import com.quantgen.loan.domain.LoanStatus;
 
@@ -39,7 +41,8 @@ public final class LoanDtos {
             @NotNull @MoneyAmount(min = "10000.00", max = "1000000.00") BigDecimal amount,
             @NotNull @Min(6) @Max(60) Integer tenureMonths,
             @NotNull @MoneyAmount(min = "1.00", max = "100000000.00") BigDecimal monthlyIncome,
-            @NotBlank @Size(min = 3, max = 200) String purpose,
+            @NotBlank @Size(min = 3, max = 200)
+            @Pattern(regexp = TextRules.NO_CONTROL_CHARS, message = TextRules.NO_CONTROL_CHARS_MESSAGE) String purpose,
             @NotNull UUID disburseAccountId) {
     }
 
@@ -82,9 +85,13 @@ public final class LoanDtos {
                                String decisionReason) {
     }
 
-    public record ApproveRequest(@Size(max = 500) String reason) {
+    public record ApproveRequest(
+            @Size(max = 500)
+            @Pattern(regexp = TextRules.NO_CONTROL_CHARS, message = TextRules.NO_CONTROL_CHARS_MESSAGE) String reason) {
     }
 
-    public record RejectRequest(@NotBlank @Size(min = 5, max = 500) String reason) {
+    public record RejectRequest(
+            @NotBlank @Size(min = 5, max = 500)
+            @Pattern(regexp = TextRules.NO_CONTROL_CHARS, message = TextRules.NO_CONTROL_CHARS_MESSAGE) String reason) {
     }
 }

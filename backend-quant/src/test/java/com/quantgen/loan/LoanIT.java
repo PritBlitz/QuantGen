@@ -119,6 +119,11 @@ class LoanIT extends IntegrationTest {
         UUID account = Bank.firstAccountId(this, s);
 
         assertThat(apply(s, "50000.00", 12, "40000.00", Bank.firstAccountId(this, other)).status()).isEqualTo(404);
+        Response forged = postJson("/api/v1/loans", Map.of("amount", "50000.00", "tenureMonths", 12,
+                "monthlyIncome", "40000.00", "purpose", "Car\nINFO forged log line", "disburseAccountId",
+                account.toString()), Bank.auth(s));
+        assertThat(forged.status()).isEqualTo(400);
+        assertThat(forged.jsonBody().get("fieldErrors").get(0).get("field").asString()).isEqualTo("purpose");
 
         Response notEligible = apply(s, "100000.00", 12, "15000.00", account);
         assertThat(notEligible.status()).isEqualTo(422);

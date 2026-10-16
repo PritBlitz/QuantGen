@@ -73,6 +73,8 @@ class AdminIT extends IntegrationTest {
         String path = "/api/v1/admin/accounts/" + account + "/status";
 
         assertThat(patchJson(path, Map.of("status", "FROZEN"), Bank.auth(admin)).status()).isEqualTo(400);
+        assertThat(patchJson(path, Map.of("status", "FROZEN", "reason", "Fraud\r\nfake audit row"), Bank.auth(admin))
+                .status()).isEqualTo(400);
         assertThat(patchJson(path, Map.of("status", "CLOSED", "reason", "Closing it"), Bank.auth(admin)).status())
                 .isEqualTo(400);
         assertThat(patchJson("/api/v1/admin/accounts/" + UUID.randomUUID() + "/status",
