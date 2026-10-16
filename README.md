@@ -82,6 +82,8 @@ npm run lint && npx tsc -b
 npm run test          # Vitest: money maths, forms, flows against PRD-exact mocks
 npm run e2e           # Playwright: login → transfer → buy, admin approve/freeze,
                       #   and a WCAG 2.1 AA axe audit of every screen, both themes, 1440 px + 360 px
+QG_LIVE=1 npx playwright test e2e/live.spec.ts --project=desktop
+                      # the real UI against the real API: register → deposit → transfer → buy
 
 cd backend-quant
 ./mvnw verify         # unit + Testcontainers integration, incl. 100 parallel transfers on one account

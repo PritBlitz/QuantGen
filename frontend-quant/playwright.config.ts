@@ -21,7 +21,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 360, height: 780 } } },
   ],
   webServer: {
-    command: 'npm run dev:mock',
+    // QG_LIVE=1 runs the real API path (Vite proxy → :8080) for e2e/live.spec.ts.
+    command: process.env.QG_LIVE ? 'npm run dev' : 'npm run dev:mock',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
