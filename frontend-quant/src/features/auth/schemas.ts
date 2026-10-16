@@ -1,12 +1,24 @@
 import { z } from 'zod'
 
-/** F-AUTH-1 password policy, mirrored for UX. The server is the authority. */
+/**
+ * F-AUTH-1 password policy, mirrored for UX. The server is the authority, so these match
+ * the backend's StrongPassword validator exactly: Unicode upper/lower/digit classes, and a
+ * "symbol" is anything else EXCEPT whitespace or control characters (a space is not a
+ * symbol). Max 72 UTF-8 bytes (BCrypt's input limit).
+ */
+export const PASSWORD_MAX_BYTES = 72
+const utf8Length = (v: string) => new TextEncoder().encode(v).length
+
 export const PASSWORD_RULES = [
   { id: 'length', label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
-  { id: 'upper', label: 'An uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
-  { id: 'lower', label: 'A lowercase letter', test: (v: string) => /[a-z]/.test(v) },
-  { id: 'digit', label: 'A number', test: (v: string) => /\d/.test(v) },
-  { id: 'symbol', label: 'A symbol', test: (v: string) => /[^A-Za-z0-9]/.test(v) },
+  { id: 'upper', label: 'An uppercase letter', test: (v: string) => /\p{Lu}/u.test(v) },
+  { id: 'lower', label: 'A lowercase letter', test: (v: string) => /\p{Ll}/u.test(v) },
+  { id: 'digit', label: 'A number', test: (v: string) => /\p{Nd}/u.test(v) },
+  {
+    id: 'symbol',
+    label: 'A symbol, like ! @ # $ (spaces don’t count)',
+    test: (v: string) => /[^\p{Lu}\p{Ll}\p{Nd}\s\p{Cc}]/u.test(v),
+  },
 ] as const
 
 export const emailSchema = z
@@ -38,8 +50,8 @@ export const registerSchema = z
       .pipe(z.string().regex(/^\+?\d{10,15}$/, 'Enter a valid phone number, e.g. +91 98765 43210')),
     password: z
       .string()
-      // Server limit (BCrypt input is capped at 72).
-      .max(72, 'Keep it to 72 characters or fewer')
+      // Server limit: BCrypt input is capped at 72 bytes (accented letters/emoji use more).
+      .refine((v) => utf8Length(v) <= PASSWORD_MAX_BYTES, 'That password is too long')
       .refine(
         (v) => PASSWORD_RULES.every((r) => r.test(v)),
         'Password doesn’t meet every rule below',

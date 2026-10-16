@@ -50,7 +50,9 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       css: false,
       restoreMocks: true,
-      testTimeout: 15_000,
+      // Multi-step flow tests cold-compile lazy routes while every file runs in parallel;
+      // 15 s flaked (a 22 s run of the loan stepper). Each assertion still waits ≤10 s.
+      testTimeout: 40_000,
       include: ['src/**/*.test.{ts,tsx}'],
     },
   }

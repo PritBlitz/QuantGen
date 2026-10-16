@@ -41,6 +41,8 @@ Tip: to test "another person", register a second customer in a private window.
 **Register (`/register`)**
 - [ ] Weak password `password` → inline error; the strength meter stays low.
 - [ ] Rule: **8+ characters with an uppercase letter, a lowercase letter, a digit and a symbol**. Example: `Tester@123`.
+- [ ] A space is **not** a symbol: `Tester 123` → the rules list keeps "A symbol" unticked, and the form won't submit.
+- [ ] Phone `+91 98123 45678` (with spaces) is accepted; spaces and dashes are removed before sending.
 - [ ] Confirm password that doesn't match → inline error.
 - [ ] Email that already exists (`demo@quantgen.dev`) → "is already registered" under Email.
 - [ ] Valid registration (name `Test User`, email `test1@example.com`, phone `+919812345678`) → you land on the **Dashboard**, signed in.
