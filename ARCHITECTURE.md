@@ -204,7 +204,8 @@ sequenceDiagram
 - **CSRF:** the refresh cookie is `SameSite=Strict` and scoped to `/api/v1/auth`. Every other
   endpoint authenticates with the bearer header, which browsers never attach automatically.
 - **Login lockout:** 5 failures in 15 minutes locks the account for 15 minutes. This is
-  combined with per-IP rate limits.
+  combined with per-IP rate limits (`RateLimitFilter`: login 10/min, register 10/h, refresh and
+  logout 30/min; 429 `RATE_LIMITED` with `Retry-After`).
 - **Passwords:** hashed with BCrypt, cost 12.
 
 ## 6. Trading and real-time prices
@@ -247,7 +248,11 @@ stateDiagram-v2
   earlier, it posts the repayment if funds allow, otherwise it marks the instalment `OVERDUE`
   and notifies the customer. Each instalment is processed in **its own transaction**, so one
   failure never blocks the others. A single-instance lock (an advisory lock / ShedLock later)
-  prevents double runs.
+  prevents double runs. `OVERDUE` instalments are retried on later runs, and the job also sends
+  `EMI_DUE` reminders three days ahead (once per instalment).
+- **Repayments** go to the oldest dues first, interest before principal within each instalment, so
+  partial payments are allowed. Lock order is the same everywhere: idempotency key → loan row
+  (`FOR UPDATE`) → ledger rows.
 
 ## 8. Data model
 
@@ -312,7 +317,7 @@ Key columns and constraints (Flyway `V1__init.sql` is authoritative):
 | DB | `docker-compose.dev.yml` → Postgres 17 on **localhost:5433** | Postgres container with a persistent volume (or RDS) |
 | Orchestration | — | `docker-compose.yml` on EC2 / Oracle Cloud VM |
 | CI/CD | — | GitHub Actions (build, test, scan, push image, deploy over SSH). Jenkins and ArgoCD come in v2 |
-| Seed data | Demo users via `@Profile("dev")` | Demo user only (for the live demo) |
+| Seed data | `DemoDataSeeder` (profile `dev`) | Same seeder via the `demo` profile (`prod,demo`); demo passwords from `QG_DEMO_*_PASSWORD` |
 
 **Testing:** integration tests use **Testcontainers** (a throwaway Postgres 17 per test run),
 so Docker must be running for `./mvnw verify`.
