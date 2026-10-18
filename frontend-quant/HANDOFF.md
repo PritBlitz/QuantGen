@@ -25,11 +25,18 @@ analytics), DECISIONS.md D-040/D-041, `src/api/types.v2.ts`, `src/mocks/live.ts`
   availableBalance/holds, step-up+PIN, limits, sessions, KYC, passkeys. Marked in `live.ts`;
   `NOT_YET_LIVE` keeps unbuilt v2 routes mocked in hybrid mode. Backend next: V2-MA or V2-M2 (owner to pick).
 
+### Update 2026-10-18 (later, session quantgen-27; backend is now `backend-quant-04`)
+- **Analytics live** (backend cb0ee45): `/admin/analytics/*` and `/analytics/*` are in
+  `LIVE_PREFIXES` (1598a00). Deviations are in PRD §12.13 "Backend notes (V2-MA)".
+- **Copilot UI done** (70098b1): `features/copilot/` — `stream.ts` (fetch SSE + parser),
+  `hooks.ts` (`useCopilotChat`), `IntentCard`, `TraceDialog`, `ChatView`, sheet + `/copilot`
+  page, "Ask Copilot" in ⌘K. 7 tests. Still mocked; flip `/api/v1/copilot` + `/api/v1/intents`
+  when V2-M4 lands. The client refetches the conversation after the stream closes and expects
+  both the USER and ASSISTANT messages to be stored by then.
+- Not done yet: visual check at 360/768/1440 in a real browser.
+
 ### Left to do (in this order)
-1. **Copilot UI** (V2-M4): replace stub `features/copilot/CopilotSheet.tsx` with the streaming chat
-   (SSE parser for `event:/data:` per PRD §12.6), intent approval cards (server-rendered summary;
-   approve = idempotent POST + step-up), trace viewer, `/copilot` full page, "Ask Copilot" in ⌘K
-   (`app/CommandPalette.tsx` still v1 — add v2 pages + ask-copilot item). Hooks/endpoints exist.
+1. ~~Copilot UI~~ done, see above.
 2. **Autopilot UI** (`/autopilot`, `/autopilot/new`, `/autopilot/:id`): templates, NL compile →
    server rendering → 90-day replay → activate (step-up), rule form builder, runs history. Hooks exist.
 3. **Proof of Balance page** (`/proof`): verify in browser with `lib/merkle.ts`, step-by-step path view,
