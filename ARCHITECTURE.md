@@ -2,7 +2,11 @@
 
 This document explains **how QuantGen is built and why**. Scope and the API contract live
 in [`PRD.md`](PRD.md); engineering and security rules live in [`CLAUDE.md`](CLAUDE.md);
-the visual design lives in [`frontend-quant/DESIGN.md`](frontend-quant/DESIGN.md).
+the visual design lives in [`frontend-quant/DESIGN.md`](frontend-quant/DESIGN.md); every
+decision and its trade-off lives in [`DECISIONS.md`](DECISIONS.md); a plain-language guide
+to how work flows lives in [`FLOW.md`](FLOW.md).
+
+§1–§11 describe **v1, as built**. §12 describes the **v2 design (draft)**.
 
 ---
 
@@ -306,8 +310,10 @@ Key columns and constraints (Flyway `V1__init.sql` is authoritative):
 ## 10. Observability
 - **Logs:** JSON in prod (logstash encoder), with `requestId`, `userId` and `path` in MDC. Sensitive values are masked.
 - **Health:** `/actuator/health` (liveness and readiness).
-- **Metrics:** `/actuator/prometheus` (Micrometer). There are custom counters for transfers,
-  orders, failed logins and ledger post latency. Prometheus and Grafana are added in v2.
+- **Metrics:** *planned, not yet built* (audit 2026-10-18): `/actuator/prometheus`
+  (Micrometer) with counters for transfers, orders, failed logins and a ledger-post latency
+  timer. Actuator currently exposes only `health,info`. Scheduled for V2-M0; Prometheus and
+  Grafana arrive at V2-M11 (§12.14).
 
 ## 11. Environments and deployment
 | | Dev (now) | Prod v1 (M6) |
@@ -322,26 +328,324 @@ Key columns and constraints (Flyway `V1__init.sql` is authoritative):
 **Testing:** integration tests use **Testcontainers** (a throwaway Postgres 17 per test run),
 so Docker must be running for `./mvnw verify`.
 
-## 12. Evolution path (v2)
-- **Events:** add a transactional **outbox** table written in the same transaction as each
-  ledger post, then relay it to Redpanda. New services consume events and never touch the ledger DB.
-- **Extracted services:** `agent-service` (LLM copilot, MCP server; it creates *intents*
-  through the public API and never writes directly), `fraud-service` and
-  `notification-service`. The core ledger stays in the monolith.
-- **Ledger integrity:** each journal entry stores `prev_hash` and `hash`, forming a hash
-  chain, plus a daily Merkle root.
-- **Platform:** Kubernetes (kind / k3s), Helm, Jenkins CI, ArgoCD, Prometheus, Grafana,
-  Loki and Tempo, Redis (idempotency cache, rate limits), k6 and Chaos Mesh.
+## 12. Version 2 architecture (draft, 2026-10-18)
 
-## 13. Architecture decisions (ADR log)
-| # | Decision | Why | Trade-off |
-|---|---|---|---|
-| 1 | Modular monolith | ACID across all money flows; one developer; cheap hosting | Must keep module discipline by hand |
-| 2 | PostgreSQL | Real ACID, row locks, `NUMERIC`, constraints and triggers, JSONB, a mature ecosystem | Vertical scaling only (fine at this scale) |
-| 3 | Double-entry ledger, insert-only | Auditability; mathematically checkable | More rows than a plain `balance` column |
-| 4 | Pessimistic locks in sorted order | Deadlock-free and no client retries | Serializes writes to hot accounts |
-| 5 | Idempotency keys stored in the DB, in the same transaction | Exactly-once effect even across crashes | One extra row per money request |
-| 6 | Access token in memory + refresh cookie | Limits XSS token theft; CSRF-safe | A reload needs a refresh call |
-| 7 | Simulated market and funding | Free, deterministic, no third-party keys | Not real market data |
-| 8 | Money as JSON strings | No floating-point loss anywhere | The client needs a decimal library |
-| 9 | Postgres in Docker on :5433 for dev | Matches prod and Testcontainers; no clash with the local PG 18 service | Docker Desktop must be running |
+> Scope and contract: PRD §11–§13. Every choice below has an entry in
+> [`DECISIONS.md`](DECISIONS.md) (D-0xx). Nothing here is built yet.
+
+### 12.1 What changes, in one picture
+```mermaid
+flowchart LR
+  subgraph Browser
+    SPA[React SPA / PWA]
+  end
+  subgraph Host [Docker host → k3s at V2-M11]
+    NGX[nginx]
+    API[core API<br/>Spring Boot modular monolith<br/>ledger · payments · autopilot · risk · proofs]
+    AGT[agent-quant<br/>Spring Boot<br/>orchestrator + specialist agents<br/>MCP server]
+    PG[(PostgreSQL<br/>core schema)]
+    AGDB[(PostgreSQL<br/>agent schema)]
+    RP[(Redpanda<br/>V2-M6+)]
+    RD[(Redis<br/>V2-M11)]
+  end
+  CL[Claude API]
+  RZ[Razorpay<br/>test mode]
+  SPA -->|/api, /ws, SSE| NGX --> API
+  API -->|JDBC| PG
+  API -->|internal HTTP, delegated token| AGT
+  AGT -->|internal HTTP, delegated token| API
+  AGT --> AGDB
+  AGT -->|HTTPS| CL
+  API -->|orders, payment fetch| RZ
+  RZ -->|signed webhook| NGX
+  API -->|outbox relay| RP --> AGT
+  API -.-> RD
+  MCPc[MCP clients] -->|PAT| NGX
+```
+Three rules hold this together:
+1. **The core is the only thing that touches money or the core DB.** `agent-quant` has no
+   core DB credentials and no route to Postgres's core schema (D-018).
+2. **The browser only talks to the core.** Copilot traffic goes SPA → core → `agent-quant`, so
+   the single-origin model, CSP, auth and rate limits stay in one place.
+3. **No money path waits on the AI.** If `agent-quant` or the Claude API is down, only the
+   copilot is affected (PRD §11.5).
+
+### 12.2 New core modules
+Same module rules as §3 (talk through service interfaces only).
+
+| Module | Owns | Depends on |
+|---|---|---|
+| `events` (in `common`) | `outbox_events`, the poller, consumer registry | — |
+| `ledger` (extended) | holds, `ledger_seals`, balance snapshots, proofs | events |
+| `security` (in `auth`) | passkeys, step-up tokens, PIN, sessions, PATs, field encryption | — |
+| `payment` (extended) | handles, payee resolve, requests, schedules, billers, splits, top-ups | ledger, account, risk |
+| `savings` | goals, round-ups, FDs, interest jobs | ledger, account |
+| `insights` | categories, budgets, forecast, net worth (read models) | events |
+| `intent` | intents: validate, render summary, approve → dispatch to the owning service | payment, trading, savings, loan, autopilot |
+| `autopilot` | rule DSL, validator, renderer, simulator, engine, runs | events, intent, payment, trading, savings |
+| `risk` | fraud rules + scoring, cases, loan documents | events |
+| `card` | cards, controls, authorizations, sandbox merchant | ledger, risk |
+| `copilot` (thin) | SSE proxy to `agent-quant`, delegated-token minting, budgets | security |
+
+### 12.3 Holds and available balance (D-027)
+```
+available = ledger_accounts.balance − Σ holds.amount WHERE status = ACTIVE
+```
+- **Placing a hold** locks the ledger account row `FOR UPDATE` (same lock as postings), checks
+  `available ≥ amount`, inserts the hold. So a hold and a transfer can't both spend the same rupee.
+- **`LedgerService.post`** gains an optional `captureHoldId`. For debits it checks
+  `balance − (active holds except the one being captured) ≥ debit`. Capturing marks the hold
+  `CAPTURED` in the same transaction as the entry.
+- **Expiry:** a job releases holds past `expires_at` (card auths 7 days, limit orders at
+  validity end, fraud holds never auto-expire).
+- System accounts never have holds. Frozen accounts can't place new holds; existing ones can still be released.
+
+### 12.4 Outbox and events (D-028)
+```mermaid
+sequenceDiagram
+  participant S as Any money service
+  participant L as LedgerService
+  participant DB as Postgres
+  participant P as OutboxPoller
+  participant C as Consumers (autopilot, insights, notifications, risk)
+  participant R as Relay → Redpanda (V2-M6)
+  S->>L: post(journal)
+  L->>DB: entry + lines + balances + INSERT outbox_events (same tx)
+  Note over DB: COMMIT
+  loop every 500 ms
+    P->>DB: SELECT … FOR UPDATE SKIP LOCKED LIMIT 100
+    P->>C: dispatch(event)
+    C->>DB: INSERT consumer_offsets(consumer, event_id) ON CONFLICT DO NOTHING
+    P->>R: publish (only event types agent-quant needs)
+  end
+```
+- Delivery is **at least once**. Each consumer records `(consumer, event_id)` in the same
+  transaction as its own work, so a redelivered event is a no-op.
+- Events carry ids and amounts, never names, notes or full account numbers.
+- Event types: `MONEY_MOVED`, `TRANSFER_REVIEW_OPENED`, `HOLD_PLACED`, `HOLD_RELEASED`,
+  `PRICE_TICK` (in-memory only, not stored), `LOAN_STATUS_CHANGED`, `RULE_RUN_FINISHED`.
+
+### 12.5 Step-up authentication (D-029)
+```mermaid
+sequenceDiagram
+  participant UI as SPA
+  participant API as core
+  UI->>API: POST /transfers (₹80,000)
+  API-->>UI: 401 STEP_UP_REQUIRED {methods:[PASSKEY,PIN], action:"TRANSFER"}
+  UI->>API: POST /auth/step-up/options {action}
+  API-->>UI: WebAuthn challenge (bound to user + action, 2 min)
+  UI->>UI: navigator.credentials.get()  (Face ID / fingerprint / PIN)
+  UI->>API: POST /auth/step-up/verify {action, credential}
+  API-->>UI: {stepUpToken (5 min, single action type)}
+  UI->>API: POST /transfers + X-Step-Up-Token (same Idempotency-Key as the first try)
+  API-->>UI: 201
+```
+- Step-up tokens are random, stored hashed, bound to `(userId, action)`, expire after 5 min.
+  A token for `TRANSFER` can't approve an Autopilot rule.
+- The retried request reuses the same `Idempotency-Key`. The first `401` doesn't consume the
+  key, because the request was rejected before the idempotency claim.
+- Passkey credentials are verified with Yubico `java-webauthn-server`; sign counters are
+  checked to detect cloned authenticators.
+
+### 12.6 Payments 2.0 flows
+- **Handles and resolve:** `handles(handle UNIQUE, user_id, account_id)`. Resolve returns a
+  masked name and is rate-limited per user (Bucket4j, like auth) and audited when it trips.
+- **Scheduled transfers:** `ScheduledTransferJob` (07:00 IST, single-instance lock) creates
+  one `scheduled_transfer_runs` row per `(instruction, runDate)` (unique), then calls
+  `TransferService` with idempotency key `sched:<instructionId>:<runDate>`. Each run is its own
+  transaction, as with the EMI job (§7).
+- **Razorpay top-ups:** PRD §7.9. The webhook endpoint is the only unauthenticated POST in the
+  API; it verifies the HMAC over the **raw** body before parsing, stores `webhook_events` by
+  Razorpay event id (unique), then credits through the same `TopupService.credit()` as
+  `/verify`. `credit()` locks the top-up row `FOR UPDATE` and is a no-op if already `CREDITED`.
+- **Bill payments:** `BillerSimulator` derives the amount from `HMAC(consumerNumber, billerId, month)`
+  so it's stable across calls. Payment = customer → `BILLER_CLEARING`.
+- **Split groups:** pure bookkeeping until settlement; settlement creates payment requests.
+  Split arithmetic uses `BigDecimal` with `RoundingMode.DOWN` per share; leftover paisa go to the payer.
+
+### 12.7 Agent layer (`agent-quant`) (D-017 … D-023)
+```mermaid
+flowchart TB
+  U[User message] --> CORE[core: /copilot SSE proxy<br/>mints delegated token<br/>checks budget + flag]
+  CORE --> CON[Concierge<br/>orchestrator]
+  CON -->|delegate| LA[Ledger Analyst]
+  CON -->|delegate| PAY[Payments]
+  CON -->|delegate| MK[Markets]
+  CON -->|delegate| PL[Planner]
+  CON -->|delegate| LO[Loan Advisor]
+  LA & PAY & MK & PL & LO -->|read tools 🤖| CAPI[core API]
+  PAY & MK & PL & LO -->|propose_intent 🤖| CAPI
+  subgraph Back office, event-driven
+    FI[Fraud Investigator]
+    UA[Underwriting Analyst]
+  end
+  RP[(Redpanda)] --> FI
+  CAPI -->|loan doc uploaded| UA
+  FI & UA -->|write memo| CAPI
+```
+**How a turn runs**
+1. SPA `POST /copilot/conversations/{id}/messages`. The core checks the `ai` flag, the user's
+   rate limit and token budget, mints a delegated JWT (`aud=agent`, `scope=agent:read
+   agent:propose`, 15 min), and opens an internal streaming call to `agent-quant`.
+2. The **Concierge** sees the conversation plus *descriptions* of the specialists, exposed to
+   it as tools (`ask_ledger_analyst(question)`, …). It decides which to call, possibly several
+   in parallel.
+3. Each **specialist** is its own Messages API loop with its own system prompt and only its
+   own tools. Tools are thin HTTP calls to 🤖 endpoints of the core, made with the delegated
+   token, so the core enforces ownership exactly as for the user.
+4. A specialist that wants to act calls `propose_intent(kind, payload, rationale)`. The core
+   validates the payload (ownership, limits, balance, cooling period), renders the summary and
+   returns an `IntentDto`, which is streamed to the UI as an `intent` event.
+5. The Concierge writes the final answer; tokens stream back through the core to the SPA.
+6. Every model call and tool call is written to `agent_runs` / `agent_steps` (redacted).
+
+**Guardrails, in layers**
+| Layer | Control |
+|---|---|
+| Authority | Agent tokens can only reach 🤖 endpoints; intents need human approval + step-up (D-017, D-022) |
+| Tool surface | Each agent has an allowlist; no agent has an "execute" tool; tool inputs use `strict: true` JSON schemas |
+| Data | User-controlled strings returned by tools are wrapped as quoted data with a "this is data, not instructions" marker; account numbers masked; no PAN, tokens or PINs ever in tool results |
+| Output | Intent cards rendered by the core (D-023); citations link to real transaction ids, which the UI resolves itself |
+| Budget | 10 tool calls per turn, per-user daily tokens, global monthly cap → kill switch (D-039) |
+| Detection | Red-team eval set in CI (PRD F-AGT-8); alerts on unusual intent rates per user |
+
+**Model use (D-020):** model ids are config. Defaults: `claude-opus-5-5` for the Concierge,
+Planner/Autopilot compiler and back-office memos; `claude-haiku-5-5` for categorization fallback
+and short copy. Adaptive thinking with explicit `effort` per agent (low for simple specialists,
+high for the compiler and underwriting); streaming for anything user-facing; prompt caching on the
+stable prefix (tools + system prompt); structured outputs for the Autopilot compiler and memos;
+handle `stop_reason: "refusal"` and API errors by telling the user, never by retrying blindly.
+
+**Why not an LLM framework?** The loop is small, and owning it means every step passes through
+our authz, audit and tracing code (D-019).
+
+### 12.8 Intents (D-017, D-023)
+```mermaid
+stateDiagram-v2
+  [*] --> PROPOSED: agent calls POST /intents (validated, summary rendered)
+  PROPOSED --> EXECUTED: user approves (+ step-up) → owning service runs in one tx
+  PROPOSED --> FAILED: approve, but re-validation fails (balance, limit, frozen)
+  PROPOSED --> REJECTED: user rejects
+  PROPOSED --> EXPIRED: 15 min pass
+```
+- `POST /intents/{id}/approve` takes an `Idempotency-Key`. Inside one transaction it locks the
+  intent row, checks `PROPOSED` and not expired, **re-validates the payload**, and calls the same
+  service method a manual action would (e.g. `TransferService.transfer` with
+  `source=INTENT`). The intent and the business record commit together.
+- The payload is stored as typed JSON per `kind`; unknown fields are rejected at proposal time.
+- `riskLevel` and `requiresStepUp` are computed by the core (amount, payee age, kind), never by the model.
+
+### 12.9 Autopilot engine (D-024)
+```mermaid
+flowchart LR
+  NL[Plain-language rule] -->|Planner agent| DSL[RuleDsl JSON]
+  FORM[Rule form] --> DSL
+  DSL --> V[Validator<br/>schema · ownership · caps · payee age]
+  V --> R[Renderer<br/>server-made sentence]
+  V --> SIM[Simulator<br/>replay 90 days of the user's events]
+  R & SIM --> UI[Review screen]
+  UI -->|approve + step-up| ACT[(autopilot_rules + versions)]
+  EV[outbox events] --> ENG[Engine]
+  SCH[Scheduler 08:00 IST] --> ENG
+  ACT --> ENG
+  ENG -->|normal services, idempotent| SVC[TransferService · OrderService · BillService]
+```
+- **Matching:** the engine is an outbox consumer. For each `MONEY_MOVED` event it loads the
+  user's active rules with matching trigger types (indexed by `(user_id, trigger_type)`).
+- **Loop prevention:** movements made by Autopilot carry `source=AUTOPILOT`; `MONEY_RECEIVED`
+  triggers ignore them (PRD F-AUTO-6).
+- **Execution:** first a short transaction claims the run: insert `autopilot_runs (rule_id,
+  version, trigger_event_id)` (unique → a duplicate event is a no-op) and check caps (per run,
+  per month, daily Autopilot cap). Then **each action runs in its own transaction** with
+  idempotency key `auto:<runId>:<actionIndex>`, so a crash and retry resumes without repeating
+  finished actions. If an action fails, only that action rolls back; the run records `PARTIAL`
+  or `FAILED`, later actions are skipped, and earlier ones stay done. "Partial" is therefore
+  well defined and shown to the user.
+- **Simulator** reuses the matcher and amount calculator against historical events with a
+  fake balance tracker; it never calls a posting service.
+- **DSL versioning:** `dslVersion` in every rule; the engine supports N and N−1; migrations
+  rewrite stored rules forward.
+
+### 12.10 Proof of Balance (D-025, D-026)
+**Sealing (continuous)**
+```
+LedgerSealer (every 2 s, single instance):
+  last = SELECT position, hash FROM ledger_seals ORDER BY position DESC LIMIT 1
+  batch = journal entries committed and not yet sealed, ORDER BY created_at, id LIMIT 500
+  for e in batch:
+     h = SHA256(last.hash ‖ canonical(e, lines))
+     INSERT ledger_seals(position = last.position+1, entry_id = e.id, prev_hash = last.hash, hash = h)
+     last = (position+1, h)
+```
+`canonical()` is a fixed, documented serialization (sorted keys, amounts as plain strings with
+4 decimals, UTC timestamps), so anyone can recompute it. `ledger_seals` has the same
+immutability triggers as the ledger. `entry_id` is unique, so an entry can't be sealed twice.
+
+**Snapshot (nightly 00:00 IST)**
+- Read every customer ledger account balance as of the snapshot cutoff (one consistent
+  `REPEATABLE READ` read).
+- Leaf: `hash = SHA256(accountId ‖ balance ‖ salt)`, `sum = balance`; salt =
+  `HMAC(snapshotSecret, accountId ‖ date)`.
+- Node: `hash = SHA256(left.hash ‖ left.sum ‖ right.hash ‖ right.sum)`, `sum = left.sum + right.sum`.
+  Leaves are shuffled by salt order and padded with zero-sum leaves to a power of two.
+- Publish `{date, root, totalLiabilities, leafCount, chainHead}`.
+
+**Verification in the browser:** the SPA gets `{leaf, path, root}`, recomputes with
+`crypto.subtle.digest('SHA-256', …)` and a decimal library for the sums (D-008), and compares with
+the root from `/public/proofs/roots`. Proving: "my balance was included in the published total,
+and the total isn't smaller than the sum of the parts". Not proving: that reserves exist outside the system.
+
+### 12.11 Fraud and underwriting (D-030, D-031)
+- `RiskService.score(transferRequest)` runs inside the transfer transaction **before**
+  posting: pure rules over recent history (indexed queries, no network). Above threshold:
+  place a hold, create `transfers(status=PENDING_REVIEW)` and a `fraud_cases` row, publish
+  `TRANSFER_REVIEW_OPENED`. Admin release → `TransferService.completeReviewed()` captures the
+  hold and posts. Reject → release the hold.
+- The Fraud Investigator consumes `TRANSFER_REVIEW_OPENED` from Redpanda, reads the case
+  through 🤖 back-office endpoints, and writes a memo. If it fails or is slow, the case is still in the queue.
+- Loan documents are stored on a volume (later object storage) under random names, type-sniffed
+  (magic bytes), size-capped, never served back with an executable content type. The
+  Underwriting Analyst sends them to the Claude API as document blocks with citations enabled.
+
+### 12.12 Cards and the merchant sandbox
+Authorization = risk score + controls + hold on available balance. Capture = ledger entry
+customer → `CARD_CLEARING` capturing the hold. Refund = reversal entry. PAN encrypted (D-032),
+CVV computed on reveal as `HMAC(cardKey, pan ‖ 30-s window)` and never stored.
+
+### 12.13 Security additions (extends §9)
+| Layer | v2 control |
+|---|---|
+| Authentication | Passkeys; step-up for risky actions; PIN fallback with lockout; session list + remote revoke |
+| Service-to-service | core ↔ `agent-quant` on a private network only, mutual auth with a shared secret header (mTLS at V2-M11) |
+| Agent authority | Delegated tokens, 🤖 allowlist, intents only (§12.7) |
+| Webhooks | HMAC on raw body, event-id dedupe, endpoint rate-limited, no JWT |
+| Data at rest | AES-256-GCM field encryption + blind index for PAN/KYC/card numbers; key version in each ciphertext |
+| Files | Type sniffing, size caps, random names, stored outside the web root |
+| Browser | CSP gains exactly: `script-src https://checkout.razorpay.com`, `frame-src https://api.razorpay.com https://checkout.razorpay.com`, `connect-src` for Razorpay as their docs require; nothing else |
+| Integrity | Hash-chained seals + nightly verification (§12.10) |
+
+### 12.14 Observability and platform (V2-M0, V2-M11)
+- **V2-M0:** expose `/actuator/prometheus` on the internal network only, with counters for
+  transfers, orders, failed logins and a timer for `LedgerService.post` (promised in §10, not yet built).
+- **V2-M11:** OpenTelemetry tracing across SPA → nginx → core → `agent-quant` → Claude API;
+  Prometheus + Grafana + Loki + Tempo; dashboards for money flows, Autopilot, AI tokens and
+  cost per agent. Kubernetes: kind locally, k3s on Oracle Cloud Always Free; Helm charts per
+  service; ArgoCD watching a `deploy/` path; Terraform for the VM and network; Ansible to
+  bootstrap k3s. CI stays on GitHub Actions (D-033).
+- **Scaling the core past one replica** needs: a STOMP broker relay (D-011), Redis-backed rate
+  limits (D-034), and single-instance locks on every job (ShedLock).
+
+### 12.15 Repo layout and ownership in v2
+| Path | Owner session |
+|---|---|
+| `backend-quant/` | Backend session (core API, all core modules above) |
+| `frontend-quant/` | Frontend session |
+| `agent-quant/` (**new**) | **Agent session** (new). Spring Boot, its own Dockerfile, its own DB schema, its own `CLAUDE.md` |
+| `deploy/`, `infra/` (**new** at V2-M11), root compose, `.github/` | Frontend/infra session (as in v1) |
+| `PRD.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `FLOW.md` | Shared |
+
+`CLAUDE.md`'s repo map needs the `agent-quant/` row and AI rules before V2-M4 starts.
+
+## 13. Architecture decisions
+The ADR table that used to live here moved to [`DECISIONS.md`](DECISIONS.md), with context,
+options and trade-offs for each one (D-001 to D-014 are the v1 decisions; D-015 onward are v2).
