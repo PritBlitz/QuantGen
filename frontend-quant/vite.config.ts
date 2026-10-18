@@ -53,6 +53,9 @@ export default defineConfig(({ mode }) => {
       // Multi-step flow tests cold-compile lazy routes while every file runs in parallel;
       // 15 s flaked (a 22 s run of the loan stepper). Each assertion still waits ≤10 s.
       testTimeout: 40_000,
+      // One jsdom per core starved the CPU (a 10 s findBy timed out at 130 s wall time); half the
+      // cores is faster overall and stable.
+      maxWorkers: '50%',
       include: ['src/**/*.test.{ts,tsx}'],
     },
   }

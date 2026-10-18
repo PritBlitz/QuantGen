@@ -60,7 +60,10 @@ describe('Autopilot', () => {
     const user = userEvent.setup()
     renderApp('/autopilot/new')
     await user.click(await screen.findByRole('button', { name: /Build it myself/ }))
-    await user.click(await screen.findByRole('button', { name: 'Replay the last 90 days' }, { timeout: 8000 }))
+    // The button renders disabled until the debounced /validate answers; a click before that is lost.
+    const replay = await screen.findByRole('button', { name: 'Replay the last 90 days' }, { timeout: 8000 })
+    await waitFor(() => expect(replay).toBeEnabled())
+    await user.click(replay)
     expect(await screen.findByText('Times it ran')).toBeInTheDocument()
 
     // Per-run cap above the monthly cap: the server's validator rejects it, inline.
