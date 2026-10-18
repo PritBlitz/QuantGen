@@ -21,13 +21,6 @@ export const useConversation = (id: string | null) =>
     queryFn: () => copilotApi.conversation(id ?? ''),
     enabled: !!id,
   })
-export const useTrace = (runId: string | null) =>
-  useQuery({
-    queryKey: copilotKeys.trace(runId ?? ''),
-    queryFn: () => copilotApi.trace(runId ?? ''),
-    enabled: !!runId,
-    staleTime: Infinity,
-  })
 export const useIntents = (status?: IntentStatus) =>
   useQuery({ queryKey: copilotKeys.intents(status), queryFn: () => copilotApi.intents(status) })
 

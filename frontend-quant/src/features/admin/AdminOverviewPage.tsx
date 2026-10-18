@@ -5,8 +5,11 @@ import {
   Inbox,
   Landmark,
   Scale,
+  ShieldAlert,
+  ToggleRight,
   Users,
   Wallet,
+  type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { useAdminLoans, useAdminStats, useAuditLogs } from '@/api/queries'
@@ -16,10 +19,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useHealth } from '@/features/analytics/hooks'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { formatRelative } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { StatTile } from './components/StatTile'
 import { auditAction } from './labels'
+import { useAdminFlags, useFraudCases } from './riskHooks'
 
 const count = new Intl.NumberFormat('en-IN')
 
@@ -87,6 +93,8 @@ export function AdminOverviewPage() {
           />
         </section>
       )}
+
+      <NeedsAttention pendingLoans={pending.data?.totalElements} />
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
@@ -194,5 +202,77 @@ function ListSkeleton() {
         <Skeleton key={i} className="h-11" />
       ))}
     </div>
+  )
+}
+
+/**
+ * v2 (PRD §11.4 admin): what needs a person right now. Each chip links to its queue; a chip
+ * whose endpoint isn't live yet is simply left out.
+ */
+function NeedsAttention({ pendingLoans }: { pendingLoans?: number }) {
+  const fraud = useFraudCases('OPEN', 0)
+  const health = useHealth()
+  const flags = useAdminFlags()
+  const openCases = fraud.data?.totalElements
+  const on = flags.data?.filter((f) => f.enabled).length
+  return (
+    <section aria-label="Needs attention" className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {openCases !== undefined && (
+        <AttentionChip to="/admin/fraud" icon={ShieldAlert} label="Fraud cases to review" value={count.format(openCases)} tone={openCases > 0 ? 'warn' : 'ok'} />
+      )}
+      {pendingLoans !== undefined && (
+        <AttentionChip to="/admin/loans" icon={Inbox} label="Loans to decide" value={count.format(pendingLoans)} tone={pendingLoans > 0 ? 'warn' : 'ok'} />
+      )}
+      {health.data && (
+        <AttentionChip
+          to="/admin/reconcile"
+          icon={Scale}
+          label="Ledger"
+          value={health.data.reconcileBalanced ? 'Balanced' : 'Out of balance'}
+          tone={health.data.reconcileBalanced ? 'ok' : 'bad'}
+        />
+      )}
+      {on !== undefined && flags.data && (
+        <AttentionChip to="/admin/flags" icon={ToggleRight} label="Features switched on" value={`${on} of ${flags.data.length}`} tone="neutral" />
+      )}
+    </section>
+  )
+}
+
+function AttentionChip({
+  to,
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  to: string
+  icon: LucideIcon
+  label: string
+  value: string
+  tone: 'ok' | 'warn' | 'bad' | 'neutral'
+}) {
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'flex items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3.5 hairline transition-colors hover:border-border-strong',
+        tone === 'warn' && 'border-warn/40',
+        tone === 'bad' && 'border-loss/50',
+      )}
+    >
+      <span
+        className={cn(
+          'grid size-9 shrink-0 place-items-center rounded-xl',
+          tone === 'ok' ? 'bg-gain/12 text-gain' : tone === 'warn' ? 'bg-warn/12 text-warn' : tone === 'bad' ? 'bg-loss/12 text-loss' : 'bg-surface-2 text-muted',
+        )}
+      >
+        <Icon aria-hidden="true" className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs text-muted">{label}</span>
+        <span className="block font-medium">{value}</span>
+      </span>
+    </Link>
   )
 }

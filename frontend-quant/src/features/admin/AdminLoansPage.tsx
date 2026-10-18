@@ -19,6 +19,7 @@ import { formatRelative } from '@/lib/time'
 import { usePageClamp } from '@/lib/usePageClamp'
 import { cn } from '@/lib/utils'
 import { ReasonDialog } from './components/ReasonDialog'
+import { UnderwritingMemo } from './components/UnderwritingMemo'
 import { useApproveLoan, useRejectLoan } from './hooks'
 
 type Filter = Extract<LoanStatus, 'PENDING' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CLOSED'> | 'ALL'
@@ -258,6 +259,8 @@ function LoanCard({
             {l.decisionReason}
           </p>
         )}
+
+        {l.status === 'PENDING' && <UnderwritingMemo loanId={l.id} />}
 
         {l.status === 'PENDING' && (
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -40,6 +40,30 @@ const admin: RouteObject = {
       }),
     },
     {
+      path: 'fraud',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminFraudPage')).AdminFraudPage,
+      }),
+    },
+    {
+      path: 'fraud/:id',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminFraudPage')).AdminFraudCasePage,
+      }),
+    },
+    {
+      path: 'ai',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminAiPage')).AdminAiPage,
+      }),
+    },
+    {
+      path: 'flags',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminFlagsPage')).AdminFlagsPage,
+      }),
+    },
+    {
       path: 'audit',
       lazy: async () => ({
         Component: (await import('@/features/admin/AdminAuditPage')).AdminAuditPage,

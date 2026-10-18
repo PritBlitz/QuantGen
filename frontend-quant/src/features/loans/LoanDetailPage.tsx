@@ -12,6 +12,7 @@ import { CardError } from '@/features/dashboard/components/CardShell'
 import { formatINR, ratio, toDecimal } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import { formatAbsolute, formatDate } from '@/lib/time'
+import { LoanDocuments } from './components/LoanDocuments'
 import { RepayPanel } from './components/RepayPanel'
 import { INSTALLMENT_STATUS, LOAN_STATUS } from './labels'
 
@@ -168,6 +169,9 @@ export function LoanDetailPage() {
                 </ol>
               </Card>
             )}
+            <Card>
+              <LoanDocuments loanId={loan.data.id} canUpload={loan.data.status === 'PENDING'} />
+            </Card>
           </div>
 
           {loan.data.status === 'ACTIVE' && (

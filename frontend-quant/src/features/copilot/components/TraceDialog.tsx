@@ -1,23 +1,30 @@
+import { useQuery } from '@tanstack/react-query'
 import { Bot, Wrench } from 'lucide-react'
+import { copilotApi, riskApi } from '@/api/endpoints.v2'
 import { PanelError } from '@/components/Panel'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toDecimal } from '@/lib/money'
-import { useTrace } from '../hooks'
 import { AGENT_LABEL, toolLabel } from '../labels'
 
 /**
  * "How did Copilot get this answer?" (F-AGT-5): the redacted run trace — which agent did what,
  * how long it took, tokens and cost. `detail` is already redacted by the server.
  */
-export function TraceDialog({ runId, onClose }: { runId: string; onClose: () => void }) {
-  const trace = useTrace(runId)
+export function TraceDialog({ runId, onClose, admin }: { runId: string; onClose: () => void; admin?: boolean }) {
+  // Customers see their own runs (redacted); admins use the back-office endpoint (PRD §12.8).
+  const trace = useQuery({
+    queryKey: admin ? ['admin', 'ai-run', runId] : ['copilot', 'trace', runId],
+    queryFn: () => (admin ? riskApi.aiRun(runId) : copilotApi.trace(runId)),
+    staleTime: Infinity,
+    retry: false,
+  })
   const t = trace.data
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        title="How Copilot answered"
+        title={admin ? 'Agent run' : 'How Copilot answered'}
         description="Each step the agents took. Inputs are redacted; no raw account data is shown."
         className="max-w-lg"
       >
