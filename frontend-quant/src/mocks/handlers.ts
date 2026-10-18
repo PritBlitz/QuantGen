@@ -151,11 +151,22 @@ export function inr(v: Decimal | string): string {
   return `₹${rest ? `${rest},` : ''}${last3}.${frac}`
 }
 
+/** UserDto plus the v2 fields the backend now sends (handle, KYC, passkey/PIN flags). */
+export function withV2(user: UserDto): UserDto {
+  return {
+    ...user,
+    handle: db.v2.handles.get(user.id)?.handle ?? null,
+    kycStatus: db.v2.kyc.get(user.id)?.status ?? 'NONE',
+    hasPasskey: db.v2.passkeys.some((p) => p.userId === user.id),
+    hasPin: db.v2.pins.has(user.id),
+  }
+}
+
 export function issue(user: UserDto): HttpResponse<AuthResponse> {
   const body: AuthResponse = {
     accessToken: `mock.${user.id}.${crypto.randomUUID()}`,
     expiresIn: ACCESS_TTL_SECONDS,
-    user,
+    user: withV2(user),
   }
   // HttpOnly can't be emulated by MSW; the real backend sets HttpOnly; Secure; SameSite=Strict.
   return HttpResponse.json(body, {
@@ -458,7 +469,7 @@ export const handlers = [
   http.get(`${BASE}/users/me`, ({ request }) => {
     const user = userFrom(request)
     return user
-      ? HttpResponse.json(user)
+      ? HttpResponse.json(withV2(user))
       : error(401, 'UNAUTHORIZED', 'Authentication required', request)
   }),
 

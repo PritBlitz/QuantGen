@@ -31,7 +31,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-export function ProfilePage() {
+/** `embedded`: rendered as the Profile tab of Settings (no page header). */
+export function ProfilePage({ embedded = false }: { embedded?: boolean } = {}) {
   const cached = useAuthStore((s) => s.user)
   const me = useQuery({
     queryKey: ['users', 'me'],
@@ -47,7 +48,7 @@ export function ProfilePage() {
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="Profile" description="Your details, preferences and session." />
+      {!embedded && <PageHeader title="Profile" description="Your details, preferences and session." />}
       <div className="space-y-4">
         <Card>
           <div className="flex items-center gap-4">

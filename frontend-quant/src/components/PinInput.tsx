@@ -14,6 +14,7 @@ export function PinInput({
   autoFocus,
   disabled,
   onComplete,
+  className,
 }: {
   value: string
   onChange: (v: string) => void
@@ -23,6 +24,7 @@ export function PinInput({
   autoFocus?: boolean
   disabled?: boolean
   onComplete?: (v: string) => void
+  className?: string
 }) {
   const refs = useRef<Array<HTMLInputElement | null>>([])
 
@@ -50,7 +52,7 @@ export function PinInput({
   }
 
   return (
-    <div role="group" aria-label={label} className="flex justify-center gap-2">
+    <div role="group" aria-label={label} className={cn('flex justify-center gap-2', className)}>
       {Array.from({ length }).map((_, i) => (
         <input
           key={i}

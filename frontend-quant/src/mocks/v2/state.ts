@@ -139,7 +139,7 @@ export function createV2State(): V2State {
     stepUpTokens: new Map(),
     stepUpChallenges: new Map(),
     sessions: [
-      { id: 'd0000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, device: 'Windows PC', browser: 'Chrome 141', ipCity: 'Bengaluru', current: true, createdAt: iso(2), lastUsedAt: iso(0) },
+      { id: 'd0000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, device: 'Windows PC', browser: 'Chrome 141', ipCity: 'Bengaluru', current: true, createdAt: iso(2), lastUsedAt: new Date().toISOString() },
       { id: 'd0000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, device: 'iPhone 16', browser: 'Safari', ipCity: 'Bengaluru', current: false, createdAt: iso(9), lastUsedAt: iso(1, 21) },
       { id: 'd0000000-0000-4000-8000-000000000003', userId: PEOPLE.demo.id, device: 'iPad', browser: 'Safari', ipCity: 'Mumbai', current: false, createdAt: iso(31), lastUsedAt: iso(12) },
     ],

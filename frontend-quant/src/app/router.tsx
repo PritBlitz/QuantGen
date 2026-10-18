@@ -1,4 +1,4 @@
-import { createBrowserRouter, type RouteObject } from 'react-router'
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 import { GuestOnly, RequireAdmin, RequireAuth, SessionSplash } from './guards'
 import { NotFoundPage, RouteErrorPage } from './pages'
 import { Root } from './Root'
@@ -166,10 +166,11 @@ export const routes: RouteObject[] = [
                   Component: (await import('@/features/loans/LoanDetailPage')).LoanDetailPage,
                 }),
               },
+              { path: 'profile', element: <Navigate to="/settings" replace /> },
               {
-                path: 'profile',
+                path: 'settings/:tab?',
                 lazy: async () => ({
-                  Component: (await import('@/features/profile/ProfilePage')).ProfilePage,
+                  Component: (await import('@/features/security/SettingsPage')).SettingsPage,
                 }),
               },
               {
