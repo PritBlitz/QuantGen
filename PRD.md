@@ -1070,6 +1070,74 @@ string**, including counts, so the client handles one type; `unit` says how to f
 
 The existing `/insights/spending` (§12.5) supplies category breakdowns for both the page and the copilot.
 
+### 12.14 DTO reference (added 2026-10-18 by the frontend session)
+§12.3–§12.12 named these shapes without defining them. They are defined here so both sides build
+the same thing; `frontend-quant/src/api/types.v2.ts` mirrors this list exactly. Money is a
+string, other decimals (percentages, rates) are strings too, counts are integers unless noted.
+
+**Feature flags** (new endpoints, needed so the UI can hide switched-off features, F-AGT-6 / F-FLAG-1)
+| Method | Path | Auth | Response |
+|---|---|---|---|
+| GET | `/feature-flags` | any signed-in user | `200 {ai, autopilot, razorpay, cards, mcp}` (booleans) |
+| GET | `/admin/feature-flags` | admin | `200 [{name, enabled, updatedAt, updatedBy}]` |
+
+**Security:** `KycDto = {status, panMasked, dateOfBirth, address, verifiedAt}`; `StepUpChallenge`
+(extra body on 401) `= {methods: ("PASSKEY"|"PIN")[], action}`; step-up `action` is one of
+`TRANSFER`, `INTENT_APPROVE`, `RULE_ACTIVATE`, `CARD_REVEAL`, `SECURITY_SETTINGS`, `FD_CLOSE`, `TOKEN_CREATE`.
+
+**Payments:**
+- `HandleDto = {handle, accountId, changeableAt}`
+- `BillerDto = {id, name, category: "ELECTRICITY"|"MOBILE"|"BROADBAND"|"DTH"|"GAS"|"WATER"|"CREDIT_CARD"|"INSURANCE", consumerNumberLabel, consumerNumberPattern}`
+- `BillPaymentDto = {id, billerId, billerName, category, consumerNumberMasked, amount, fromAccountId, transactionId, createdAt}`
+- `GroupDto = {id, name, members: [{handle, displayName, balance}], expenses: ExpenseDto[], createdAt}` (member `balance` > 0: the group owes them)
+- `ExpenseDto = {id, paidByHandle, amount, description, splitType, shares: [{handle, amount}], createdAt}`; request `split.shares` = `[{handle, value}]` (rupees for `EXACT`, percent for `PERCENT`)
+- `ScheduledTransferDto.lastRun.outcome` = `SUCCEEDED` | `RETRYING` | `MISSED`
+
+**Savings:** `PUT /accounts/{id}/round-up` returns `200 {accountId, enabled, roundTo, goalAccountId}`
+and `GET /accounts/{id}/round-up` returns the same (added). `BudgetDto = {category, monthlyLimit, spent, pct}`;
+`ForecastDto.warnings = [{date, code: "LOW_BALANCE"|"EMI_AT_RISK"|"SCHEDULED_AT_RISK", message}]`;
+`NetWorthDto = {current, breakdown: {cash, goals, fixedDeposits, investments, loans}, history: [{month, value}]}`.
+Category keys: `FOOD`, `GROCERIES`, `SHOPPING`, `TRANSPORT`, `BILLS`, `RENT`, `ENTERTAINMENT`, `HEALTH`,
+`EDUCATION`, `TRAVEL`, `TRANSFERS`, `INVESTMENTS`, `LOANS`, `INCOME`, `OTHER`.
+
+**Copilot:**
+- `ConversationDto = {id, title, createdAt, updatedAt}`; `GET /copilot/conversations/{id}` → `ConversationDto + {messages: ChatMessageDto[]}`
+- `ChatMessageDto = {id, role: "USER"|"ASSISTANT", text, intents: IntentDto[], citations: [{type, id, label}], runId, createdAt}`
+- citation `type`: `TRANSACTION` | `ACCOUNT` | `INSTRUMENT` | `LOAN` | `RULE` | `METRIC`
+- `tool` SSE event `status`: `STARTED` | `DONE` | `FAILED`; `done.usage = {inputTokens, outputTokens}`
+- `TraceDto = {runId, startedAt, totalMs, costUsd, steps: [{agent, kind: "MODEL"|"TOOL", name, status: "OK"|"ERROR", latencyMs, inputTokens, outputTokens, detail}]}` (`detail` is redacted)
+- `agent` names: `CONCIERGE`, `LEDGER_ANALYST`, `PAYMENTS`, `MARKETS`, `PLANNER`, `LOAN_ADVISOR`, `FRAUD_INVESTIGATOR`, `UNDERWRITING_ANALYST`
+
+**Autopilot:**
+- `RuleDto = {id, name, version, status: "ACTIVE"|"PAUSED", rule: RuleDsl, rendering, pausedReason, lastRunAt, runCount, movedThisMonth, createdAt, updatedAt}`
+- `RuleRunDto` adds `triggerSummary` (server-rendered sentence) to §12.7
+- `TemplateDto = {id, name, description, prompt, rule: RuleDsl|null}`
+- DSL v1 in full: trigger `MONEY_RECEIVED {accountId, minAmount?, counterpartyContains?, transactionType?}` ·
+  `SCHEDULE {frequency: "MONTHLY"|"WEEKLY", dayOfMonth? (1–28), weekday? ("MON"…"SUN")}` ·
+  `BALANCE_ABOVE {accountId, threshold}` · `PRICE_CROSSES {symbol, direction: "ABOVE"|"BELOW", price}` ·
+  `BUDGET_THRESHOLD {category, percent}`; condition `BALANCE_AT_LEAST {accountId, amount}`;
+  amount `{mode: "FIXED"|"PERCENT_OF_TRIGGER"|"EXCESS_ABOVE", value}`; actions
+  `TRANSFER {fromAccountId?, toAccountId? | toBeneficiaryId?, amount}` · `BUY {accountId, symbol, amount}` ·
+  `PAY_BILL {fromAccountId, billerId, consumerNumber}` · `ROUND_UP_SWEEP {goalAccountId}` · `NOTIFY {message}`
+
+**Risk / back office:**
+- `FraudCaseDto = {id, status: "OPEN"|"RELEASED"|"REJECTED", score (0–100), transferId, amount, fromAccountNumberMasked, toAccountNumberMasked, toName, customer: {userId, fullName}, topSignal, createdAt, decidedAt, decisionReason}`
+- detail adds `memo: {summary, suggestedAction: "RELEASE"|"REJECT"|"CONTACT_CUSTOMER", confidence: "LOW"|"MEDIUM"|"HIGH", generatedAt, runId} | null`,
+  `signals: [{code, label, weight}]`, `customerBaseline: {avgTransfer, transfers30d, usualHoursIst, accountAgeDays}`
+- `LoanDocumentDto = {id, fileName, contentType, sizeBytes, uploadedAt}`; `GET /loans/{id}/documents` → `LoanDocumentDto[]` (added)
+- underwriting response adds `status: "PENDING"|"READY"|"FAILED"` and `generatedAt`; `recommendation`: `APPROVE` | `REJECT` | `REVIEW` | null
+- `/admin/ai/usage` adds `budget: {monthlyCapUsd, usedPct}`; `byAgent = [{agent, runs, costUsd}]`, `byDay = [{date, costUsd, turns}]`
+
+**Trading:**
+- `WatchlistDto = {id, name, symbols, createdAt}`; `POST /watchlists {name}`; `POST /watchlists/{id}/symbols/{symbol}` (added verb); `DELETE` both
+- `PriceAlertDto = {id, symbol, direction, price, status: "ACTIVE"|"TRIGGERED", triggeredAt, createdAt}`
+- `StrategyDsl`: `SMA_CROSS {fast, slow}` · `RSI {period, buyBelow, sellAbove}` · `BUY_THE_DIP {dropPct, takeProfitPct}` · `REBALANCE {everyDays, weights: {symbol: pct}}`
+- `BacktestDto = {id, strategy, symbols, from, to, initialCash, finalValue, returnPct, maxDrawdownPct, winRatePct, equity: [{t, value}], trades: [{t, symbol, side, quantity, price}], createdAt}`; `GET /backtests` lists the user's last 20
+- `TaxPnlDto = {fy, shortTermGains, longTermGains, total, rows: [{symbol, buyDate, sellDate, quantity, cost, proceeds, gain, term: "SHORT"|"LONG"}]}`
+
+**Cards:** `controls = {frozen, online, perTxnLimit, blockedCategories}`; merchant categories:
+`GROCERY`, `DINING`, `TRAVEL`, `ELECTRONICS`, `GAMBLING`, `FUEL`, `ENTERTAINMENT`, `OTHER`.
+
 ## 13. Data model (v2 additions)
 New tables (exact columns live in Flyway migrations, owned by the backend; `agent-quant` has
 its own schema and no access to the core schema):
