@@ -179,6 +179,30 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'autopilot',
+                lazy: async () => ({
+                  Component: (await import('@/features/autopilot/AutopilotPage')).AutopilotPage,
+                }),
+              },
+              {
+                path: 'autopilot/new',
+                lazy: async () => ({
+                  Component: (await import('@/features/autopilot/RuleBuilderPage')).RuleBuilderPage,
+                }),
+              },
+              {
+                path: 'autopilot/:id',
+                lazy: async () => ({
+                  Component: (await import('@/features/autopilot/RuleDetailPage')).RuleDetailPage,
+                }),
+              },
+              {
+                path: 'autopilot/:id/edit',
+                lazy: async () => ({
+                  Component: (await import('@/features/autopilot/RuleBuilderPage')).RuleBuilderPage,
+                }),
+              },
+              {
                 path: 'copilot',
                 lazy: async () => ({
                   Component: (await import('@/features/copilot/CopilotPage')).CopilotPage,

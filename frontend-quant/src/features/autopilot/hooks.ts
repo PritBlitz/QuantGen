@@ -10,7 +10,8 @@ export const autopilotKeys = {
 }
 
 export const useRules = (enabled = true) => useQuery({ queryKey: autopilotKeys.rules, queryFn: autopilotApi.rules, enabled })
-export const useRule = (id: string) => useQuery({ queryKey: autopilotKeys.rule(id), queryFn: () => autopilotApi.rule(id) })
+export const useRule = (id: string, enabled = true) =>
+  useQuery({ queryKey: autopilotKeys.rule(id), queryFn: () => autopilotApi.rule(id), enabled: enabled && !!id })
 export const useRuleRuns = (id: string, page = 0) =>
   useQuery({ queryKey: autopilotKeys.runs(id, page), queryFn: () => autopilotApi.runs(id, { page, size: 10 }), placeholderData: keepPreviousData })
 export const useTemplates = () => useQuery({ queryKey: autopilotKeys.templates, queryFn: autopilotApi.templates, staleTime: 10 * 60_000 })
