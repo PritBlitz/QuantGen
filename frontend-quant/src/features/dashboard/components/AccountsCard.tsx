@@ -5,6 +5,7 @@ import { MaskedAccount } from '@/components/MaskedAccount'
 import { Money } from '@/components/Money'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { sumMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import { useAccounts } from '../hooks'
 import { CardError, DashCard } from './CardShell'
@@ -49,7 +50,7 @@ export function AccountsCard({ className }: { className?: string }) {
       ) : (
         <>
           <ul className="space-y-2">
-            {data.map((a) => (
+            {data.filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').map((a) => (
               <li
                 key={a.id}
                 className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-surface-2 px-4 py-3.5"
@@ -63,11 +64,37 @@ export function AccountsCard({ className }: { className?: string }) {
                     className="mt-0.5 text-xs text-muted"
                   />
                 </div>
-                <Money value={a.balance} className="text-base font-medium sm:text-lg" />
+                <div className="text-right">
+                  <Money value={a.balance} className="block text-base font-medium sm:text-lg" />
+                  {a.availableBalance && a.availableBalance !== a.balance && (
+                    <span className="text-[0.6875rem] text-muted">
+                      <Money value={a.availableBalance} /> available
+                    </span>
+                  )}
+                </div>
               </li>
             ))}
+            {data.some((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT') && (
+              <li>
+                <Link
+                  to="/savings"
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-gradient-to-r from-chart-5/10 to-transparent px-4 py-3.5 hairline transition-colors hover:border-border-strong"
+                >
+                  <div>
+                    <p className="text-sm font-medium">Goals &amp; deposits</p>
+                    <p className="text-xs text-muted">
+                      {data.filter((a) => a.type === 'GOAL').length} goals · {data.filter((a) => a.type === 'FIXED_DEPOSIT').length} FD
+                    </p>
+                  </div>
+                  <Money
+                    value={sumMoney(data.filter((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT').map((a) => a.balance))}
+                    className="text-base font-medium sm:text-lg"
+                  />
+                </Link>
+              </li>
+            )}
           </ul>
-          {data.length < 3 && (
+          {data.filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').length < 3 && (
             <Button asChild variant="outline" size="sm" className="mt-3 self-start">
               <Link to="/accounts">
                 <Plus aria-hidden="true" /> Open another account

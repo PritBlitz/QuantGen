@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Decimal, formatINR, formatPct, ratio, signOf } from '@/lib/money'
 import { cn } from '@/lib/utils'
+import { TrendChart } from '@/components/charts/TrendChart'
+import { usePortfolioAnalytics } from '@/features/analytics/hooks'
 import { useInstruments, usePortfolio } from '../hooks'
 import { CardError, DashCard } from './CardShell'
 
 // Fixed, theme-aware tints for the allocation bar; never encodes gain/loss.
-const ALLOC = ['bg-accent', 'bg-text/70', 'bg-muted/70', 'bg-muted/40', 'bg-border'] as const
+const ALLOC = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4', 'bg-border-strong'] as const
 
 function Allocation({ holdings, total }: { holdings: HoldingDto[]; total: string }) {
   const sorted = [...holdings].sort((a, b) =>
@@ -104,6 +106,7 @@ function EmptyPortfolio() {
 
 export function PortfolioCard({ className }: { className?: string }) {
   const { data, isPending, isError, refetch } = usePortfolio()
+  const perf = usePortfolioAnalytics('3M')
 
   let body
   if (isPending) {
@@ -132,7 +135,23 @@ export function PortfolioCard({ className }: { className?: string }) {
             <span className="num text-muted">({formatPct(pnlPct)})</span>
           </span>
         </div>
-        <div className="mt-6">
+        {perf.data && perf.data.points.length > 1 && (
+          <div className="mt-4">
+            <TrendChart
+              ariaLabel="Portfolio value against amount invested, last 3 months"
+              height={150}
+              hideYAxis
+              yDomain="auto"
+              unit="MONEY"
+              rows={perf.data.points.map((p) => ({ t: p.t, values: { mv: p.marketValue, inv: p.invested } }))}
+              series={[
+                { key: 'mv', label: 'Value', color: 'var(--chart-2)' },
+                { key: 'inv', label: 'Invested', color: 'var(--text-muted)', kind: 'dashed' },
+              ]}
+            />
+          </div>
+        )}
+        <div className="mt-5">
           <Allocation holdings={data.holdings} total={data.totalMarketValue} />
         </div>
         <dl className="mt-auto grid grid-cols-2 gap-3 pt-6 text-sm">
