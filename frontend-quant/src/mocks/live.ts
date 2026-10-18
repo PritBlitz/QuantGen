@@ -46,6 +46,11 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/insights/', milestone: 'V2-M3' },
   { prefix: '/api/v1/budgets', milestone: 'V2-M3' },
   { prefix: '/api/v1/transactions/', milestone: 'V2-M3' },
+  // Backend 0604a02 (announced 2026-10-18): V2-M7 Trading 2.0. Limit/stop + cancel ride on /orders.
+  { prefix: '/api/v1/watchlists', milestone: 'V2-M7' },
+  { prefix: '/api/v1/price-alerts', milestone: 'V2-M7' },
+  { prefix: '/api/v1/backtests', milestone: 'V2-M7' },
+  { prefix: '/api/v1/reports/', milestone: 'V2-M7' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -57,7 +62,6 @@ export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/users\/me\/tokens/,
   /^\/api\/v1\/accounts\/[^/]+\/cards/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
-  /^\/api\/v1\/orders\/[^/]+\/cancel/,
   /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
   /^\/api\/v1\/admin\/loans\/[^/]+\/underwriting/,
   /^\/api\/v1\/admin\/ledger\/(verify-chain|solvency)/,
