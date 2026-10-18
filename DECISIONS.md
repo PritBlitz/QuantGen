@@ -71,6 +71,8 @@ you make a new one.
 | D-039 | LLM spend controls: per-user budgets + global kill switch | Proposed |
 | D-040 | Analytics on Postgres with a nightly roll-up, no warehouse | Accepted |
 | D-041 | v2 approved; frontend redesign "Signal" | Accepted |
+| D-042 | Sandbox KYC, reusable step-up tokens, keyed PIN hashes | Accepted |
+| D-043 | Analytics computed live; the nightly roll-up waits for a slow query | Accepted |
 
 ---
 
@@ -467,3 +469,15 @@ you make a new one.
 - **Revisit when:** real KYC is in scope (add a `PENDING` review path), or a risky action needs per-request
   binding (bind the token to a hash of the request body).
 
+### D-043 · Analytics computed live; the nightly roll-up waits for a slow query
+- **Date / status:** 2026-10-18 · Accepted (built in V2-MA; refines D-040)
+- **Context:** D-040 planned a nightly `daily_metrics` roll-up plus 60-second caches. At demo scale (hundreds of
+  users, thousands of ledger lines) every analytics query runs in milliseconds straight off the ledger.
+- **Options:** build the roll-up now; compute everything live and add the roll-up later; live plus caches only.
+- **Decision:** compute every metric live from the ledger with the shared definitions in `analytics/LedgerKinds`.
+  No roll-up table and no cache yet. Portfolio history is the one exception: market value can't be rebuilt from the
+  ledger, so a nightly `portfolio_snapshots` job stores it.
+- **Trade-off:** admin queries hit the OLTP tables directly, so a big date range costs a full scan of the range.
+  Numbers are always exact and there is no roll-up to drift or backfill.
+- **Revisit when:** any analytics endpoint exceeds its p95 budget (500 ms), or shows up in the money-path p95 →
+  add the `daily_metrics` roll-up (PRD §13) for closed days, then a read replica.

@@ -1130,6 +1130,21 @@ string**, including counts, so the client handles one type; `unit` says how to f
 
 The existing `/insights/spending` (§12.5) supplies category breakdowns for both the page and the copilot.
 
+Backend notes (V2-MA, implemented 2026-10-18):
+- **Computed live** from the ledger on every request (D-043); there is no `daily_metrics` roll-up and no 60-second
+  cache yet. Responses are the shapes above.
+- `NET_INFLOW` = deposits received, net of reversals (v1 has no outflow to the outside world yet).
+- `FAILED_MONEY_REQUESTS` counts failed POSTs to `/transfers`, `/orders`, `/accounts/{id}/deposit` and
+  `/loans/{id}/repay` (stored in `request_failures`). A `401 STEP_UP_REQUIRED` is not a failure.
+  `health.outboxLag` is the number of pending outbox events.
+- **Suppression:** a suppressed breakdown row has an opaque key `SUPPRESSED_n` and a generic label. A cohort under
+  5 users has `retentionPct` null in every cell but still shows `size` (it equals the `NEW_USERS` KPI, which is not suppressed).
+- `summary.topCategory` is coarse (`TRANSFERS` / `LOAN_REPAYMENTS`) until V2-M3 categories exist; `SPEND_CATEGORY`
+  likewise. `/analytics/goals` returns `[]` until V2-M3.
+- **Portfolio history** comes from nightly `portfolio_snapshots` (23:55 IST) plus a live point for today, so a fresh
+  install shows a single point until snapshots accumulate.
+- The 🤖 marker on `/analytics/*` is not implemented yet (agent tokens arrive with V2-M4).
+
 ### 12.14 DTO reference (added 2026-10-18 by the frontend session)
 §12.3–§12.12 named these shapes without defining them. They are defined here so both sides build
 the same thing; `frontend-quant/src/api/types.v2.ts` mirrors this list exactly. Money is a
