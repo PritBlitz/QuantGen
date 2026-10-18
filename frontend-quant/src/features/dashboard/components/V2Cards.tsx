@@ -136,11 +136,11 @@ export function UpcomingCard({ className }: { className?: string }) {
   if (isUnavailable(scheduled.error) && !loans.data?.some((l) => l.status === 'ACTIVE')) return null
   const items = [
     ...(scheduled.data ?? [])
-      .filter((s) => s.status === 'ACTIVE' && s.nextRunDate)
-      .map((s) => ({ key: s.id, date: s.nextRunDate!, label: s.note ?? `To ${s.toName}`, sub: `${s.frequency.toLowerCase()} · ${s.toAccountNumberMasked}`, amount: s.amount })),
+      .flatMap((s) => (s.status === 'ACTIVE' && s.nextRunDate ? [{ ...s, nextRunDate: s.nextRunDate }] : []))
+      .map((s) => ({ key: s.id, date: s.nextRunDate, label: s.note ?? `To ${s.toName}`, sub: `${s.frequency.toLowerCase()} · ${s.toAccountNumberMasked}`, amount: s.amount })),
     ...(loans.data ?? [])
-      .filter((l) => l.status === 'ACTIVE' && l.nextDueDate)
-      .map((l) => ({ key: l.id, date: l.nextDueDate!, label: 'Loan EMI', sub: 'auto-debit at 06:00', amount: l.emi })),
+      .flatMap((l) => (l.status === 'ACTIVE' && l.nextDueDate ? [{ ...l, nextDueDate: l.nextDueDate }] : []))
+      .map((l) => ({ key: l.id, date: l.nextDueDate, label: 'Loan EMI', sub: 'auto-debit at 06:00', amount: l.emi })),
     ...(incoming.data?.content ?? []).map((r) => ({ key: r.id, date: r.expiresAt.slice(0, 10), label: `${r.fromHandle} asked you`, sub: r.note ? `“${r.note}” · pay by` : 'pay by', amount: r.amount })),
   ]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -211,7 +211,7 @@ export function AutopilotCard({ className }: { className?: string }) {
           </div>
           {paused.length > 0 && (
             <p className="mt-4 rounded-xl border border-warn/30 bg-warn/[0.07] px-3 py-2 text-xs">
-              <Badge tone="warn">{paused.length} paused</Badge> <span className="ml-1 text-muted">{paused[0]!.pausedReason}</span>
+              <Badge tone="warn">{paused.length} paused</Badge> <span className="ml-1 text-muted">{paused[0]?.pausedReason}</span>
             </p>
           )}
           {active[0]?.lastRunAt && <p className="mt-3 text-xs text-muted">Last run {formatRelative(active[0].lastRunAt)} · “{active[0].name}”</p>}

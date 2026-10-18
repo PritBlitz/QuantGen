@@ -10,6 +10,9 @@ import { ReviewAmount, ReviewRow, ReviewRows } from '@/components/money/Review'
 import { SuccessCheck } from '@/components/money/SuccessCheck'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Segmented } from '@/components/Segmented'
+import { useFlag } from '@/api/flags'
+import { TopupFlow } from '@/features/payments/components/TopupFlow'
 import { formatINR, toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
@@ -35,9 +38,31 @@ export function DepositDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Add money">
-        <DepositFlow account={account} onDone={() => onOpenChange(false)} />
+        <AddMoney account={account} onDone={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** v2: demo deposit or a Razorpay test-mode top-up (PRD §7.9), when the flag is on. */
+function AddMoney({ account, onDone }: { account: AccountDto; onDone: () => void }) {
+  const razorpay = useFlag('razorpay')
+  const [method, setMethod] = useState<'demo' | 'razorpay'>('demo')
+  if (!razorpay) return <DepositFlow account={account} onDone={onDone} />
+  return (
+    <div className="space-y-5">
+      <Segmented
+        label="How to add money"
+        value={method}
+        onValueChange={setMethod}
+        className="w-full"
+        options={[
+          { value: 'demo', label: 'Demo deposit' },
+          { value: 'razorpay', label: 'Razorpay (test)' },
+        ]}
+      />
+      {method === 'demo' ? <DepositFlow account={account} onDone={onDone} /> : <TopupFlow account={account} onDone={onDone} />}
+    </div>
   )
 }
 

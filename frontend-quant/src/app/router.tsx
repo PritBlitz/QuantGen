@@ -131,6 +131,48 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'pay',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/PayHubPage')).PayHubPage,
+                }),
+              },
+              {
+                path: 'pay/requests',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/RequestsPage')).RequestsPage,
+                }),
+              },
+              {
+                path: 'pay/scheduled',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/ScheduledPage')).ScheduledPage,
+                }),
+              },
+              {
+                path: 'pay/bills',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/BillsPage')).BillsPage,
+                }),
+              },
+              {
+                path: 'pay/splits',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/SplitsPage')).SplitsPage,
+                }),
+              },
+              {
+                path: 'pay/splits/:id',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/SplitsPage')).SplitGroupPage,
+                }),
+              },
+              {
+                path: 'pay/qr',
+                lazy: async () => ({
+                  Component: (await import('@/features/payments/QrPage')).QrPage,
+                }),
+              },
+              {
                 path: 'markets',
                 lazy: async () => ({
                   Component: (await import('@/features/markets/MarketsPage')).MarketsPage,

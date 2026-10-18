@@ -522,8 +522,10 @@ P1 = should ship, P2 = stretch.
 - **F-PAY-6 (P0)** **Confirmation of payee:** resolving a handle or account number returns the
   holder's masked name ("Aarav S.") before paying. Resolve is rate-limited (30/min per user)
   to stop enumeration.
-- **F-PAY-7 (P0)** **QR:** every user has a QR (`quantgen://pay?h=<handle>&am=<amount>&tn=<note>`,
-  amount optional). The web app can show and scan it (camera via `BarcodeDetector`, upload fallback).
+- **F-PAY-7 (P0)** **QR:** every user has a QR encoding an https link
+  `https://<host>/transfer?to=<handle>&am=<amount>&tn=<note>` (amount and note optional), so any
+  phone camera opens the pre-filled send screen; scanners also accept the older
+  `quantgen://pay?h=…&am=…&tn=…` form (changed 2026-10-18: a custom scheme can't open a web app). The web app can show and scan it (camera via `BarcodeDetector`, upload fallback).
 - **F-PAY-8 (P0)** **Request money:** ask a handle for an amount with a note; the payer can
   pay (a normal transfer linked to the request), decline or block the requester. Requests
   expire after 7 days. At most 20 open outgoing requests per user.

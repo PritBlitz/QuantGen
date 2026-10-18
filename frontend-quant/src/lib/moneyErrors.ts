@@ -66,6 +66,25 @@ export function moneyErrorCopy(
       }
     case 'VALIDATION_FAILED':
       return { title: 'Some details need fixing.', next: 'edit' }
+    case 'STEP_UP_CANCELLED':
+      return {
+        title: 'Verification was cancelled, so nothing was sent.',
+        detail: 'Confirm with your passkey or PIN to continue.',
+        next: 'retry',
+      }
+    case 'PIN_LOCKED':
+      return {
+        title: 'Your PIN is locked for 30 minutes.',
+        detail: 'Use a passkey instead, or try again later. Nothing was sent.',
+      }
+    case 'COOLING_PERIOD':
+      return {
+        title: 'This payee is new, so there’s a ₹25,000 cap for the first 24 hours.',
+        detail: 'It protects you from scams that ask you to add someone and pay them at once.',
+        next: 'edit',
+      }
+    case 'KYC_REQUIRED':
+      return { title: 'Complete your KYC first.', detail: 'It takes a minute in Settings → Limits & KYC.' }
     default:
       return { title: errorMessage(e) }
   }

@@ -19,8 +19,9 @@ export function TransferPage() {
   return (
     <div>
       <PageHeader
-        title="Transfer"
-        description="Between your accounts or to anyone at QuantGen. Instant and free."
+        eyebrow="Pay"
+        title="Send money"
+        description="To a handle, a saved payee, an account number or yourself. Instant and free."
       />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="p-5 sm:p-8">
@@ -45,6 +46,13 @@ export function TransferPage() {
               beneficiaries={beneficiaries.data}
               initialFromId={params.get('from')}
               picked={picked}
+              prefill={{
+                handle: params.get('to') ?? undefined,
+                amount: /^\d{1,9}(\.\d{1,2})?$/.test(params.get('am') ?? '')
+                  ? (params.get('am') ?? undefined)
+                  : undefined,
+                note: params.get('tn')?.slice(0, 140) ?? undefined,
+              }}
             />
           )}
         </Card>

@@ -12,8 +12,16 @@ export const isAccountNumber = (v: string) => /^\d{12}$/.test(v)
 export interface TransferDraft {
   fromAccountId: string
   toAccountNumber: string
+  /** v2 (F-PAY-5): pay by handle instead of account number. */
+  toHandle?: string
   amount: string
   note: string
+}
+
+export const HANDLE_RE = /^[a-z0-9.]{3,30}@qg$/
+export const normaliseHandle = (v: string) => {
+  const h = v.trim().toLowerCase()
+  return h && !h.includes('@') ? `${h}@qg` : h
 }
 
 export type TransferErrors = Partial<Record<keyof TransferDraft, string>>
@@ -22,9 +30,14 @@ export type TransferErrors = Partial<Record<keyof TransferDraft, string>>
 export function validateTransfer(d: TransferDraft, balance?: MoneyString): TransferErrors {
   const e: TransferErrors = {}
   if (!d.fromAccountId) e.fromAccountId = 'Choose an account to send from'
-  const to = normaliseAccountNumber(d.toAccountNumber)
-  if (!to) e.toAccountNumber = 'Choose who to send to'
-  else if (!isAccountNumber(to)) e.toAccountNumber = 'Account numbers have 12 digits'
+  if (d.toHandle !== undefined) {
+    if (!d.toHandle) e.toAccountNumber = 'Enter their QuantGen handle'
+    else if (!HANDLE_RE.test(d.toHandle)) e.toAccountNumber = 'Handles look like name@qg'
+  } else {
+    const to = normaliseAccountNumber(d.toAccountNumber)
+    if (!to) e.toAccountNumber = 'Choose who to send to'
+    else if (!isAccountNumber(to)) e.toAccountNumber = 'Account numbers have 12 digits'
+  }
   if (!d.amount) e.amount = 'Enter an amount'
   else if (!AMOUNT_INPUT_RE.test(d.amount)) e.amount = 'Use a number with up to 2 decimals'
   else {

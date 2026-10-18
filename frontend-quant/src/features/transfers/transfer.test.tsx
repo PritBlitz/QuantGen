@@ -30,8 +30,10 @@ function signIn() {
 async function fillTransfer(amount: string) {
   const user = userEvent.setup()
   renderApp(`/transfer?from=${SAVINGS}`)
-  await user.click(await screen.findByRole('radio', { name: 'New' }))
+  await user.click(await screen.findByRole('radio', { name: 'Account no.' }))
   await user.type(screen.getByLabelText('Account number'), CHECKING_NO)
+  // v2 confirmation of payee: wait for the server to resolve the holder's masked name.
+  expect(await screen.findByText('Aarav S.')).toBeInTheDocument()
   await user.type(screen.getByLabelText('Amount'), amount)
   await user.click(screen.getByRole('button', { name: 'Review transfer' }))
   return user
@@ -52,14 +54,15 @@ describe('transfer flow', () => {
     signIn()
     const user = await fillTransfer('1500')
 
-    // Review: big amount, unverified-name warning, balance after (decimal math).
+    // Review: big amount, the server-verified recipient name, balance after (decimal math).
     expect(await screen.findByText('₹1,500.00')).toBeInTheDocument()
-    expect(screen.getByText(/haven’t verified this recipient’s name/)).toBeInTheDocument()
+    expect(screen.getByText(/Recipient name verified by QuantGen/)).toBeInTheDocument()
     expect(screen.getByText('₹1,82,750.75')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /send ₹1,500\.00/i }))
     expect(await screen.findByRole('img', { name: 'Transfer completed' })).toBeInTheDocument()
-    expect(screen.getByText('Aarav Sharma')).toBeInTheDocument()
+    // The holder name comes from the server's TransferDto (it may also appear in the shell).
+    expect(screen.getAllByText('Aarav Sharma').length).toBeGreaterThan(0)
     expect(db.accounts.get(SAVINGS)?.balance).toBe('182750.7500')
   })
 

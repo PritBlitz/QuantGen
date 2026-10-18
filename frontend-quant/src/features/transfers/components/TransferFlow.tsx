@@ -1,8 +1,9 @@
-import { AlertTriangle, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { ToggleGroup } from 'radix-ui'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { paymentsApi } from '@/api/endpoints'
+import { useQuery } from '@tanstack/react-query'
+import { payApi } from '@/api/endpoints.v2'
 import { useInvalidateMoney } from '@/api/queries'
 import type { AccountDto, BeneficiaryDto, TransferDto } from '@/api/types'
 import { FormField } from '@/components/FormField'
@@ -20,9 +21,13 @@ import { maskShort } from '@/lib/mask'
 import { formatINR, toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { cn } from '@/lib/utils'
 import {
+  HANDLE_RE,
+  isAccountNumber,
   normaliseAccountNumber,
+  normaliseHandle,
   NOTE_MAX,
   validateTransfer,
   type TransferDraft,
@@ -30,10 +35,12 @@ import {
 } from '../validation'
 import { AddBeneficiaryDialog } from './AddBeneficiaryDialog'
 
-type Mode = 'saved' | 'own' | 'new'
+type Mode = 'saved' | 'handle' | 'own' | 'new'
 
 interface Recipient {
   accountNumber: string
+  /** v2: paying by handle (accountNumber is then only the masked hint). */
+  handle?: string
   name: string | null
   /** Name confirmed by the server (own account or saved beneficiary). */
   verified: boolean
@@ -44,23 +51,32 @@ export function TransferFlow({
   beneficiaries,
   initialFromId,
   picked,
+  prefill,
 }: {
   accounts: AccountDto[]
   beneficiaries: BeneficiaryDto[]
   initialFromId?: string | null
   /** A beneficiary chosen from the side panel. */
   picked?: BeneficiaryDto | null
+  /** From a QR code or payment link: handle, amount, note (F-PAY-7). */
+  prefill?: { handle?: string; amount?: string; note?: string }
 }) {
-  const senders = accounts.filter((a) => a.status === 'ACTIVE')
+  // Goals and FDs only move money between your own accounts (D-037), so they don't send here.
+  const senders = accounts.filter(
+    (a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'),
+  )
   const [fromId, setFromId] = useState(
     senders.find((a) => a.id === initialFromId)?.id ?? senders[0]?.id ?? '',
   )
-  const [mode, setMode] = useState<Mode>(beneficiaries.length ? 'saved' : 'new')
+  const [mode, setMode] = useState<Mode>(
+    prefill?.handle ? 'handle' : beneficiaries.length ? 'saved' : 'new',
+  )
+  const [handle, setHandle] = useState(prefill?.handle ?? '')
   const [savedId, setSavedId] = useState('')
   const [ownId, setOwnId] = useState('')
   const [newNumber, setNewNumber] = useState('')
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
+  const [amount, setAmount] = useState(prefill?.amount ?? '')
+  const [note, setNote] = useState(prefill?.note ?? '')
   const [errors, setErrors] = useState<TransferErrors>({})
   const [verifyOpen, setVerifyOpen] = useState(false)
   const [depositOpen, setDepositOpen] = useState(false)
@@ -78,6 +94,24 @@ export function TransferFlow({
       setSavedId(picked.id)
     }
   }
+
+  // Confirmation of payee (F-PAY-6): the server resolves a handle or account number to the
+  // holder's masked name before money moves. Debounced, and silent if the endpoint isn't live.
+  const handleQ = normaliseHandle(useDebouncedValue(handle, 350))
+  const numberQ = normaliseAccountNumber(useDebouncedValue(newNumber, 350))
+  const resolveFor =
+    mode === 'handle' && HANDLE_RE.test(handleQ)
+      ? { handle: handleQ }
+      : mode === 'new' && isAccountNumber(numberQ)
+        ? { accountNumber: numberQ }
+        : null
+  const payee = useQuery({
+    queryKey: ['payee', resolveFor],
+    queryFn: () => payApi.resolve(resolveFor ?? { handle: '' }),
+    enabled: !!resolveFor,
+    retry: false,
+    staleTime: 60_000,
+  })
 
   const from = accounts.find((a) => a.id === fromId)
   const ownTargets = accounts.filter((a) => a.id !== fromId && a.status !== 'CLOSED')
@@ -99,16 +133,32 @@ export function TransferFlow({
         ? { accountNumber: a.accountNumber, name: `You · ${accountLabel(a)}`, verified: true }
         : null
     }
+    if (mode === 'handle') {
+      const h = normaliseHandle(handle)
+      if (!h) return null
+      const resolved = payee.data && h === handleQ ? payee.data : null
+      return {
+        accountNumber: resolved?.accountNumberMasked ?? '',
+        handle: h,
+        name: resolved ? `${resolved.holderNameMasked} · ${h}` : h,
+        verified: !!resolved,
+      }
+    }
     const n = normaliseAccountNumber(newNumber)
-    return n ? { accountNumber: n, name: null, verified: false } : null
-  }, [mode, savedId, ownId, newNumber, beneficiaries, accounts])
+    const resolved = payee.data && n === numberQ ? payee.data : null
+    return n
+      ? { accountNumber: n, name: resolved?.holderNameMasked ?? null, verified: !!resolved }
+      : null
+  }, [mode, savedId, ownId, newNumber, handle, handleQ, numberQ, payee.data, beneficiaries, accounts])
 
   const draft: TransferDraft = {
     fromAccountId: fromId,
     toAccountNumber: recipient?.accountNumber ?? '',
+    ...(mode === 'handle' ? { toHandle: normaliseHandle(handle) } : {}),
     amount,
     note,
   }
+  const spendable = from ? (from.availableBalance ?? from.balance) : undefined
 
   /** Any edit invalidates the review's idempotency key (CLAUDE.md). */
   const edited =
@@ -120,8 +170,10 @@ export function TransferFlow({
 
   function onReview(e: FormEvent) {
     e.preventDefault()
-    const errs = validateTransfer(draft, from?.balance)
-    if (recipient && recipient.accountNumber === from?.accountNumber)
+    const errs = validateTransfer(draft, spendable)
+    if (mode === 'handle' && !errs.toAccountNumber && payee.isError)
+      errs.toAccountNumber = 'We couldn’t find anyone with that handle.'
+    if (recipient && !recipient.handle && recipient.accountNumber === from?.accountNumber)
       errs.toAccountNumber = 'You can’t send to the same account'
     setErrors(errs)
     if (Object.keys(errs).length === 0) action.review()
@@ -129,10 +181,12 @@ export function TransferFlow({
 
   async function onConfirm() {
     const res = await action.confirm((key) =>
-      paymentsApi.transfer(
+      payApi.transfer(
         {
           fromAccountId: fromId,
-          toAccountNumber: draft.toAccountNumber,
+          ...(draft.toHandle
+            ? { toHandle: draft.toHandle }
+            : { toAccountNumber: draft.toAccountNumber }),
           amount: toDecimal(amount).toFixed(2),
           ...(note.trim() ? { note: note.trim() } : {}),
         },
@@ -149,6 +203,8 @@ export function TransferFlow({
     const next: TransferErrors = {}
     for (const fe of err.fieldErrors) {
       if (fe.field === 'amount') next.amount = fe.message.replace(/^must/, 'Amount must')
+      if (fe.field === 'toHandle')
+        next.toAccountNumber = 'We couldn’t find anyone with that handle.'
       if (fe.field === 'toAccountNumber')
         next.toAccountNumber =
           fe.message === 'account not found'
@@ -176,6 +232,30 @@ export function TransferFlow({
   // ── Success ──────────────────────────────────────────────────────────────────────
   if (action.step === 'success' && action.result) {
     const t = action.result
+    if (t.status === 'PENDING_REVIEW') {
+      return (
+        <div className="space-y-6 py-4 text-center">
+          <span className="mx-auto grid size-16 place-items-center rounded-full bg-warn/12 text-warn">
+            <ShieldAlert aria-hidden="true" className="size-8" />
+          </span>
+          <div>
+            <p className="font-display text-5xl">{formatINR(t.amount)}</p>
+            <p className="mt-2 text-muted">
+              to <span className="text-text">{t.toName}</span> is{' '}
+              <span className="text-text">being checked</span>.
+            </p>
+            <p className="mx-auto mt-3 max-w-sm text-sm text-muted">
+              It looked unusual, so we’ve held the money (it hasn’t left your account) while a
+              person reviews it. You’ll get a notification either way, usually within minutes.
+            </p>
+          </div>
+          <p className="num text-xs text-muted">Reference {t.id.slice(0, 8).toUpperCase()}</p>
+          <Button asChild>
+            <Link to="/dashboard">Done</Link>
+          </Button>
+        </div>
+      )
+    }
     return (
       <div className="space-y-6 py-4 text-center">
         <SuccessCheck label="Transfer completed" />
@@ -209,7 +289,7 @@ export function TransferFlow({
   // ── Review ───────────────────────────────────────────────────────────────────────
   if (action.step === 'review' && from && recipient) {
     const copy = action.error
-      ? moneyErrorCopy(action.error, { amount, balance: from.balance })
+      ? moneyErrorCopy(action.error, { amount, balance: spendable ?? from.balance })
       : null
     return (
       <div className="space-y-6">
@@ -217,17 +297,19 @@ export function TransferFlow({
         <ReviewRows>
           <ReviewRow label="To" emphasis>
             {recipient.name ?? 'New recipient'}
-            <span className="num block text-xs font-normal text-muted">
-              {maskShort(recipient.accountNumber)}
-            </span>
+            {!recipient.handle && (
+              <span className="num block text-xs font-normal text-muted">
+                {maskShort(recipient.accountNumber)}
+              </span>
+            )}
           </ReviewRow>
           <ReviewRow label="From">{accountLabel(from)}</ReviewRow>
           {note.trim() && <ReviewRow label="Note">{note.trim()}</ReviewRow>}
           <ReviewRow label="Fee">
             <Money value="0" />
           </ReviewRow>
-          <ReviewRow label="Balance after" emphasis>
-            <Money value={toDecimal(from.balance).minus(amount)} />
+          <ReviewRow label="Available after" emphasis>
+            <Money value={toDecimal(spendable ?? from.balance).minus(amount)} />
           </ReviewRow>
         </ReviewRows>
 
@@ -235,6 +317,7 @@ export function TransferFlow({
           <p className="flex items-center gap-2 text-xs text-muted">
             <ShieldCheck aria-hidden="true" className="size-4 text-gain" /> Recipient name verified
             by QuantGen
+            {toDecimal(amount).gt(50000) ? ' · you’ll confirm with your passkey or PIN' : ''}
           </p>
         ) : (
           <div className="flex items-start gap-3 rounded-[var(--radius-control)] border border-warn/40 bg-warn/10 p-3.5 text-sm">
@@ -321,7 +404,7 @@ export function TransferFlow({
             label: (
               <span className="flex w-full items-center justify-between gap-3 whitespace-nowrap">
                 <span>{accountLabel(a)}</span>
-                <Money value={a.balance} className="text-muted" />
+                <Money value={a.availableBalance ?? a.balance} className="text-muted" />
               </span>
             ),
           }))}
@@ -340,13 +423,14 @@ export function TransferFlow({
           value={mode}
           onValueChange={(v) => v && edited(setMode)(v as Mode)}
           aria-label="Recipient type"
-          className="grid grid-cols-3 gap-1 rounded-[var(--radius-control)] bg-surface-2 p-1"
+          className="grid grid-cols-4 gap-1 rounded-[var(--radius-control)] bg-surface-2 p-1"
         >
           {(
             [
               ['saved', 'Saved'],
-              ['own', 'My accounts'],
-              ['new', 'New'],
+              ['handle', 'Handle'],
+              ['own', 'Mine'],
+              ['new', 'Account no.'],
             ] as const
           ).map(([v, l]) => (
             <ToggleGroup.Item
@@ -409,6 +493,25 @@ export function TransferFlow({
             </p>
           ))}
 
+        {mode === 'handle' && (
+          <FormField
+            label="QuantGen handle"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="name@qg"
+            value={handle}
+            onChange={(e) => edited(setHandle)(e.target.value.replace(/\s/g, '').slice(0, 33))}
+            hint={
+              <PayeeHint
+                loading={payee.isFetching}
+                name={payee.data?.holderNameMasked}
+                notFound={payee.isError && !!resolveFor}
+              />
+            }
+          />
+        )}
+
         {mode === 'new' && (
           <FormField
             label="Account number"
@@ -420,6 +523,15 @@ export function TransferFlow({
               edited(setNewNumber)(e.target.value.replace(/[^\d\s]/g, '').slice(0, 15))
             }
             className="num tracking-wide"
+            hint={
+              isAccountNumber(normaliseAccountNumber(newNumber)) ? (
+                <PayeeHint
+                  loading={payee.isFetching}
+                  name={payee.data?.holderNameMasked}
+                  notFound={false}
+                />
+              ) : undefined
+            }
           />
         )}
         {errors.toAccountNumber && (
@@ -437,8 +549,8 @@ export function TransferFlow({
         hint={
           from && (
             <>
-              Available <Money value={from.balance} className="text-text" /> · up to ₹2,00,000 per
-              transfer
+              Available <Money value={spendable ?? from.balance} className="text-text" /> · up to
+              ₹2,00,000 per transfer
             </>
           )
         }
@@ -458,4 +570,25 @@ export function TransferFlow({
       </Button>
     </form>
   )
+}
+
+/** Confirmation-of-payee hint under the recipient field (F-PAY-6). */
+function PayeeHint({
+  loading,
+  name,
+  notFound,
+}: {
+  loading: boolean
+  name?: string
+  notFound: boolean
+}) {
+  if (loading) return <span className="text-muted">Checking…</span>
+  if (name)
+    return (
+      <span className="flex items-center gap-1.5 text-gain">
+        <ShieldCheck aria-hidden="true" className="size-3.5" /> {name}
+      </span>
+    )
+  if (notFound) return <span className="text-warn">No one has that handle.</span>
+  return null
 }
