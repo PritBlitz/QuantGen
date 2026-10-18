@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { api } from '@/api/client'
+import { securityApi } from '@/api/endpoints.v2'
+import { setStepUpHandler } from '@/api/stepUp'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/features/auth/store'
 import { db } from './handlers'
@@ -84,6 +86,10 @@ describe('mock M2 rules', () => {
     signIn()
     addOtherUserAccount('777788889999')
     savings().balance = '900000.00'
+    // v2: >₹50,000 to others needs step-up (answered with the demo PIN), and the mock fraud
+    // rule is switched off so this test only exercises the v1 daily limit.
+    db.v2.riskReviewAbove = null
+    setStepUpHandler(async (c) => (await securityApi.stepUpVerify({ action: c.action, pin: '246810' })).stepUpToken)
     const send = (amount: string, to = '777788889999') =>
       transfer({ fromAccountId: SAVINGS, toAccountNumber: to, amount }, crypto.randomUUID())
     await send('200000.00')
@@ -97,6 +103,7 @@ describe('mock M2 rules', () => {
       message: expect.stringContaining('100000.00'),
     })
     await expect(send('100000.00')).resolves.toMatchObject({ status: 201 })
+    setStepUpHandler(null)
   })
 
   it('rejects amounts with more than 2 decimals', async () => {

@@ -1,6 +1,6 @@
 import { http, passthrough } from 'msw'
 import { setupWorker } from 'msw/browser'
-import { handlers } from './handlers'
+import { handlers } from './allHandlers'
 import { isLive } from './live'
 
 const hybrid = import.meta.env.VITE_MOCKS_HYBRID === 'true'

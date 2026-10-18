@@ -3,9 +3,13 @@
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
   --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--text-muted);
   --color-accent: var(--accent);
@@ -13,6 +17,15 @@
   --color-gain: var(--gain);
   --color-loss: var(--loss);
   --color-warn: var(--warn);
+  --color-violet: var(--violet);
+  --color-violet-ink: var(--violet-ink);
+  --color-cyan: var(--cyan);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
 
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
@@ -30,8 +43,9 @@
   --text-5xl: 4.5rem;
   --text-6xl: 7rem;
 
-  --radius-control: 10px;
-  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-card: 22px;
+  --radius-sheet: 28px;
 
   --shadow-pop: var(--shadow-pop);
   --ease-expo: var(--ease-out-expo);
@@ -40,6 +54,40 @@
   --animate-marquee: marquee 40s linear infinite;
   --animate-drift: drift 18s ease-in-out infinite alternate;
   --animate-drift-slow: drift 26s ease-in-out infinite alternate-reverse;
+  --animate-pulse-ring: pulse-ring 2.4s var(--ease-out-expo) infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-spin-slow: spin 18s linear infinite;
+  --animate-gradient-x: gradient-x 6s ease infinite;
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.8);
+      opacity: 0.7;
+    }
+    80%,
+    100% {
+      transform: scale(2.2);
+      opacity: 0;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes gradient-x {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
 
   @keyframes drift {
     0% {
@@ -118,6 +166,62 @@
   border: 1px solid var(--border);
 }
 
+/* Floating chrome (rail, top bar, dock, sheets): translucent + blurred. */
+@utility glass {
+  background: color-mix(in oklab, var(--surface-solid) 72%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--border);
+}
+
+/* Small uppercase section label ("eyebrow"). */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A 1px gradient top highlight on cards: light catching the edge. */
+@utility edge-light {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 12% auto;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  }
+}
+
+@utility text-gradient {
+  background: linear-gradient(100deg, var(--text) 10%, var(--violet) 55%, var(--cyan) 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-gradient-accent {
+  background: linear-gradient(100deg, var(--accent) 0%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Dotted grid used behind hero sections and empty states. */
+@utility dot-grid {
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Fine scrollbars inside scrolling panels. */
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
 /* Grain overlay: landing + auth only (DESIGN.md §1). Pure SVG noise, no network fetch. */
 @utility grain {
   position: relative;
@@ -141,5 +245,35 @@
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Keyframes referenced by arbitrary `animate-[name_…]` utilities (always emitted). */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px)) scale(0.97);
+  }
+}
+@keyframes sheet-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
 }

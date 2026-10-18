@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useAccounts } from '../hooks'
 import { CardError, DashCard } from './CardShell'
 
-const TYPE_LABEL: Record<AccountDto['type'], string> = { SAVINGS: 'Savings', CHECKING: 'Checking' }
+import { ACCOUNT_TYPE_LABEL as TYPE_LABEL } from '@/features/accounts/labels'
 
 function StatusBadge({ status }: { status: AccountDto['status'] }) {
   if (status === 'ACTIVE') return null

@@ -1,46 +1,87 @@
 /*
- * QuantGen design tokens (DESIGN.md §1). Dark is the default; light via [data-theme='light'].
- * Every text/background pair here was checked for WCAG AA (≥ 4.5:1). Light-mode gain, loss,
- * warn and accent are slightly darker than the original spec so they pass on every surface.
+ * QuantGen design tokens — "Signal" (DESIGN.md v2 §1). Dark is the default; light via
+ * [data-theme='light']. Every text/background pair used for copy was checked for WCAG AA
+ * (≥ 4.5:1) against --bg, --surface-solid and --surface-2. Surfaces are slightly translucent so
+ * the ambient aurora reads through; --surface-solid is the opaque fallback used for contrast
+ * maths and for anything that must not show the background (dialogs, menus, tables on mobile).
  */
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0a0b0d;
-  --surface: #111317;
-  --surface-2: #181b21;
-  --border: #23272f;
-  --text: #edeef0;
-  --text-muted: #8a909c;
-  --accent: #d2ff3a;
-  --accent-ink: #0a0b0d;
-  --gain: #2bd9a0;
-  --loss: #ff5a5f;
-  --warn: #ffb224;
-  --shadow-pop: 0 24px 48px -12px rgb(0 0 0 / 0.6);
-  --grain-opacity: 0.04;
+  --bg: #060709;
+  --bg-2: #0b0d11;
+  --surface: rgb(17 19 24 / 0.74);
+  --surface-solid: #111318;
+  --surface-2: #191c23;
+  --surface-3: #22262f;
+  --border: rgb(255 255 255 / 0.075);
+  --border-strong: rgb(255 255 255 / 0.14);
+  --text: #f3f4f6;
+  --text-muted: #969dab;
+  --accent: #d4ff3f;
+  --accent-ink: #090a0c;
+  /* Secondary accents: violet = AI / Copilot / Autopilot, cyan = data / analytics. */
+  --violet: #a898ff;
+  --violet-ink: #0d0a1f;
+  --cyan: #5fd8ff;
+  --gain: #33e1a6;
+  --loss: #ff5f6d;
+  --warn: #ffb83d;
+  --chart-1: #d4ff3f;
+  --chart-2: #a898ff;
+  --chart-3: #5fd8ff;
+  --chart-4: #ff9f6b;
+  --chart-5: #33e1a6;
+  --chart-6: #ff7ab6;
+  --grid: rgb(255 255 255 / 0.06);
+  --aurora-1: rgb(212 255 63 / 0.11);
+  --aurora-2: rgb(168 152 255 / 0.16);
+  --aurora-3: rgb(95 216 255 / 0.1);
+  --shadow-pop: 0 30px 60px -18px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -24px rgb(0 0 0 / 0.6);
+  --grain-opacity: 0.045;
 }
 
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f5f3ef;
-  --surface: #ffffff;
-  --surface-2: #eeebe5;
-  --border: #ddd8cf;
-  --text: #121316;
-  --text-muted: #5e6470;
-  --accent: #3350e6;
+  --bg: #f3f1ec;
+  --bg-2: #ebe8e1;
+  --surface: rgb(255 255 255 / 0.8);
+  --surface-solid: #ffffff;
+  --surface-2: #ece9e2;
+  --surface-3: #e1ddd4;
+  --border: rgb(18 19 22 / 0.09);
+  --border-strong: rgb(18 19 22 / 0.18);
+  --text: #111215;
+  --text-muted: #5b616d;
+  --accent: #3047e0;
   --accent-ink: #ffffff;
+  --violet: #5b3fd6;
+  --violet-ink: #ffffff;
+  --cyan: #06708f;
   --gain: #07744e;
   --loss: #c0262f;
   --warn: #8f5600;
-  --shadow-pop: 0 24px 48px -16px rgb(18 19 22 / 0.18);
+  --chart-1: #3047e0;
+  --chart-2: #7b5cf0;
+  --chart-3: #0a8db3;
+  --chart-4: #d26a2c;
+  --chart-5: #0f8a5f;
+  --chart-6: #c8407f;
+  --grid: rgb(18 19 22 / 0.07);
+  --aurora-1: rgb(48 71 224 / 0.09);
+  --aurora-2: rgb(123 92 240 / 0.1);
+  --aurora-3: rgb(10 141 179 / 0.08);
+  --shadow-pop: 0 30px 60px -20px rgb(18 19 22 / 0.22), 0 0 0 1px rgb(18 19 22 / 0.06);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.7) inset, 0 18px 36px -26px rgb(18 19 22 / 0.25);
   --grain-opacity: 0.03;
 }
 
 :root {
   --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
   --dur-micro: 120ms;
   --dur-ui: 240ms;
-  --dur-page: 320ms;
+  --dur-page: 360ms;
+  --rail-w: 252px;
 }

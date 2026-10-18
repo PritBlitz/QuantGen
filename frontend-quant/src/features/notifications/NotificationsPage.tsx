@@ -15,7 +15,7 @@ import { EASE_OUT_EXPO, staggerDelay } from '@/lib/motion'
 import { formatRelative, todayIST } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useMarkAllRead, useMarkRead } from './hooks'
-import { NOTIFICATION_META, TONE_CLASS } from './meta'
+import { metaFor, TONE_CLASS } from './meta'
 
 type Filter = 'all' | 'unread'
 
@@ -135,7 +135,7 @@ function NotificationRow({ n, index }: { n: NotificationDto; index: number }) {
   const navigate = useNavigate()
   const markRead = useMarkRead()
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN')
-  const meta = NOTIFICATION_META[n.type]
+  const meta = metaFor(n.type)
   const Icon = meta.icon
 
   function open() {

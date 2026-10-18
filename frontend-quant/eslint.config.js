@@ -48,7 +48,8 @@ export default tseslint.config(
   },
   {
     // In tests a failed `!` fails the test loudly, which is what we want.
-    files: ['**/*.test.{ts,tsx}', 'e2e/**'],
+    // Mocks are dev/test infrastructure over seeded data, so the same applies.
+    files: ['**/*.test.{ts,tsx}', 'e2e/**', 'src/mocks/**'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
   prettier,

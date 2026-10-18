@@ -11,6 +11,7 @@ import type {
   AuthResponse,
   ErrorBody,
   ErrorCode,
+  ErrorCodeV2,
   FieldError,
   HoldingDto,
   NotificationDto,
@@ -18,6 +19,7 @@ import type {
   Page,
   PortfolioDto,
   PricePointDto,
+  StepUpAction,
   TransactionDto,
   TransferDto,
   UserDto,
@@ -35,7 +37,7 @@ import {
 } from '@/lib/emi'
 import { addMonths, buildSchedule, createDb, tickPrices, type MockDb, type MockLoan } from './db'
 
-const BASE = '/api/v1'
+export const BASE = '/api/v1'
 const ACCESS_TTL_SECONDS = 900
 const REFRESH_COOKIE = 'qg_refresh'
 
@@ -45,9 +47,9 @@ export function resetMockDb() {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────────────
-function error(
+export function error(
   status: number,
-  code: ErrorCode,
+  code: ErrorCode | ErrorCodeV2,
   message: string,
   request: Request,
   fieldErrors?: FieldError[],
@@ -68,7 +70,7 @@ function error(
 }
 
 /** Mock access tokens look like `mock.<userId>.<nonce>`. Real ones are JWTs. */
-function userFrom(request: Request): UserDto | null {
+export function userFrom(request: Request): UserDto | null {
   const header = request.headers.get('Authorization') ?? ''
   // Hybrid mode: a real JWT from the live auth API is mapped onto the mock demo user so
   // not-yet-live endpoints still have data. Never in full-mock mode or tests.
@@ -97,7 +99,7 @@ function jwtIsAdmin(header: string): boolean {
 }
 
 /** 401 when signed out, 403 for non-admins (the real backend's deny-by-default). */
-function adminFrom(
+export function adminFrom(
   request: Request,
 ): { admin: UserDto; denied: null } | { admin: null; denied: Response } {
   const user = userFrom(request)
@@ -108,7 +110,7 @@ function adminFrom(
   return { admin: user, denied: null }
 }
 
-function notify(userId: string, type: NotificationDto['type'], title: string, body: string) {
+export function notify(userId: string, type: NotificationDto['type'], title: string, body: string) {
   db.notifications.unshift({
     id: crypto.randomUUID(),
     userId,
@@ -120,7 +122,7 @@ function notify(userId: string, type: NotificationDto['type'], title: string, bo
   })
 }
 
-function audit(
+export function audit(
   actor: UserDto,
   action: string,
   targetType: string | null,
@@ -142,14 +144,14 @@ function audit(
 }
 
 /** Notification copy only (mock side); grouping is done on the string, no float maths. */
-function inr(v: Decimal | string): string {
+export function inr(v: Decimal | string): string {
   const [whole = '0', frac = '00'] = new Decimal(v).toFixed(2).split('.')
   const last3 = whole.slice(-3)
   const rest = whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',')
   return `₹${rest ? `${rest},` : ''}${last3}.${frac}`
 }
 
-function issue(user: UserDto): HttpResponse<AuthResponse> {
+export function issue(user: UserDto): HttpResponse<AuthResponse> {
   const body: AuthResponse = {
     accessToken: `mock.${user.id}.${crypto.randomUUID()}`,
     expiresIn: ACCESS_TTL_SECONDS,
@@ -164,16 +166,16 @@ function issue(user: UserDto): HttpResponse<AuthResponse> {
 }
 
 /** Request amounts: at most 2 decimals (the backend returns 400 otherwise). */
-const isMoney = (v: unknown): v is string =>
+export const isMoney = (v: unknown): v is string =>
   typeof v === 'string' && /^\d{1,15}(\.\d{1,2})?$/.test(v)
-const IST_DATE = /^\d{4}-\d{2}-\d{2}$/
+export const IST_DATE = /^\d{4}-\d{2}-\d{2}$/
 /** yyyy-MM-dd of an instant in Asia/Kolkata. */
-const istDate = (iso: string) =>
+export const istDate = (iso: string) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(iso))
-const last4 = (n: string) => `\u2022\u2022\u2022\u2022${n.slice(-4)}`
-const DAILY_LIMIT = new Decimal(500000)
+export const last4 = (n: string) => `\u2022\u2022\u2022\u2022${n.slice(-4)}`
+export const DAILY_LIMIT = new Decimal(500000)
 
-const toLoanDto = ({
+export const toLoanDto = ({
   userId: _u,
   monthlyIncome: _m,
   disburseAccountId: _d,
@@ -182,9 +184,9 @@ const toLoanDto = ({
   schedule: _s,
   ...l
 }: MockLoan) => l
-const toLoanDetail = ({ userId: _u, monthlyIncome: _m, disburseAccountId: _d, ...l }: MockLoan) => l
+export const toLoanDetail = ({ userId: _u, monthlyIncome: _m, disburseAccountId: _d, ...l }: MockLoan) => l
 
-const existingEmis = (userId: string) =>
+export const existingEmis = (userId: string) =>
   db.loans
     // Backend M4: pending applications count too, so a second one can be ineligible.
     .filter((l) => l.userId === userId && (l.status === 'ACTIVE' || l.status === 'PENDING'))
@@ -205,11 +207,11 @@ function loanFieldErrors(b: Record<string, unknown>): FieldError[] {
     fe.push({ field: 'monthlyIncome', message: 'must be a positive amount' })
   return fe
 }
-function toAdminUser(user: UserDto): AdminUserDto {
+export function toAdminUser(user: UserDto): AdminUserDto {
   return { ...user, accountCount: ownAccounts(user.id).length }
 }
 
-function toAdminLoan(loan: MockLoan): AdminLoanDto {
+export function toAdminLoan(loan: MockLoan): AdminLoanDto {
   const applicant = [...db.users.values()].find((u) => u.user.id === loan.userId)?.user
   return {
     ...toLoanDto(loan),
@@ -223,10 +225,22 @@ function toAdminLoan(loan: MockLoan): AdminLoanDto {
     decisionReason: loan.decisionReason,
   }
 }
-const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
-const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => a
+export const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
+/** Public shape, plus the v2 fields (PRD §12.2): available balance after active holds, goal info. */
+export const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => {
+  const holds = db.v2.holds
+    .filter((h) => h.accountId === a.id && h.status === 'ACTIVE')
+    .reduce((sum, h) => sum.plus(h.amount), new Decimal(0))
+  const goal = db.v2.goals.get(a.id) ?? null
+  return {
+    ...a,
+    availableBalance: new Decimal(a.balance).minus(holds).toFixed(4),
+    holdsTotal: holds.toFixed(4),
+    ...(goal ? { goal } : {}),
+  }
+}
 
-function paginate<T>(items: T[], url: URL): Page<T> {
+export function paginate<T>(items: T[], url: URL): Page<T> {
   const page = Math.max(0, Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0)
   const size = Math.min(
     100,
@@ -242,7 +256,7 @@ function paginate<T>(items: T[], url: URL): Page<T> {
 }
 
 /** Replay / conflict semantics of F-PAY-2. Returns a response to short-circuit, or a saver. */
-function idempotent(request: Request, userId: string, body: unknown) {
+export function idempotent(request: Request, userId: string, body: unknown) {
   const key = request.headers.get('Idempotency-Key')
   if (!key || !/^[0-9a-f-]{36}$/i.test(key)) {
     return {
@@ -279,7 +293,7 @@ function idempotent(request: Request, userId: string, body: unknown) {
   }
 }
 
-function postLine(
+export function postLine(
   account: AccountDto & { userId: string },
   direction: TransactionDto['direction'],
   amount: Decimal,
@@ -310,7 +324,7 @@ function postLine(
 }
 
 let lastTick = 0
-function maybeTick() {
+export function maybeTick() {
   if (Date.now() - lastTick >= 3000) {
     tickPrices(db)
     lastTick = Date.now()
@@ -318,6 +332,33 @@ function maybeTick() {
 }
 
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,72}$/
+
+/** Mock step-up (§12.1): risky actions need a valid X-Step-Up-Token for this user + action. */
+export function stepUpGate(request: Request, user: UserDto, action: StepUpAction): Response | null {
+  const token = request.headers.get('X-Step-Up-Token')
+  const rec = token ? db.v2.stepUpTokens.get(token) : undefined
+  // Backend f29bb64: reusable for 5 minutes for the same action (so a retry with the same
+  // Idempotency-Key works).
+  if (rec && rec.userId === user.id && rec.action === action && rec.exp > Date.now()) return null
+  const methods: string[] = []
+  if (db.v2.passkeys.some((p) => p.userId === user.id)) methods.push('PASSKEY')
+  if (db.v2.pins.has(user.id)) methods.push('PIN')
+  const requestId = crypto.randomUUID()
+  return HttpResponse.json(
+    {
+      timestamp: new Date().toISOString(),
+      status: 401,
+      code: 'STEP_UP_REQUIRED',
+      message: 'Step-up authentication required',
+      path: new URL(request.url).pathname,
+      fieldErrors: [],
+      requestId,
+      stepUp: { methods, action },
+    },
+    { status: 401, headers: { 'X-Request-Id': requestId } },
+  )
+}
+
 
 // ── handlers ──────────────────────────────────────────────────────────────────────────
 export const handlers = [
@@ -434,11 +475,42 @@ export const handlers = [
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
     const b = (await request.json()) as Record<string, unknown>
+    // v2 (F-SAV-1): goals are accounts too, outside the 3-account cap.
+    if (b.type === 'GOAL') {
+      const fe: FieldError[] = []
+      const name = typeof b.name === 'string' ? b.name.trim() : ''
+      if (name.length < 1 || name.length > 40) fe.push({ field: 'name', message: 'must be 1–40 characters' })
+      if (!isMoney(b.target) || new Decimal(String(b.target)).lt(100))
+        fe.push({ field: 'target', message: 'must be at least 100.00' })
+      if (b.targetDate !== undefined && (typeof b.targetDate !== 'string' || !IST_DATE.test(b.targetDate)))
+        fe.push({ field: 'targetDate', message: 'must be a date (yyyy-MM-dd)' })
+      if (fe.length) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+      if (ownAccounts(user.id).filter((a) => a.type === 'GOAL').length >= 10)
+        return error(422, 'LIMIT_EXCEEDED', 'At most 10 goals', request)
+      const goal = {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        accountNumber: `5021${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`,
+        type: 'GOAL' as const,
+        status: 'ACTIVE' as const,
+        balance: '0.0000',
+        currency: 'INR' as const,
+        createdAt: new Date().toISOString(),
+      }
+      db.accounts.set(goal.id, goal)
+      db.v2.goals.set(goal.id, {
+        name,
+        target: new Decimal(String(b.target)).toFixed(4),
+        targetDate: typeof b.targetDate === 'string' ? b.targetDate : null,
+        emoji: typeof b.emoji === 'string' ? b.emoji.slice(0, 8) : null,
+      })
+      return HttpResponse.json(publicAccount(goal), { status: 201 })
+    }
     if (b.type !== 'SAVINGS' && b.type !== 'CHECKING')
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
         { field: 'type', message: 'must be SAVINGS or CHECKING' },
       ])
-    if (ownAccounts(user.id).length >= 3)
+    if (ownAccounts(user.id).filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').length >= 3)
       return error(422, 'LIMIT_EXCEEDED', 'A customer can hold at most 3 accounts', request)
     const acc = {
       id: crypto.randomUUID(),
@@ -522,6 +594,20 @@ export const handlers = [
     const user = userFrom(request)
     if (!user) return error(401, 'UNAUTHORIZED', 'Authentication required', request)
     const b = (await request.json()) as Record<string, unknown>
+    // v2 (F-PAY-5): pay by handle. Exactly one of toAccountNumber / toHandle.
+    if (b.toHandle !== undefined) {
+      if (b.toAccountNumber !== undefined)
+        return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+          { field: 'toHandle', message: 'send either toHandle or toAccountNumber, not both' },
+        ])
+      const h = [...db.v2.handles.values()].find((x) => x.handle === String(b.toHandle).toLowerCase())
+      const acc = h ? db.accounts.get(h.accountId) : undefined
+      if (!acc)
+        return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+          { field: 'toHandle', message: 'handle not found' },
+        ])
+      b.toAccountNumber = acc.accountNumber
+    }
     const idem = idempotent(request, user.id, b)
     if (idem.early) return idem.early
     const from = db.accounts.get(String(b.fromAccountId))
@@ -572,12 +658,77 @@ export const handlers = [
         )
       }
     }
-    if (new Decimal(from.balance).lt(amount))
+    // v2 (F-SEC-5): new-payee cooling — at most ₹25,000 in total during the first 24 h.
+    if (to.userId !== user.id) {
+      const ben = db.beneficiaries.find(
+        (x) => x.userId === user.id && x.accountNumber === to.accountNumber,
+      )
+      if (ben && Date.now() - Date.parse(ben.createdAt) < 86_400_000) {
+        const sent = db.transfers
+          .filter((t) => t.userId === user.id && t.toAccountNumber === to.accountNumber)
+          .reduce((s2, t) => s2.plus(t.amount), new Decimal(0))
+        if (sent.plus(amount).gt(25000))
+          return error(422, 'COOLING_PERIOD', 'New payee: ₹25,000 limit in the first 24 hours', request)
+      }
+    }
+    // v2 (F-SEC-2): step-up for transfers above ₹50,000 to someone else, or the first transfer
+    // to a payee saved less than 24 h ago.
+    const newPayee = db.beneficiaries.find(
+      (x) => x.userId === user.id && x.accountNumber === to.accountNumber && Date.now() - Date.parse(x.createdAt) < 86_400_000,
+    )
+    const firstToNewPayee = !!newPayee && !db.transfers.some((t) => t.userId === user.id && t.toAccountNumber === to.accountNumber)
+    if (to.userId !== user.id && (amount.gt(50000) || firstToNewPayee)) {
+      const gate = stepUpGate(request, user, 'TRANSFER')
+      if (gate) return gate
+    }
+    // v2 (F-HOLD-1): debits check the available balance (balance − active holds).
+    const held = db.v2.holds
+      .filter((h) => h.accountId === from.id && h.status === 'ACTIVE')
+      .reduce((s2, h) => s2.plus(h.amount), new Decimal(0))
+    if (new Decimal(from.balance).minus(held).lt(amount))
       return error(422, 'INSUFFICIENT_FUNDS', 'Insufficient funds', request)
     const toUser = [...db.users.values()].find((u) => u.user.id === to.userId)?.user
     if (!toUser) return error(500, 'INTERNAL_ERROR', 'Mock data inconsistent', request)
-    const entry = crypto.randomUUID()
     const note = typeof b.note === 'string' ? b.note : null
+    // v2 (F-RISK-1): very large transfers to someone else are held for fraud review (mock rule).
+    if (to.userId !== user.id && db.v2.riskReviewAbove !== null && amount.gte(db.v2.riskReviewAbove)) {
+      const holdId = crypto.randomUUID()
+      db.v2.holds.push({ id: holdId, accountId: from.id, amount: amount.toFixed(4), reason: 'FRAUD_REVIEW', status: 'ACTIVE' })
+      const pending: TransferDto = {
+        id: crypto.randomUUID(),
+        fromAccountNumber: from.accountNumber,
+        toAccountNumber: to.accountNumber,
+        toName: toUser.fullName,
+        amount: amount.toFixed(4),
+        note,
+        status: 'PENDING_REVIEW',
+        createdAt: new Date().toISOString(),
+        source: 'MANUAL',
+      }
+      db.transfers.unshift({ ...pending, userId: user.id })
+      db.v2.fraudCases.unshift({
+        id: crypto.randomUUID(),
+        status: 'OPEN',
+        score: 78,
+        transferId: pending.id,
+        amount: pending.amount,
+        fromAccountNumberMasked: last4(from.accountNumber),
+        toAccountNumberMasked: last4(to.accountNumber),
+        toName: toUser.fullName,
+        customer: { userId: user.id, fullName: user.fullName },
+        topSignal: 'Unusually large amount for this customer',
+        createdAt: pending.createdAt,
+        decidedAt: null,
+        decisionReason: null,
+        memo: null,
+        signals: [{ code: 'LARGE_AMOUNT', label: 'Unusually large amount for this customer', weight: 40 }],
+        customerBaseline: { avgTransfer: '6800.0000', transfers30d: 4, usualHoursIst: '09:00–21:00', accountAgeDays: 108 },
+      })
+      notify(user.id, 'TRANSFER_UNDER_REVIEW', 'Transfer under review', `${inr(amount)} to ${toUser.fullName} is being checked. The money is held, not sent.`)
+      idem.save(201, pending)
+      return HttpResponse.json(pending, { status: 201 })
+    }
+    const entry = crypto.randomUUID()
     postLine(
       from,
       'DEBIT',

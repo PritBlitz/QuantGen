@@ -1,8 +1,11 @@
 import { isAxiosError } from 'axios'
-import type { ErrorBody, ErrorCode, FieldError } from './types'
+import type { ErrorBody, ErrorCode, ErrorCodeV2, FieldError, StepUpChallenge } from './types'
 
-/** `NETWORK` is client-side only: the request never got a §7.1 body back. */
-export type ClientErrorCode = ErrorCode | 'NETWORK'
+/**
+ * `NETWORK` is client-side only: the request never got a §7.1 body back.
+ * `STEP_UP_CANCELLED` is client-side only: the user closed the step-up dialog.
+ */
+export type ClientErrorCode = ErrorCode | ErrorCodeV2 | 'NETWORK' | 'STEP_UP_CANCELLED'
 
 export class ApiError extends Error {
   readonly status: number
@@ -11,6 +14,8 @@ export class ApiError extends Error {
   readonly requestId: string | null
   /** Seconds, from a `Retry-After` header on 429. Display only; may be absent. */
   readonly retryAfter: number | null
+  /** Present on `401 STEP_UP_REQUIRED` (PRD §12.1). */
+  readonly stepUp: StepUpChallenge | null
 
   constructor(init: {
     status: number
@@ -19,6 +24,7 @@ export class ApiError extends Error {
     fieldErrors?: FieldError[]
     requestId?: string | null
     retryAfter?: number | null
+    stepUp?: StepUpChallenge | null
   }) {
     super(init.message)
     this.name = 'ApiError'
@@ -27,10 +33,11 @@ export class ApiError extends Error {
     this.fieldErrors = init.fieldErrors ?? []
     this.requestId = init.requestId ?? null
     this.retryAfter = init.retryAfter ?? null
+    this.stepUp = init.stepUp ?? null
   }
 }
 
-function isErrorBody(data: unknown): data is ErrorBody {
+function isErrorBody(data: unknown): data is ErrorBody & { stepUp?: StepUpChallenge } {
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -57,6 +64,7 @@ export function toApiError(error: unknown): ApiError {
         fieldErrors: res.data.fieldErrors ?? [],
         requestId: res.data.requestId,
         retryAfter: parseRetryAfter(res.headers['retry-after']),
+        stepUp: res.data.stepUp ?? null,
       })
     }
     if (res) {
@@ -86,6 +94,18 @@ const COPY: Record<ClientErrorCode, string> = {
   RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
   INTERNAL_ERROR: 'Something went wrong on our side. Please try again.',
   NETWORK: "Can't reach QuantGen. Check your connection and try again.",
+  STEP_UP_REQUIRED: 'This needs a quick identity check. Confirm with your passkey or PIN.',
+  STEP_UP_CANCELLED: 'Verification was cancelled, so nothing happened.',
+  PIN_LOCKED: 'Too many wrong PINs. Your PIN is locked for 30 minutes; use a passkey instead.',
+  COOLING_PERIOD:
+    'This payee was added less than 24 hours ago, so only ₹25,000 can go to them for now.',
+  INTENT_EXPIRED: 'That suggestion expired. Ask the assistant again.',
+  RULE_INVALID: 'This rule has a problem. Check the highlighted parts.',
+  BUDGET_EXHAUSTED: "You've used today's assistant allowance. It resets at midnight.",
+  FEATURE_DISABLED: 'This feature is switched off right now. Everything else works as usual.',
+  KYC_REQUIRED: 'Complete your KYC profile first. It takes a minute in Settings.',
+  PAYMENT_VERIFICATION_FAILED: "We couldn't verify that payment, so nothing was credited.",
+  GATEWAY_UNAVAILABLE: "The payment gateway isn't available right now. Try the demo deposit.",
 }
 
 /** Human copy for a toast. Field errors are shown inline by forms instead. */

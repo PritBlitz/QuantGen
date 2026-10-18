@@ -3,9 +3,13 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CandlestickChart,
+  CreditCard,
   HandCoins,
+  Percent,
   PiggyBank,
+  ReceiptText,
   Undo2,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router'
@@ -27,6 +31,11 @@ const ICON: Record<TransactionDto['type'], LucideIcon> = {
   LOAN_DISBURSAL: HandCoins,
   LOAN_REPAYMENT: HandCoins,
   REVERSAL: Undo2,
+  BILL_PAYMENT: ReceiptText,
+  INTEREST: Percent,
+  CARD: CreditCard,
+  REFUND: Undo2,
+  TOPUP: Wallet,
 }
 
 export function ActivityCard({

@@ -16,6 +16,7 @@ import type {
 } from '@/api/types'
 import { emi, schedule } from '@/lib/emi'
 import { Decimal } from '@/lib/money'
+import { createV2State, type V2State } from './v2/state'
 
 export interface MockUser {
   user: UserDto
@@ -50,6 +51,8 @@ export interface MockDb {
   failedLogins: Map<string, number[]>
   notifications: Array<NotificationDto & { userId: string }>
   auditLogs: AuditLogDto[]
+  /** v2 mock state (PRD §12). */
+  v2: V2State
 }
 
 export const DEMO_USER_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
@@ -95,6 +98,7 @@ export function createDb(): MockDb {
     failedLogins: new Map(),
     notifications: [],
     auditLogs: [],
+    v2: createV2State(),
   }
 
   db.users.set('demo@quantgen.dev', {
@@ -142,6 +146,23 @@ export function createDb(): MockDb {
   }
   db.accounts.set(savings.id, savings)
   db.accounts.set(checking.id, checking)
+  // v2: two goals and one fixed deposit (PRD F-SAV-1/3). Not counted toward the 3-account cap.
+  for (const [id, number, type, balance, created] of [
+    ['a1f3c2d4-0003-4b5e-9c7d-333333333333', '502184731180', 'GOAL', '38400.0000', '2026-08-20T10:00:00Z'],
+    ['a1f3c2d4-0004-4b5e-9c7d-444444444444', '502184735562', 'GOAL', '126500.0000', '2026-07-10T10:00:00Z'],
+    ['a1f3c2d4-0005-4b5e-9c7d-555555555555', '502184737712', 'FIXED_DEPOSIT', '100000.0000', '2026-06-20T10:00:00Z'],
+  ] as const) {
+    db.accounts.set(id, {
+      id,
+      userId: DEMO_USER_ID,
+      accountNumber: number,
+      type,
+      status: 'ACTIVE',
+      balance,
+      currency: 'INR',
+      createdAt: created,
+    })
+  }
 
   // Recent activity, newest first. balanceAfter walks back from the current balance.
   const seed: Array<

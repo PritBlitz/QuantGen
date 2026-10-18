@@ -8,10 +8,11 @@
  */
 import { Client } from '@stomp/stompjs'
 import type { QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { create } from 'zustand'
 import { refreshSession } from '@/api/client'
 import { queryKeys } from '@/api/queries'
-import type { InstrumentDto } from '@/api/types'
+import type { InstrumentDto, NotificationDto } from '@/api/types'
 import { useAuthStore } from '@/features/auth/store'
 
 export type FeedStatus = 'idle' | 'connecting' | 'live' | 'polling'
@@ -59,6 +60,39 @@ export function parseTick(body: string): InstrumentDto[] | null {
     }
   }
   return out.length ? out : null
+}
+
+/**
+ * Accept only a well-formed NotificationDto pushed on /user/queue/notifications (V2-M1, F-RT-1).
+ * The type is not checked against a list: the server may add types, the UI renders them generically.
+ */
+export function parseNotification(body: string): NotificationDto | null {
+  let x: unknown
+  try {
+    x = JSON.parse(body)
+  } catch {
+    return null
+  }
+  if (!x || typeof x !== 'object') return null
+  const n = x as Record<string, unknown>
+  if (
+    typeof n.id !== 'string' ||
+    typeof n.type !== 'string' ||
+    !/^[A-Z_]{1,40}$/.test(n.type) ||
+    typeof n.title !== 'string' ||
+    typeof n.body !== 'string' ||
+    typeof n.read !== 'boolean' ||
+    typeof n.createdAt !== 'string'
+  )
+    return null
+  return {
+    id: n.id,
+    type: n.type as NotificationDto['type'],
+    title: n.title.slice(0, 200),
+    body: n.body.slice(0, 1000),
+    read: n.read,
+    createdAt: n.createdAt,
+  }
 }
 
 const socketDisabled =
@@ -120,6 +154,17 @@ function start(qc: QueryClient) {
         qc.setQueryData<InstrumentDto[]>(queryKeys.instruments, tick)
         for (const i of tick) qc.setQueryData(queryKeys.instrument(i.symbol), i)
         useFeedStatus.setState({ lastTickAt: Date.now() })
+      })
+      // Realtime notifications (F-RT-1). Push is best-effort: it only triggers a refetch of the
+      // REST list and count, which stay the source of truth, plus a toast. Text is rendered as
+      // plain text (React escapes it), never as HTML.
+      client?.subscribe('/user/queue/notifications', (msg) => {
+        const n = parseNotification(msg.body)
+        if (!n) return
+        void qc.invalidateQueries({ queryKey: ['notifications'] })
+        // Balances may have changed (money received, transfer reviewed…).
+        void qc.invalidateQueries({ queryKey: queryKeys.accounts })
+        toast(n.title, { description: n.body })
       })
     },
     onWebSocketClose: () => {

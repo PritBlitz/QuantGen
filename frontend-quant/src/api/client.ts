@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/features/auth/store'
-import { toApiError } from './errors'
+import { ApiError, toApiError } from './errors'
+import { requestStepUp } from './stepUp'
 import type { AuthResponse } from './types'
 
 export const API_BASE = '/api/v1'
@@ -13,7 +14,14 @@ export const api = axios.create({
   withCredentials: false,
 })
 
-const isAuthPath = (url: string | undefined) => !!url && url.startsWith('/auth/')
+/**
+ * Session endpoints: they authenticate with the refresh cookie (or nothing), never a bearer
+ * token, and a 401 from them must not trigger a refresh. Other /auth/* calls (step-up, passkey
+ * management, v2) need the signed-in user's bearer token like any API call.
+ */
+const PUBLIC_AUTH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/passkeys/login']
+const isAuthPath = (url: string | undefined) =>
+  !!url && PUBLIC_AUTH.some((p) => url === p || url.startsWith(`${p}/`))
 
 api.interceptors.request.use((config) => {
   if (isAuthPath(config.url)) {
@@ -65,12 +73,31 @@ export function refreshSession(): Promise<AuthResponse | null> {
   return refreshInFlight
 }
 
-type RetriableConfig = InternalAxiosRequestConfig & { _qgRetried?: boolean }
+type RetriableConfig = InternalAxiosRequestConfig & { _qgRetried?: boolean; _qgSteppedUp?: boolean }
 
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const config = error.config as RetriableConfig | undefined
+    // Step-up (PRD §12.1): a 401 with code STEP_UP_REQUIRED is NOT an expired session. Ask the
+    // user to confirm (passkey / PIN), then retry the *same* request: same body, same
+    // Idempotency-Key, plus X-Step-Up-Token. The first 401 never consumed the key server-side.
+    const apiError = toApiError(error)
+    if (apiError.code === 'STEP_UP_REQUIRED' && apiError.stepUp && config) {
+      if (config._qgSteppedUp) throw apiError
+      const token = await requestStepUp(apiError.stepUp)
+      if (!token) {
+        throw new ApiError({
+          status: 401,
+          code: 'STEP_UP_CANCELLED',
+          message: 'Step-up cancelled',
+          requestId: apiError.requestId,
+        })
+      }
+      config._qgSteppedUp = true
+      config.headers.set('X-Step-Up-Token', token)
+      return api.request(config)
+    }
     if (error.response?.status === 401 && config && !config._qgRetried && !isAuthPath(config.url)) {
       config._qgRetried = true
       // If another call already refreshed while this one was in flight, just retry with
@@ -86,7 +113,7 @@ api.interceptors.response.use(
         return api.request(config)
       }
     }
-    throw toApiError(error)
+    throw apiError
   },
 )
 

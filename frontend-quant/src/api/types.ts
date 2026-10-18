@@ -6,6 +6,8 @@
  * ids are UUID strings.
  */
 
+import type * as V2 from './types.v2'
+
 /** A decimal amount serialised as a string, e.g. "1250.50". Never convert to `number`. */
 export type MoneyString = string
 export type Uuid = string
@@ -37,7 +39,7 @@ export interface FieldError {
 export interface ErrorBody {
   timestamp: IsoDateTime
   status: number
-  code: ErrorCode
+  code: ErrorCode | V2.ErrorCodeV2
   message: string
   path: string
   fieldErrors?: FieldError[]
@@ -60,7 +62,7 @@ export interface PageQuery {
 // §7.2 Auth ────────────────────────────────────────────────────────────────────────
 export type Role = 'CUSTOMER' | 'ADMIN'
 
-export interface UserDto {
+export interface UserDto extends V2.UserV2Fields {
   id: Uuid
   fullName: string
   email: string
@@ -92,10 +94,11 @@ export interface AuthResponse {
 export type AccountType = 'SAVINGS' | 'CHECKING'
 export type AccountStatus = 'ACTIVE' | 'FROZEN' | 'CLOSED'
 
-export interface AccountDto {
+export interface AccountDto extends V2.AccountV2Fields {
   id: Uuid
   accountNumber: string
-  type: AccountType
+  /** v2 adds GOAL and FIXED_DEPOSIT (PRD §12.2). */
+  type: V2.AccountTypeV2
   status: AccountStatus
   balance: MoneyString
   currency: 'INR'
@@ -121,10 +124,13 @@ export interface TransactionDto {
   direction: Direction
   amount: MoneyString
   balanceAfter: MoneyString
-  type: TransactionType
+  /** v2 adds BILL_PAYMENT, INTEREST, CARD, REFUND, TOPUP (PRD §12.2). */
+  type: V2.TransactionTypeV2
   description: string
   counterparty: string | null
   createdAt: IsoDateTime
+  /** v2 (F-INS-1). */
+  category?: V2.Category
 }
 
 /** `from`/`to` are IST calendar dates (yyyy-MM-dd), both inclusive. Results are newest first. */
@@ -149,8 +155,11 @@ export interface TransferDto {
   toName: string
   amount: MoneyString
   note: string | null
-  status: 'COMPLETED' | 'FAILED'
+  /** v2 adds PENDING_REVIEW and REJECTED (fraud review, PRD §12.2). */
+  status: V2.TransferStatusV2
   createdAt: IsoDateTime
+  source?: V2.TransferSource
+  category?: V2.Category
 }
 
 export interface BeneficiaryDto {
@@ -193,14 +202,15 @@ export interface OrderRequest {
   quantity: number
 }
 
-export interface OrderDto {
+export interface OrderDto extends V2.OrderV2Fields {
   id: Uuid
   symbol: string
   side: OrderSide
   quantity: number
   price: MoneyString
   total: MoneyString
-  status: 'FILLED' | 'REJECTED'
+  /** v2 adds OPEN, CANCELLED, EXPIRED (limit / stop orders). */
+  status: V2.OrderStatusV2
   createdAt: IsoDateTime
 }
 
@@ -394,7 +404,8 @@ export type NotificationType =
 
 export interface NotificationDto {
   id: Uuid
-  type: NotificationType
+  /** v2 adds new types (PRD §12.2); unknown types must render generically. */
+  type: V2.NotificationTypeV2
   title: string
   body: string
   read: boolean
@@ -404,3 +415,5 @@ export interface NotificationDto {
 export interface UnreadCountDto {
   count: number
 }
+
+export * from './types.v2'
