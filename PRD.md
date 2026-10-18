@@ -1004,6 +1004,18 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
   limits (the money stays in the bank's clearing account). Saved billers have no endpoint in §12.4 and are not built.
 - **Analytics after part 3:** bill payments count as spending (`topCategory` can be `BILLS`); top-ups count as
   income and as deposits (`NET_INFLOW`, the funnel's "funded" step, `FUNDING_SOURCE` row `RAZORPAY`).
+- **Split groups (part 4):** creating a group needs a handle (`409 INVALID_STATE`); `name` 1–40 chars;
+  `memberHandles` 1–19 other handles (duplicates and your own handle are ignored; unknown → `400` field
+  `memberHandles`). Members are listed creator first; `displayName` is masked ("Aarav S."), since anyone can add a
+  handle to a group. Non-members get `404` on every group route. Expenses: `paidByHandle` must be a member; `amount`
+  1.00–10,00,000.00; `description` 1–60; at most 500 per group. `EQUAL` splits among all members; `EXACT` shares
+  are rupees and must add up to the amount; `PERCENT` shares must add up to 100; each member at most once,
+  ≤ 2 decimals. Shares are rounded down to the paisa and the leftover goes to the payer, so the returned `shares`
+  always add up to `amount` exactly (an `EQUAL` expense lists every member's share). Balances = paid − shares +
+  settle-ups paid − settle-ups received; they sum to zero. **Settle:** asks each member who owes the group for what
+  they owe, up to what the group owes *you*, net of settle-up requests already open (so calling it twice doesn't
+  ask twice); requests under ₹1.00 and members who blocked you are skipped; may return `[]`. These are normal
+  payment requests (note `Settle up · <group>`); when one is paid, both balances move accordingly.
 
 ### 12.5 Savings and insights
 | Method | Path | Body / Query | Response |

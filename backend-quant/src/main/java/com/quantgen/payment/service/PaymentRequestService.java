@@ -81,12 +81,16 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestDto create(UUID userId, String toHandle, BigDecimal rawAmount, String rawNote) {
-        return createInternal(userId, toHandle, rawAmount, rawNote);
+        return createInternal(userId, toHandle, rawAmount, rawNote, null);
     }
 
-    /** Same as {@link #create} inside the caller's transaction (used by split-group settle-up). */
+    /**
+     * Same as {@link #create} inside the caller's transaction. {@code splitGroupId} links a split-group settle-up
+     * request to its group, so paying it settles the debt there.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
-    public PaymentRequestDto createInternal(UUID userId, String toHandle, BigDecimal rawAmount, String rawNote) {
+    public PaymentRequestDto createInternal(UUID userId, String toHandle, BigDecimal rawAmount, String rawNote,
+                                            UUID splitGroupId) {
         String fromHandle = handles.handleOf(userId);
         if (fromHandle == null) {
             throw new ApiException(ErrorCode.INVALID_STATE, "Set your handle before requesting money");
@@ -115,10 +119,10 @@ public class PaymentRequestService {
         Instant now = clock.instant();
         UUID id = jdbc.queryForObject("""
                 INSERT INTO payment_requests (requester_user_id, payer_user_id, from_handle, to_handle, amount, note,
-                                              expires_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                                              expires_at, created_at, split_group_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, UUID.class, userId, payerId, fromHandle, handles.handleOf(payerId), amount, note,
-                Timestamp.from(now.plus(TTL)), Timestamp.from(now));
+                Timestamp.from(now.plus(TTL)), Timestamp.from(now), splitGroupId);
         String requesterName = users.getUser(userId).fullName();
         notifications.notify(payerId, NotificationType.PAYMENT_REQUEST, "Payment request",
                 requesterName + " (" + fromHandle + ") asked you for " + Money.toJson(amount) + " INR"
