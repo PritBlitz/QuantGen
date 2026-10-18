@@ -288,7 +288,7 @@ function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direct
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>{direction === 'in' ? 'From' : 'To'}</Label>
-              <Select value={otherId} onValueChange={setOtherId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
+              <Select aria-label={direction === 'in' ? 'From' : 'To'} value={otherId} onValueChange={setOtherId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
             </div>
             <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={fieldError ?? undefined} autoFocus hint={<>Available <Money value={fromAvail} className="text-text" /></>} />
             <Button className="w-full" onClick={review}>
@@ -322,7 +322,7 @@ function RoundUpPanel({ cash, goals }: { cash: AccountDto[]; goals: AccountDto[]
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Round up spends from</Label>
-            <Select value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
+            <Select aria-label="Round up spends from" value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
           </div>
           {!r ? (
             <Skeleton className="h-28 w-full" />
@@ -334,7 +334,7 @@ function RoundUpPanel({ cash, goals }: { cash: AccountDto[]; goals: AccountDto[]
               </div>
               <div className="space-y-1.5">
                 <Label>Into</Label>
-                <Select value={r.goalAccountId || (goals[0]?.id ?? '')} onValueChange={(v) => save.mutate({ enabled: r.enabled, roundTo: r.roundTo, goalAccountId: v })} options={goals.map((g) => ({ value: g.id, text: g.goal?.name ?? 'Goal', label: `${g.goal?.emoji ?? '🎯'} ${g.goal?.name ?? 'Goal'}` }))} />
+                <Select aria-label="Into" value={r.goalAccountId || (goals[0]?.id ?? '')} onValueChange={(v) => save.mutate({ enabled: r.enabled, roundTo: r.roundTo, goalAccountId: v })} options={goals.map((g) => ({ value: g.id, text: g.goal?.name ?? 'Goal', label: `${g.goal?.emoji ?? '🎯'} ${g.goal?.name ?? 'Goal'}` }))} />
               </div>
               <Button variant={r.enabled ? 'secondary' : 'primary'} disabled={save.isPending} onClick={() => save.mutate({ enabled: !r.enabled, roundTo: r.roundTo, goalAccountId: r.goalAccountId || (goals[0]?.id ?? '') })}>
                 <Coins aria-hidden="true" /> {r.enabled ? 'Turn off round-ups' : 'Turn on round-ups'}
@@ -486,7 +486,7 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
 
   return (
     <Dialog open onOpenChange={(o) => !o && !action.pending && onClose()}>
-      <DialogContent title="Book a fixed deposit" description="Needs a verified KYC profile." className="max-w-lg">
+      <DialogContent title="Book a fixed deposit" description="A fixed rate for a fixed term. Closing early pays the rate for the time held, minus 1%." className="max-w-lg">
         {action.step === 'success' && action.result ? (
           <div className="space-y-4 text-center">
             <SuccessCheck label="Deposit booked" />
@@ -538,7 +538,7 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>From</Label>
-              <Select value={fromId} onValueChange={setFromId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
+              <Select aria-label="From" value={fromId} onValueChange={setFromId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
             </div>
             <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={fieldError ?? undefined} />
             <div className="space-y-1.5">

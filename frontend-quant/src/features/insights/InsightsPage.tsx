@@ -410,7 +410,7 @@ function WealthTab() {
         title="End-of-day balance"
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Select
+            <Select aria-label="Account"
               value={account}
               onValueChange={setAccount}
               className="h-9 w-48"

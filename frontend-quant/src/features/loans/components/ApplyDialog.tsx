@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { FieldMessage, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { accountLabel } from '@/features/accounts/labels'
+import { accountLabel, isEveryday } from '@/features/accounts/labels'
 import { LOAN_MAX, LOAN_MIN, TENURE_MAX, TENURE_MIN } from '@/lib/emi'
 import { AMOUNT_INPUT_RE, formatINR, toDecimal } from '@/lib/money'
 import { cn } from '@/lib/utils'
@@ -75,7 +75,7 @@ function Stepper({ step }: { step: number }) {
 
 function ApplyFlow({ draft, onClose }: { draft: LoanDraft; onClose: () => void }) {
   const accounts = useAccounts()
-  const usable = (accounts.data ?? []).filter((a) => a.status === 'ACTIVE')
+  const usable = (accounts.data ?? []).filter((a) => a.status === 'ACTIVE' && isEveryday(a))
   const [step, setStep] = useState(0)
   const [amount, setAmount] = useState(String(draft.amount))
   const [tenure, setTenure] = useState(String(draft.tenureMonths))

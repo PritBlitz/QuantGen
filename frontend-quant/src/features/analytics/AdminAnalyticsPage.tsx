@@ -177,7 +177,7 @@ export function AdminAnalyticsPage() {
         }
       >
         <div className="mb-3 lg:hidden">
-          <Select
+          <Select aria-label="Metric"
             value={metric}
             onValueChange={(v) => setMetric(v as AnalyticsMetric)}
             options={HERO_METRICS.map((m) => ({ value: m.value, label: m.label, text: m.label }))}
@@ -287,7 +287,7 @@ export function AdminAnalyticsPage() {
           eyebrow="Explore"
           title="Breakdown"
           action={
-            <Select
+            <Select aria-label="Break down by"
               value={dimension}
               onValueChange={(v) => setDimension(v as BreakdownDimension)}
               options={DIMENSIONS.map((d) => ({ value: d.value, label: d.text, text: d.text }))}

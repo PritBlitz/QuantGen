@@ -63,7 +63,7 @@ export function BudgetsDialog({
         <ul className="space-y-3">
           {rows.map((r, i) => (
             <li key={r.category} className="grid grid-cols-[1fr_9rem_auto] items-end gap-2">
-              <Select
+              <Select aria-label="Category"
                 value={r.category}
                 onValueChange={(v) =>
                   setRows((rs) => rs.map((x, j) => (j === i ? { ...x, category: v as Category } : x)))

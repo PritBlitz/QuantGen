@@ -71,7 +71,7 @@ export function HandleDialog({
           />
           <div className="space-y-1.5">
             <Label>Money paid to your handle lands in</Label>
-            <Select value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, label: accountLabel(a), text: accountLabel(a) }))} />
+            <Select aria-label="Money paid to your handle lands in" value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, label: accountLabel(a), text: accountLabel(a) }))} />
           </div>
           {error && (
             <p role="alert" className="text-sm text-loss">

@@ -48,8 +48,8 @@ test('register → deposit → open account → own transfer → buy, all server
   await expect(open).toBeHidden()
 
   // ₹1,500 savings → checking.
-  await go(page, 'Transfer')
-  await page.getByRole('radio', { name: 'My accounts' }).click()
+  await page.goto('/transfer') // v2 nav groups it under Pay
+  await page.getByRole('radio', { name: 'Mine' }).click()
   await page.getByRole('combobox').filter({ hasText: 'Choose one of your accounts' }).click()
   await page.getByRole('option', { name: /^Checking/ }).click()
   await page.getByLabel('Amount').fill('1500')
@@ -169,4 +169,69 @@ test('loan lifecycle, notifications, freeze and audit against the real API', asy
       .filter({ visible: true })
       .first(),
   ).toBeVisible()
+})
+
+// V2-M3 against the real API: PIN → goal → FD booked → closed early with step-up (FD_CLOSE),
+// paying 0 interest under 7 days and returning the principal.
+test('savings: set PIN, create a goal, book an FD and close it early with step-up', async ({ page }) => {
+  test.setTimeout(120_000)
+  const n = Date.now().toString().slice(-9)
+  await page.goto('/register')
+  await page.getByLabel('Full name').fill('Saver Tester')
+  await page.getByLabel('Email').fill(`saver${n}@example.com`)
+  await page.getByLabel('Phone').fill(`+91${n}1`)
+  await page.getByLabel('Password', { exact: true }).fill('Live@12345')
+  await page.getByLabel('Confirm password').fill('Live@12345')
+  await page.getByRole('button', { name: /create account/i }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+
+  await go(page, 'Accounts')
+  await page.getByRole('button', { name: 'Add money' }).click()
+  const dep = page.getByRole('dialog', { name: 'Add money' })
+  await dep.getByRole('textbox', { name: 'Amount' }).fill('5000')
+  await dep.getByRole('button', { name: 'Review' }).click()
+  await dep.getByRole('button', { name: 'Add ₹5,000.00' }).click()
+  await expect(dep.getByRole('img', { name: 'Deposit confirmed' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // Transaction PIN (first time also asks for the account password).
+  await page.goto('/settings/security')
+  await page.getByRole('group', { name: 'Choose a PIN' }).locator('input').first().click()
+  await page.keyboard.type('246810')
+  await page.getByRole('group', { name: 'Confirm PIN' }).locator('input').first().click()
+  await page.keyboard.type('246810')
+  const pw = page.getByLabel('Account password')
+  if (await pw.isVisible()) await pw.fill('Live@12345')
+  await page.getByRole('button', { name: 'Set PIN' }).click()
+  await expect(page.getByText('Set', { exact: true }).first()).toBeVisible()
+
+  await go(page, 'Savings')
+  await page.getByRole('button', { name: 'New goal' }).click()
+  const goal = page.getByRole('dialog', { name: 'New goal' })
+  await goal.getByLabel('Name').fill('Laptop')
+  await goal.getByRole('textbox', { name: 'Target', exact: true }).fill('80000')
+  await goal.getByRole('button', { name: 'Create goal' }).click()
+  await expect(goal).toBeHidden()
+  await expect(page.getByText('Laptop').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Book an FD' }).click()
+  const fd = page.getByRole('dialog', { name: 'Book a fixed deposit' })
+  await fd.getByRole('textbox', { name: 'Amount' }).fill('1000')
+  await fd.getByRole('button', { name: /1 month/ }).click()
+  await fd.getByRole('button', { name: 'Review' }).click()
+  await fd.getByRole('button', { name: /Book deposit/ }).click()
+  await expect(fd.getByRole('img', { name: 'Deposit booked' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Close early' }).click()
+  const close = page.getByRole('dialog', { name: 'Close this deposit early?' })
+  await close.getByRole('button', { name: /Close deposit/ }).click()
+  await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+  await page.keyboard.type('246810')
+  await expect(close.getByRole('img', { name: 'Deposit closed' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // Principal back, no interest (< 7 days): the savings account shows ₹5,000.00 again.
+  await go(page, 'Accounts')
+  await expect(page.getByText('₹5,000.00').first()).toBeVisible()
 })

@@ -72,7 +72,6 @@ export function OnboardingCard({ className }: { className?: string }) {
             <li key={s.key}>
               <Link
                 to={s.to}
-                aria-label={`${s.label}${s.done ? ' (done)' : ''}`}
                 className={cn(
                   'group flex h-full items-start gap-3 rounded-[var(--radius-control)] p-3 hairline transition-colors hover:bg-surface-2',
                   s.done && 'opacity-60',
@@ -88,7 +87,10 @@ export function OnboardingCard({ className }: { className?: string }) {
                   {s.done && <Check className="size-3" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={cn('block text-sm font-medium', s.done && 'line-through')}>{s.label}</span>
+                  <span className={cn('block text-sm font-medium', s.done && 'line-through')}>
+                    {s.label}
+                    {s.done && <span className="sr-only"> (done)</span>}
+                  </span>
                   <span className="block text-xs text-muted">{s.hint}</span>
                 </span>
                 {!s.done && <ArrowRight aria-hidden="true" className="mt-0.5 size-4 text-muted transition-transform group-hover:translate-x-0.5" />}

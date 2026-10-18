@@ -27,3 +27,9 @@ export const accountLabel = (a: Pick<AccountDto, 'type' | 'accountNumber' | 'goa
   a.goal?.name
     ? `${a.goal.name} ${maskShort(a.accountNumber)}`
     : `${ACCOUNT_TYPE_LABEL[a.type] ?? 'Account'} ${maskShort(a.accountNumber)}`
+
+/**
+ * SAVINGS and CHECKING: the accounts that pay, trade, take deposits and loans. Goals only move
+ * money to and from your own accounts; fixed deposits can't send or receive at all (D-037).
+ */
+export const isEveryday = (a: Pick<AccountDto, 'type'>) => a.type === 'SAVINGS' || a.type === 'CHECKING'

@@ -225,12 +225,12 @@ function NewSchedule() {
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>To</Label>
-            <Select value={toBen} onValueChange={setToBen} placeholder="Choose a saved payee" invalid={!!errors.to} options={(beneficiaries.data ?? []).map((b) => ({ value: b.id, text: b.nickname, label: `${b.nickname} · ${b.holderName}` }))} />
+            <Select aria-label="To" value={toBen} onValueChange={setToBen} placeholder="Choose a saved payee" invalid={!!errors.to} options={(beneficiaries.data ?? []).map((b) => ({ value: b.id, text: b.nickname, label: `${b.nickname} · ${b.holderName}` }))} />
             {errors.to && <p className="text-xs text-loss">{errors.to}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>From</Label>
-            <Select value={from?.id ?? ''} onValueChange={setFromId} options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
+            <Select aria-label="From" value={from?.id ?? ''} onValueChange={setFromId} options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
           </div>
           <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={errors.amount} />
           <div className="space-y-1.5">

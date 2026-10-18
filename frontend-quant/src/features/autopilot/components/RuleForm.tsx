@@ -68,7 +68,7 @@ export function RuleForm({
                 <AccountField
                   label="Balance of"
                   value={c.accountId}
-                  accounts={accounts.filter((a) => a.status === 'ACTIVE')}
+                  accounts={accounts.filter((a) => a.status === 'ACTIVE' && a.type !== 'FIXED_DEPOSIT')}
                   onChange={(accountId) => setCondition(i, { ...c, accountId })}
                   error={errors.at(`conditions[${i}].accountId`)}
                 />
@@ -102,7 +102,7 @@ export function RuleForm({
             <li key={i} className="rounded-[var(--radius-control)] bg-surface-2/50 p-3.5 hairline">
               <div className="mb-3 flex items-center gap-2">
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-violet/15 text-xs font-medium text-violet">{i + 1}</span>
-                <Select
+                <Select aria-label="Action type"
                   value={a.type}
                   onValueChange={(t) => setAction(i, defaultAction(t as RuleAction['type'], accounts))}
                   options={Object.entries(ACTION_LABEL).map(([value, text]) => ({ value, label: text, text }))}
@@ -164,7 +164,7 @@ function TriggerEditor({
       </Field>
       {t.type === 'MONEY_RECEIVED' && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <AccountField label="Into" value={t.accountId} accounts={accounts.filter((a) => a.status === 'ACTIVE')} onChange={(accountId) => onChange({ ...t, accountId })} error={e('accountId')} />
+          <AccountField label="Into" value={t.accountId} accounts={accounts.filter((a) => a.status === 'ACTIVE' && a.type !== 'FIXED_DEPOSIT')} onChange={(accountId) => onChange({ ...t, accountId })} error={e('accountId')} />
           <MoneyField label="Of at least (optional)" value={t.minAmount ?? ''} onChange={(minAmount) => onChange({ ...t, minAmount: minAmount || undefined })} error={e('minAmount')} />
           <TextField
             label="From someone whose name contains (optional)"
@@ -221,7 +221,7 @@ function TriggerEditor({
       )}
       {t.type === 'BALANCE_ABOVE' && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <AccountField label="Balance of" value={t.accountId} accounts={accounts.filter((a) => a.status === 'ACTIVE')} onChange={(accountId) => onChange({ ...t, accountId })} error={e('accountId')} />
+          <AccountField label="Balance of" value={t.accountId} accounts={accounts.filter((a) => a.status === 'ACTIVE' && a.type !== 'FIXED_DEPOSIT')} onChange={(accountId) => onChange({ ...t, accountId })} error={e('accountId')} />
           <MoneyField label="Goes above" value={t.threshold} onChange={(threshold) => onChange({ ...t, threshold })} error={e('threshold')} />
         </div>
       )}
@@ -293,7 +293,7 @@ function ActionEditor({
   const instruments = useInstruments().data ?? []
   const billers = useBillers().data ?? []
   const e = (k: string) => errors.at(`actions[${index}].${k}`)
-  const own = accounts.filter((x) => x.status === 'ACTIVE')
+  const own = accounts.filter((x) => x.status === 'ACTIVE' && x.type !== 'FIXED_DEPOSIT')
 
   switch (a.type) {
     case 'TRANSFER': {

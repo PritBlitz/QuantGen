@@ -9,12 +9,18 @@ async function loginAsAdmin(page: Page) {
 }
 
 /** Client-side nav keeps the in-browser mock database (a reload would reset it). */
+/**
+ * Navigate in-app (a reload would reset the in-browser mock state): the rail on desktop, the
+ * dock or its "More" sheet on mobile.
+ */
 async function go(page: Page, name: string) {
-  await page
+  const link = page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name, exact: true })
     .filter({ visible: true })
-    .click()
+  if (await link.count()) return link.first().click()
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.getByRole('dialog').getByRole('link', { name, exact: true }).click()
 }
 
 // PRD M4/M5: apply → admin approve → disburse; freeze is audited.
@@ -55,7 +61,7 @@ test('admin approves a loan, freezes an account, and both are audited', async ({
     page.getByText('Income verified against bank statements').filter({ visible: true }).first(),
   ).toBeVisible()
 
-  await go(page, 'Reconcile')
+  await go(page, 'Ledger integrity')
   await page.getByRole('button', { name: 'Run reconciliation' }).click()
   await expect(page.getByText('Balanced', { exact: true })).toBeVisible()
 })

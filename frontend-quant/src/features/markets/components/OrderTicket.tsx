@@ -23,7 +23,7 @@ import { Segmented } from '@/components/Segmented'
 import { Button } from '@/components/ui/button'
 import { FieldMessage, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { accountLabel } from '@/features/accounts/labels'
+import { accountLabel, isEveryday } from '@/features/accounts/labels'
 import { formatINR, toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
@@ -50,7 +50,7 @@ export function OrderTicket({
   initialSide?: OrderSide
   onDone?: () => void
 }) {
-  const usable = accounts.filter((a) => a.status === 'ACTIVE')
+  const usable = accounts.filter((a) => a.status === 'ACTIVE' && isEveryday(a))
   const [side, setSide] = useState<OrderSide>(initialSide)
   const [accountId, setAccountId] = useState(usable[0]?.id ?? '')
   const [qty, setQty] = useState('1')

@@ -34,7 +34,7 @@ export function Pagination({
           onClick={() => onPage(page - 1)}
           aria-label="Previous page"
         >
-          <ChevronLeft aria-hidden="true" /> Prev
+          <ChevronLeft aria-hidden="true" /> Previous
         </Button>
         <Button
           variant="secondary"

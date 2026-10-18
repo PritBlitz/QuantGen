@@ -143,8 +143,8 @@ describe('setup checklist (F-UX-3)', () => {
     renderApp('/dashboard')
     const region = await screen.findByRole('region', { name: 'Get set up' })
     expect(await within(region).findByRole('img', { name: '3 of 4 done' })).toBeInTheDocument()
-    expect(within(region).getByRole('link', { name: 'Add a passkey' })).toHaveAttribute('href', '/settings/security')
-    expect(within(region).getByRole('link', { name: 'Claim your handle (done)' })).toBeInTheDocument()
+    expect(within(region).getByRole('link', { name: /^Add a passkey\s*Sign in/ })).toHaveAttribute('href', '/settings/security')
+    expect(within(region).getByRole('link', { name: /^Claim your handle\s*\(done\)/ })).toBeInTheDocument()
 
     await user.click(within(region).getByRole('button', { name: 'Hide the setup checklist' }))
     expect(screen.queryByRole('region', { name: 'Get set up' })).not.toBeInTheDocument()

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DepositDialog } from '@/features/accounts/components/DepositDialog'
-import { accountLabel } from '@/features/accounts/labels'
+import { accountLabel, isEveryday } from '@/features/accounts/labels'
 import { AMOUNT_INPUT_RE, Decimal, formatINR, toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
@@ -21,7 +21,7 @@ import { formatDate } from '@/lib/time'
 
 /** F-LOAN-5 repayment: the next EMI or a custom amount (oldest dues first). Idempotent. */
 export function RepayPanel({ loan, accounts }: { loan: LoanDetailDto; accounts: AccountDto[] }) {
-  const usable = accounts.filter((a) => a.status === 'ACTIVE')
+  const usable = accounts.filter((a) => a.status === 'ACTIVE' && isEveryday(a))
   const unpaid = loan.schedule.filter((r) => r.status !== 'PAID')
   const next = unpaid[0]
   // amountDue (not emi): a partly paid instalment only owes its remainder (PRD §7.6).

@@ -273,7 +273,7 @@ function AddExpense({ group, myHandle, onClose }: { group: GroupDto; myHandle: s
           <AmountInput label="Amount" value={amount} onValueChange={setAmount} />
           <div className="space-y-1.5">
             <Label>Paid by</Label>
-            <Select value={paidBy} onValueChange={setPaidBy} options={group.members.map((m) => ({ value: m.handle, label: m.displayName, text: m.displayName }))} />
+            <Select aria-label="Paid by" value={paidBy} onValueChange={setPaidBy} options={group.members.map((m) => ({ value: m.handle, label: m.displayName, text: m.displayName }))} />
           </div>
           <div className="space-y-1.5">
             <Label>Split</Label>

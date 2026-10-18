@@ -180,7 +180,7 @@ function PayBill({ biller }: { biller: BillerDto }) {
           {action.step === 'form' && (
             <div className="space-y-1.5">
               <Label>Pay from</Label>
-              <Select value={from?.id ?? ''} onValueChange={setFromId} options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)}<Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
+              <Select aria-label="Pay from" value={from?.id ?? ''} onValueChange={setFromId} options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)}<Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
             </div>
           )}
           {action.error && <MoneyErrorAlert copy={moneyErrorCopy(action.error, { amount: bill.amount, balance: from?.availableBalance ?? from?.balance })} />}

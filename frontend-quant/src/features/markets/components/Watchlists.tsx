@@ -82,10 +82,10 @@ export function WatchButton({ symbol }: { symbol: string }) {
         size="sm"
         onClick={() => setOpen(true)}
         disabled={!lists.data}
-        aria-label={watched ? `${symbol} is on a watchlist. Edit watchlists` : `Add ${symbol} to a watchlist`}
       >
         <Star aria-hidden="true" className={cn(watched && 'fill-current text-accent')} />
         {watched ? 'Watching' : 'Watch'}
+        <span className="sr-only"> {symbol}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent title={`Watch ${symbol}`} description="Pick the lists it belongs on.">

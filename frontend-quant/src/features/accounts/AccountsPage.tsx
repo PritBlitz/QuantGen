@@ -14,7 +14,7 @@ import { sumMoney } from '@/lib/money'
 import { AccountStatusBadge as StatusBadge } from './components/AccountStatusBadge'
 import { DepositDialog } from './components/DepositDialog'
 import { OpenAccountDialog } from './components/OpenAccountDialog'
-import { ACCOUNT_TYPE_LABEL } from './labels'
+import { ACCOUNT_TYPE_LABEL, isEveryday } from './labels'
 
 export function AccountsPage() {
   const { data, isPending, isError, refetch } = useAccounts()
@@ -81,14 +81,16 @@ export function AccountsPage() {
                   </p>
                 )}
                 <div className="mt-auto flex gap-2 pt-6">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setDepositFor(a)}
-                    disabled={a.status === 'CLOSED'}
-                  >
-                    <Plus aria-hidden="true" /> Add money
-                  </Button>
+                  {isEveryday(a) && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setDepositFor(a)}
+                      disabled={a.status === 'CLOSED'}
+                    >
+                      <Plus aria-hidden="true" /> Add money
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" asChild className="ml-auto">
                     <Link
                       to={`/accounts/${a.id}`}

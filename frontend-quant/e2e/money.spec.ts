@@ -12,12 +12,18 @@ async function login(page: Page) {
  * Client-side navigation through the visible main nav (sidebar on desktop, tab bar on
  * mobile). A full page load would restart the in-browser mock database.
  */
+/**
+ * Navigate in-app (a reload would reset the in-browser mock state): the rail on desktop, the
+ * dock or its "More" sheet on mobile.
+ */
 async function go(page: Page, name: string) {
-  await page
+  const link = page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name, exact: true })
     .filter({ visible: true })
-    .click()
+  if (await link.count()) return link.first().click()
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.getByRole('dialog').getByRole('link', { name, exact: true }).click()
 }
 
 // CLAUDE.md: Playwright end-to-end for login → transfer → buy.
@@ -25,9 +31,11 @@ test('login → transfer → buy', async ({ page, isMobile }) => {
   await login(page)
 
   // Transfer ₹1,500 from savings to the checking account by number.
-  await go(page, 'Transfer')
-  await page.getByRole('radio', { name: 'New' }).click()
+  await page.goto('/transfer') // v2 nav groups it under Pay
+  await page.getByRole('radio', { name: 'Account no.' }).click()
   await page.getByLabel('Account number').fill('502184739067')
+  // v2 confirmation of payee: the server resolves the holder's masked name first.
+  await expect(page.getByText('Aarav S.').first()).toBeVisible()
   await page.getByLabel('Amount').fill('1500')
   await page.getByRole('button', { name: 'Review transfer' }).click()
   await expect(page.getByText('You’re sending')).toBeVisible()
@@ -69,8 +77,8 @@ test('login → transfer → buy', async ({ page, isMobile }) => {
 
 test('money confirm buttons disable while pending (no double submit)', async ({ page }) => {
   await login(page)
-  await go(page, 'Transfer')
-  await page.getByRole('radio', { name: 'New' }).click()
+  await page.goto('/transfer') // v2 nav groups it under Pay
+  await page.getByRole('radio', { name: 'Account no.' }).click()
   await page.getByLabel('Account number').fill('502184739067')
   await page.getByLabel('Amount').fill('10')
   await page.getByRole('button', { name: 'Review transfer' }).click()

@@ -4,15 +4,30 @@ import { expect, test, type Page } from '@playwright/test'
 
 /** WCAG 2.1 AA audit of every built screen, in both themes (CLAUDE.md / DESIGN.md §3.8). */
 const PUBLIC = ['/', '/login', '/register']
+/** Every customer screen, v1 and v2, by path (most aren't in the mobile dock). */
 const APP = [
-  'Dashboard',
-  'Accounts',
-  'Transfer',
-  'Markets',
-  'Portfolio',
-  'Orders',
-  'Loans',
-  'Profile',
+  '/dashboard',
+  '/insights',
+  '/accounts',
+  '/transfer',
+  '/pay',
+  '/pay/requests',
+  '/pay/scheduled',
+  '/pay/bills',
+  '/savings',
+  '/cards',
+  '/cards/sandbox',
+  '/markets',
+  '/portfolio',
+  '/portfolio/tax',
+  '/orders',
+  '/lab',
+  '/loans',
+  '/autopilot',
+  '/copilot',
+  '/proof',
+  '/settings',
+  '/settings/security',
 ] as const
 
 async function audit(page: Page, label: string) {
@@ -74,14 +89,11 @@ for (const theme of ['dark', 'light'] as const) {
       await expect(page).toHaveURL(/\/dashboard$/)
       const main = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
       await expect(main).toBeVisible()
-      for (const name of APP) {
-        const link = main.getByRole('link', { name, exact: true })
-        // Screens outside the mobile tab bar: load by URL (the refresh cookie restores the session).
-        if (await link.count()) await link.click()
-        else await page.goto(`/${name.toLowerCase()}`)
-        await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`))
+      for (const path of APP) {
+        // Loaded by URL: the refresh cookie restores the session on each load.
+        await page.goto(path)
         await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
-        await audit(page, `${theme} ${name}`)
+        await audit(page, `${theme} ${path}`)
       }
       await page
         .getByRole('navigation', { name: 'Main' })
@@ -104,30 +116,18 @@ for (const theme of ['dark', 'light'] as const) {
       await page.getByRole('button', { name: /^sign in/i }).click()
       await expect(page).toHaveURL(/\/admin$/)
       await audit(page, `${theme} admin overview`)
-      const ADMIN_PATHS: Record<string, string> = {
-        Users: 'users',
-        'Loan queue': 'loans',
-        'Audit log': 'audit',
-        Reconcile: 'reconcile',
-      }
-      for (const [name, path] of Object.entries(ADMIN_PATHS)) {
-        await page
-          .getByRole('navigation', { name: 'Main' })
-          .getByRole('link', { name, exact: true })
-          .filter({ visible: true })
-          .click()
-        await expect(page).toHaveURL(new RegExp(`/admin/${path}$`))
-        if (name === 'Reconcile') {
+      const ADMIN_PATHS = ['users', 'loans', 'fraud', 'analytics', 'ai', 'flags', 'audit', 'reconcile']
+      for (const path of ADMIN_PATHS) {
+        await page.goto(`/admin/${path}`)
+        await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+        const name = path
+        if (name === 'reconcile') {
           await page.getByRole('button', { name: 'Run reconciliation' }).click()
           await expect(page.getByText('Balanced', { exact: true })).toBeVisible()
         }
         await audit(page, `${theme} admin ${name}`)
       }
-      await page
-        .getByRole('navigation', { name: 'Main' })
-        .getByRole('link', { name: 'Users', exact: true })
-        .filter({ visible: true })
-        .click()
+      await page.goto('/admin/users')
       await page
         .getByRole('link', { name: /meera iyer/i })
         .filter({ visible: true })

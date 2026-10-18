@@ -20,6 +20,7 @@ export function Select({
   className,
   invalid,
   'aria-describedby': describedBy,
+  'aria-label': ariaLabel,
 }: {
   id?: string
   value: string | undefined
@@ -29,6 +30,8 @@ export function Select({
   className?: string
   invalid?: boolean
   'aria-describedby'?: string
+  /** When there's no <Label htmlFor={id}>: the field's visible label text. */
+  'aria-label'?: string
 }) {
   return (
     <S.Root value={value ?? ''} onValueChange={onValueChange}>
@@ -36,6 +39,7 @@ export function Select({
         id={id}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
+        aria-label={ariaLabel}
         className={cn(
           'flex h-11 w-full items-center justify-between gap-2 rounded-[var(--radius-control)] bg-surface-2 px-3.5 text-left text-[0.9375rem]',
           'hairline hover:border-muted/40 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30',

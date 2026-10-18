@@ -121,7 +121,7 @@ describe('watchlists and price alerts', () => {
     unmount()
 
     renderApp('/markets/QGEN')
-    await user.click(await screen.findByRole('button', { name: /QGEN is on a watchlist/ }))
+    await user.click(await screen.findByRole('button', { name: /^Watching\s*QGEN$/ }))
     const dialog = await screen.findByRole('dialog', { name: 'Watch QGEN' })
     const tech = within(dialog).getByRole('checkbox', { name: /Tech/ })
     expect(tech).toHaveAttribute('aria-checked', 'false')

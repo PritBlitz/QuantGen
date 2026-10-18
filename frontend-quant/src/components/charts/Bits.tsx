@@ -140,7 +140,8 @@ export function CohortHeatmap({
   const fmtMonth = (c: string) =>
     new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${c}-01T00:00:00Z`))
   return (
-    <div className="scroll-thin overflow-x-auto">
+    // Focusable so keyboard users can scroll it on narrow screens (WCAG 2.1.1).
+    <div className="scroll-thin overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-accent" tabIndex={0} role="region" aria-label="Retention by signup month">
       <table className="w-full border-separate border-spacing-1 text-xs">
         <caption className="sr-only">Share of each signup month still moving money N months later</caption>
         <thead>

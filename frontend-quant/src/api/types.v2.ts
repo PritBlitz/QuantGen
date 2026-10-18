@@ -307,7 +307,8 @@ export interface CreateGoalRequest {
 export interface RoundUpRequest {
   enabled: boolean
   roundTo: 10 | 50 | 100
-  goalAccountId: Uuid
+  /** null until a goal is picked (the backend's default is {enabled: false, roundTo: 10, goalAccountId: null}). */
+  goalAccountId: Uuid | null
 }
 export interface FdRateDto {
   minDays: number

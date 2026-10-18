@@ -55,7 +55,7 @@ export function PayRequestDialog({
             {action.step === 'form' ? (
               <div className="space-y-1.5">
                 <Label>Pay from</Label>
-                <Select
+                <Select aria-label="Pay from"
                   value={fromId}
                   onValueChange={setFromId}
                   options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))}

@@ -125,7 +125,7 @@ export function TransferFlow({
         : null
 
   const from = accounts.find((a) => a.id === fromId)
-  const ownTargets = accounts.filter((a) => a.id !== fromId && a.status !== 'CLOSED')
+  const ownTargets = accounts.filter((a) => a.id !== fromId && a.status !== 'CLOSED' && a.type !== 'FIXED_DEPOSIT')
 
   const recipient: Recipient | null = useMemo(() => {
     if (mode === 'saved') {
@@ -460,7 +460,7 @@ export function TransferFlow({
 
         {mode === 'saved' &&
           (beneficiaries.length ? (
-            <Select
+            <Select aria-label="Saved recipient"
               value={savedId}
               onValueChange={edited(setSavedId)}
               placeholder="Choose a saved recipient"
@@ -485,7 +485,7 @@ export function TransferFlow({
 
         {mode === 'own' &&
           (ownTargets.length ? (
-            <Select
+            <Select aria-label="Your account"
               value={ownId}
               onValueChange={edited(setOwnId)}
               placeholder="Choose one of your accounts"

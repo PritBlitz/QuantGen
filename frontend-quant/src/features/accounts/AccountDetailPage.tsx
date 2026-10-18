@@ -19,7 +19,7 @@ import { AccountStatusBadge as StatusBadge } from './components/AccountStatusBad
 import { DepositDialog } from './components/DepositDialog'
 import { StatementDialog } from './components/StatementDialog'
 import { TransactionList } from './components/TransactionList'
-import { ACCOUNT_TYPE_LABEL, TX_TYPE_LABEL } from './labels'
+import { ACCOUNT_TYPE_LABEL, isEveryday, TX_TYPE_LABEL } from './labels'
 
 const PAGE_SIZE = 20
 const ALL = 'ALL'
@@ -81,16 +81,18 @@ export function AccountDetailPage() {
               <Button variant="secondary" onClick={() => setStatementOpen(true)}>
                 <Download aria-hidden="true" /> Statement
               </Button>
-              {a.status === 'ACTIVE' && (
+              {a.status === 'ACTIVE' && a.type !== 'FIXED_DEPOSIT' && (
                 <Button variant="secondary" asChild>
                   <Link to={`/transfer?from=${encodeURIComponent(a.id)}`}>
                     <ArrowLeftRight aria-hidden="true" /> Transfer
                   </Link>
                 </Button>
               )}
-              <Button onClick={() => setDepositOpen(true)} disabled={a.status === 'CLOSED'}>
-                <Plus aria-hidden="true" /> Add money
-              </Button>
+              {isEveryday(a) && (
+                <Button onClick={() => setDepositOpen(true)} disabled={a.status === 'CLOSED'}>
+                  <Plus aria-hidden="true" /> Add money
+                </Button>
+              )}
             </>
           )
         }

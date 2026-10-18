@@ -40,6 +40,12 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   // Backend 81487e2: Razorpay top-ups (§7.9). Without keys on :8080, create returns 503
   // GATEWAY_UNAVAILABLE; the live `razorpay` flag is off, so the UI hides the option anyway.
   { prefix: '/api/v1/topups', milestone: 'V2-M2' },
+  // Backend d737264 (announced 2026-10-18): V2-M3 savings + insights. Goals ride on
+  // POST /accounts; round-ups on /accounts/{id}/round-up; /analytics/goals is real.
+  { prefix: '/api/v1/fixed-deposits', milestone: 'V2-M3' },
+  { prefix: '/api/v1/insights/', milestone: 'V2-M3' },
+  { prefix: '/api/v1/budgets', milestone: 'V2-M3' },
+  { prefix: '/api/v1/transactions/', milestone: 'V2-M3' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -49,7 +55,7 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/users\/me\/tokens/,
-  /^\/api\/v1\/accounts\/[^/]+\/(round-up|cards)/,
+  /^\/api\/v1\/accounts\/[^/]+\/cards/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/orders\/[^/]+\/cancel/,
   /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,

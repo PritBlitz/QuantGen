@@ -137,10 +137,10 @@ export const savingsHandlers = [
     const b = (await request.json()) as Record<string, unknown>
     const idem = idempotent(request, r.user.id, b)
     if (idem.early) return idem.early
-    const kyc = db.v2.kyc.get(r.user.id)
-    if (kyc?.status !== 'VERIFIED') return error(403, 'KYC_REQUIRED', 'KYC required', request)
+    // Backend V2-M3: no KYC gate on FDs; someone else's account → 404, a goal/FD → 400.
     const from = ownAccount(r.user.id, b.fromAccountId)
-    if (!from || (from.type !== 'SAVINGS' && from.type !== 'CHECKING')) return notFound(request, 'Account')
+    if (!from) return notFound(request, 'Account')
+    if (from.type !== 'SAVINGS' && from.type !== 'CHECKING') return invalid(request, 'fromAccountId', 'must be a savings or checking account')
     if (!isMoney(b.amount) || new Decimal(String(b.amount)).lt(1000) || new Decimal(String(b.amount)).gt(1000000))
       return invalid(request, 'amount', 'must be between 1000.00 and 1000000.00')
     const days = Number(b.tenureDays)
