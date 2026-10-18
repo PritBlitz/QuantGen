@@ -179,6 +179,12 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'copilot',
+                lazy: async () => ({
+                  Component: (await import('@/features/copilot/CopilotPage')).CopilotPage,
+                }),
+              },
+              {
                 path: 'markets',
                 lazy: async () => ({
                   Component: (await import('@/features/markets/MarketsPage')).MarketsPage,

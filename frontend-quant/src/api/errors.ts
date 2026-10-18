@@ -115,5 +115,6 @@ export function errorMessage(error: unknown): string {
     const mins = Math.ceil(e.retryAfter / 60)
     return `Too many attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`
   }
-  return COPY[e.code]
+  // Codes added after this build (PRD §12.2: treat unknown values gracefully).
+  return COPY[e.code] ?? COPY.INTERNAL_ERROR
 }
