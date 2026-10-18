@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { payApi } from '@/api/endpoints.v2'
+import { errorMessage, toApiError } from '@/api/errors'
 import { useInvalidateMoney } from '@/api/queries'
 import type { AccountDto, BeneficiaryDto, TransferDto } from '@/api/types'
 import { FormField } from '@/components/FormField'
@@ -112,6 +113,16 @@ export function TransferFlow({
     retry: false,
     staleTime: 60_000,
   })
+  // 404 = nobody has it; 429 = too many lookups (30/min); anything else stays silent.
+  const payeeErr = payee.error && resolveFor ? toApiError(payee.error) : null
+  const payeeProblem =
+    payeeErr?.code === 'NOT_FOUND'
+      ? mode === 'handle'
+        ? 'No one has that handle.'
+        : 'No account has that number.'
+      : payeeErr?.code === 'RATE_LIMITED'
+        ? errorMessage(payeeErr)
+        : null
 
   const from = accounts.find((a) => a.id === fromId)
   const ownTargets = accounts.filter((a) => a.id !== fromId && a.status !== 'CLOSED')
@@ -172,7 +183,8 @@ export function TransferFlow({
     e.preventDefault()
     const errs = validateTransfer(draft, spendable)
     if (mode === 'handle' && !errs.toAccountNumber && payee.isError)
-      errs.toAccountNumber = 'We couldn’t find anyone with that handle.'
+      errs.toAccountNumber =
+        payeeErr?.code === 'RATE_LIMITED' ? errorMessage(payeeErr) : 'We couldn’t find anyone with that handle.'
     if (recipient && !recipient.handle && recipient.accountNumber === from?.accountNumber)
       errs.toAccountNumber = 'You can’t send to the same account'
     setErrors(errs)
@@ -506,7 +518,7 @@ export function TransferFlow({
               <PayeeHint
                 loading={payee.isFetching}
                 name={payee.data?.holderNameMasked}
-                notFound={payee.isError && !!resolveFor}
+                problem={payeeProblem}
               />
             }
           />
@@ -528,7 +540,7 @@ export function TransferFlow({
                 <PayeeHint
                   loading={payee.isFetching}
                   name={payee.data?.holderNameMasked}
-                  notFound={false}
+                  problem={payeeProblem}
                 />
               ) : undefined
             }
@@ -576,11 +588,11 @@ export function TransferFlow({
 function PayeeHint({
   loading,
   name,
-  notFound,
+  problem,
 }: {
   loading: boolean
   name?: string
-  notFound: boolean
+  problem: string | null
 }) {
   if (loading) return <span className="text-muted">Checking…</span>
   if (name)
@@ -589,6 +601,6 @@ function PayeeHint({
         <ShieldCheck aria-hidden="true" className="size-3.5" /> {name}
       </span>
     )
-  if (notFound) return <span className="text-warn">No one has that handle.</span>
+  if (problem) return <span className="text-warn">{problem}</span>
   return null
 }

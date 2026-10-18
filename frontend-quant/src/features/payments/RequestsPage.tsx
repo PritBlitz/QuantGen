@@ -173,6 +173,7 @@ function NewRequest({ onSent }: { onSent: () => void }) {
         onError: (err) => {
           const ae = toApiError(err)
           if (ae.fieldErrors.length) setErrors(Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message])))
+          else if (ae.code === 'INVALID_STATE') toast.error('Set your handle first, so people know who’s asking.')
           else toast.error(errorMessage(ae))
         },
       },

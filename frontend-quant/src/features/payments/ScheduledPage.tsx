@@ -34,6 +34,12 @@ function tomorrowIst() {
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
 }
+/** The backend accepts a start date at most one year ahead (PRD §12.4 notes). */
+function inAYearIst() {
+  const d = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()) + 'T00:00:00Z')
+  d.setUTCFullYear(d.getUTCFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
 
 /** Scheduled and recurring transfers (F-PAY-9). Runs at 07:00 IST; each run is idempotent. */
 export function ScheduledPage() {
@@ -143,6 +149,7 @@ function NewSchedule() {
     if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1)) e.amount = 'Enter at least ₹1'
     else if (toDecimal(amount).gt(200000)) e.amount = 'At most ₹2,00,000 per transfer'
     if (!start || start < tomorrowIst()) e.start = 'Pick a date from tomorrow on'
+    else if (start > inAYearIst()) e.start = 'Pick a date within the next year'
     else if (frequency === 'MONTHLY' && Number(start.slice(8)) > 28) e.start = 'Monthly schedules run on day 1–28'
     if (count && !/^\d{1,3}$/.test(count)) e.count = 'A whole number'
     setErrors(e)

@@ -10,6 +10,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { accountLabel } from '@/features/accounts/labels'
+import { HANDLE_RE } from '@/features/transfers/validation'
 
 /** Claim or change your QuantGen handle (F-PAY-5): `name@qg`, changeable once every 30 days. */
 export function HandleDialog({
@@ -34,7 +35,7 @@ export function HandleDialog({
     e.preventDefault()
     setError(null)
     const handle = `${name.trim().toLowerCase()}@qg`
-    if (!/^[a-z0-9.]{3,30}@qg$/.test(handle)) return setError('Use 3–30 letters, digits or dots.')
+    if (!HANDLE_RE.test(handle)) return setError('Use 3–30 letters, digits or dots, not starting or ending with a dot.')
     setBusy(true)
     try {
       await payApi.setHandle(handle, accountId)
@@ -43,7 +44,13 @@ export function HandleDialog({
       onOpenChange(false)
     } catch (err) {
       const ae = toApiError(err)
-      setError(ae.fieldErrors[0]?.message ? `That handle ${ae.fieldErrors[0].message}.` : errorMessage(ae))
+      setError(
+        ae.code === 'LIMIT_EXCEEDED'
+          ? 'You can change your handle once every 30 days. You can still point it at another of your accounts.'
+          : ae.fieldErrors[0]?.message
+            ? `That handle ${ae.fieldErrors[0].message}.`
+            : errorMessage(ae),
+      )
     } finally {
       setBusy(false)
     }

@@ -112,7 +112,10 @@ function CreateGroup({ onClose }: { onClose: () => void }) {
           void invalidate()
           onClose()
         },
-        onError: (err) => setError(toApiError(err).fieldErrors[0]?.message ?? errorMessage(err)),
+        onError: (err) => {
+          const ae = toApiError(err)
+          setError(ae.code === 'INVALID_STATE' ? 'Set your handle first (Pay → Your handle).' : (ae.fieldErrors[0]?.message ?? errorMessage(ae)))
+        },
       },
     )
   }

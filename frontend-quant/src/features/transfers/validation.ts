@@ -18,7 +18,8 @@ export interface TransferDraft {
   note: string
 }
 
-export const HANDLE_RE = /^[a-z0-9.]{3,30}@qg$/
+/** PRD §12.4 backend notes: 3–30 of [a-z0-9.], not starting or ending with a dot, no "..". */
+export const HANDLE_RE = /^(?!\.)(?!.*\.\.)(?!.*\.@)[a-z0-9.]{3,30}@qg$/
 export const normaliseHandle = (v: string) => {
   const h = v.trim().toLowerCase()
   return h && !h.includes('@') ? `${h}@qg` : h

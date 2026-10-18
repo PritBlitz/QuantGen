@@ -81,7 +81,7 @@ export const paymentHandlers = [
     if (!ownAccount(r.user.id, b.accountId)) return notFound(request, 'Account')
     const existing = db.v2.handles.get(r.user.id)
     const taken = userByHandle(handle)
-    if (taken && taken.userId !== r.user.id) return invalid(request, 'handle', 'is already taken')
+    if (taken && taken.userId !== r.user.id) return error(409, 'VALIDATION_FAILED', 'Request validation failed', request, [{ field: 'handle', message: 'is already taken' }])
     if (existing && existing.handle !== handle && Date.parse(existing.changeableAt) > Date.now())
       return error(422, 'LIMIT_EXCEEDED', 'A handle can change once every 30 days', request)
     const dto = {
@@ -119,7 +119,7 @@ export const paymentHandlers = [
     if (!r.user) return r.res
     const b = (await request.json()) as { toHandle?: unknown; amount?: unknown; note?: unknown }
     const me = handleOf(r.user.id)
-    if (!me) return error(422, 'INVALID_STATE', 'Set your handle first', request)
+    if (!me) return error(409, 'INVALID_STATE', 'Set your handle first', request)
     const to = typeof b.toHandle === 'string' ? userByHandle(b.toHandle) : null
     if (!to || to.userId === r.user.id) return invalid(request, 'toHandle', 'handle not found')
     if (!isMoney(b.amount) || new Decimal(b.amount).lt(1) || new Decimal(b.amount).gt(200000))

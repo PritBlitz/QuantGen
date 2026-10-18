@@ -29,6 +29,14 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   // Backend cb0ee45 (announced 2026-10-18): business + personal analytics, §12.13.
   { prefix: '/api/v1/admin/analytics', milestone: 'V2-MA' },
   { prefix: '/api/v1/analytics/', milestone: 'V2-MA' },
+  // Backend 807e831 9bc5dba a5101f5 f3cd38c (announced 2026-10-18): Payments 2.0 parts 1–4.
+  // Handles ride on /users/me; transfers by handle on /transfers. Razorpay top-ups still mocked.
+  { prefix: '/api/v1/payees/', milestone: 'V2-M2' },
+  { prefix: '/api/v1/payment-requests', milestone: 'V2-M2' },
+  { prefix: '/api/v1/scheduled-transfers', milestone: 'V2-M2' },
+  { prefix: '/api/v1/billers', milestone: 'V2-M2' },
+  { prefix: '/api/v1/bill-payments', milestone: 'V2-M2' },
+  { prefix: '/api/v1/split-groups', milestone: 'V2-M2' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -37,7 +45,7 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  * mocked in hybrid mode. Remove a pattern when the backend announces the route.
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
-  /^\/api\/v1\/users\/me\/(handle|tokens)/,
+  /^\/api\/v1\/users\/me\/tokens/,
   /^\/api\/v1\/accounts\/[^/]+\/(topups|round-up|cards)/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/orders\/[^/]+\/cancel/,
