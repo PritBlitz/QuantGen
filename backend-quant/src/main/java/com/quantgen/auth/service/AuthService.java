@@ -28,6 +28,7 @@ import com.quantgen.auth.domain.UserRepository;
 import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
+import com.quantgen.common.metrics.QgMetrics;
 import com.quantgen.common.web.ClientInfo;
 
 /**
@@ -51,12 +52,14 @@ public class AuthService {
     private final AuditService audit;
     private final AuthProperties props;
     private final Clock clock;
+    private final QgMetrics metrics;
     private final TransactionTemplate tx;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository users, RefreshTokenRepository refreshTokens, AccountService accountService,
                        PasswordEncoder passwordEncoder, JwtService jwtService, AuditService audit,
-                       AuthProperties props, Clock clock, PlatformTransactionManager txManager) {
+                       AuthProperties props, Clock clock, PlatformTransactionManager txManager,
+                       QgMetrics metrics) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.accountService = accountService;
@@ -65,6 +68,7 @@ public class AuthService {
         this.audit = audit;
         this.props = props;
         this.clock = clock;
+        this.metrics = metrics;
         this.tx = new TransactionTemplate(txManager);
         // Used to spend the same BCrypt time for unknown emails, so timing doesn't reveal which exist.
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
@@ -116,6 +120,12 @@ public class AuthService {
     public Session login(String rawEmail, String password, ClientInfo client) {
         String email = normalizeEmail(rawEmail);
         LoginOutcome outcome = tx.execute(status -> attemptLogin(email, password, client));
+        metrics.login(switch (outcome) {
+            case LoginOutcome.Success s -> "success";
+            case LoginOutcome.Invalid i -> "failed";
+            case LoginOutcome.Locked l -> "locked";
+            case null -> "error";
+        });
         return switch (outcome) {
             case LoginOutcome.Success s -> s.session();
             case LoginOutcome.Invalid i -> throw new ApiException(ErrorCode.UNAUTHORIZED, INVALID_CREDENTIALS);

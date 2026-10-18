@@ -15,6 +15,7 @@ import com.quantgen.account.service.AccountService;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.idempotency.IdempotencyService;
+import com.quantgen.common.metrics.QgMetrics;
 import com.quantgen.common.money.Money;
 import com.quantgen.common.web.PageDto;
 import com.quantgen.ledger.domain.JournalType;
@@ -46,15 +47,17 @@ public class OrderService {
     private final AccountService accounts;
     private final LedgerService ledger;
     private final IdempotencyService idempotency;
+    private final QgMetrics metrics;
 
     public OrderService(OrderRepository orders, HoldingRepository holdings, InstrumentRepository instruments,
-                        AccountService accounts, LedgerService ledger, IdempotencyService idempotency) {
+                        AccountService accounts, LedgerService ledger, IdempotencyService idempotency, QgMetrics metrics) {
         this.orders = orders;
         this.holdings = holdings;
         this.instruments = instruments;
         this.accounts = accounts;
         this.ledger = ledger;
         this.idempotency = idempotency;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -105,6 +108,7 @@ public class OrderService {
 
         Order order = orders.saveAndFlush(Order.filled(userId, account.id(), symbol, req.side(), quantity, price, total,
                 realized, entry.journalEntryId()));
+        metrics.orderFilled(req.side().name());
         return toDto(order);
     }
 

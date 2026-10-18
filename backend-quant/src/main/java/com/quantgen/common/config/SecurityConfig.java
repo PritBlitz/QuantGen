@@ -1,10 +1,13 @@
 package com.quantgen.common.config;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -55,6 +58,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Metrics for Prometheus: private/loopback callers only. nginx never proxies /actuator, and
+                        // forward-headers-strategy=native makes remoteAddr the real client behind a trusted proxy.
+                        .requestMatchers("/actuator/prometheus").access((authn, ctx) ->
+                                new AuthorizationDecision(isInternal(ctx.getRequest().getRemoteAddr())))
                         .requestMatchers(PUBLIC_DOCS).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // The STOMP CONNECT frame carries the JWT and is validated by a ChannelInterceptor.
@@ -62,6 +69,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated());
         return http.build();
+    }
+
+    static boolean isInternal(String remoteAddr) {
+        try {
+            InetAddress addr = InetAddress.getByName(remoteAddr);
+            return addr.isLoopbackAddress() || addr.isSiteLocalAddress();
+        } catch (UnknownHostException | RuntimeException e) {
+            return false;
+        }
     }
 
     @Bean

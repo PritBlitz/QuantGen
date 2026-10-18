@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
+import com.quantgen.common.metrics.QgMetrics;
 import com.quantgen.common.money.Money;
 import com.quantgen.ledger.domain.Direction;
 import com.quantgen.ledger.domain.JournalEntry;
@@ -47,14 +48,16 @@ class LedgerServiceImpl implements LedgerService {
     private final LedgerLineRepository lines;
     private final PostingGuard guard;
     private final JdbcTemplate jdbc;
+    private final QgMetrics metrics;
 
     LedgerServiceImpl(LedgerAccountRepository accounts, JournalEntryRepository entries, LedgerLineRepository lines,
-                      PostingGuard guard, JdbcTemplate jdbc) {
+                      PostingGuard guard, JdbcTemplate jdbc, QgMetrics metrics) {
         this.accounts = accounts;
         this.entries = entries;
         this.lines = lines;
         this.guard = guard;
         this.jdbc = jdbc;
+        this.metrics = metrics;
     }
 
     // ------------------------------------------------------------------ posting
@@ -86,6 +89,18 @@ class LedgerServiceImpl implements LedgerService {
     }
 
     private PostedEntry doPost(JournalRequest request, UUID reversesEntryId) {
+        long started = System.nanoTime();
+        boolean success = false;
+        try {
+            PostedEntry posted = doPostTimed(request, reversesEntryId);
+            success = true;
+            return posted;
+        } finally {
+            metrics.ledgerPost(request.type().name(), success, System.nanoTime() - started);
+        }
+    }
+
+    private PostedEntry doPostTimed(JournalRequest request, UUID reversesEntryId) {
         List<JournalRequest.Line> normalized = validate(request);
 
         // 1. Lock every involved ledger row, in ascending id order (deadlock-free).

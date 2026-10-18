@@ -21,6 +21,7 @@ import com.quantgen.common.db.AdvisoryLocks;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.idempotency.IdempotencyService;
+import com.quantgen.common.metrics.QgMetrics;
 import com.quantgen.common.money.AccountNumbers;
 import com.quantgen.common.money.Money;
 import com.quantgen.common.notification.NotificationService;
@@ -51,10 +52,12 @@ public class TransferService {
     private final NotificationService notifications;
     private final AuditService audit;
     private final Clock clock;
+    private final QgMetrics metrics;
 
     public TransferService(TransferRepository transfers, AccountService accounts, UserService users,
                            LedgerService ledger, IdempotencyService idempotency, AdvisoryLocks locks,
-                           NotificationService notifications, AuditService audit, Clock clock) {
+                           NotificationService notifications, AuditService audit, Clock clock,
+                           QgMetrics metrics) {
         this.transfers = transfers;
         this.accounts = accounts;
         this.users = users;
@@ -64,6 +67,7 @@ public class TransferService {
         this.notifications = notifications;
         this.audit = audit;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -117,6 +121,7 @@ public class TransferService {
         Transfer transfer = transfers.saveAndFlush(new Transfer(userId, from.id(), to.id(), from.accountNumber(),
                 to.accountNumber(), toName, amount, note, internal, entry.journalEntryId()));
 
+        metrics.transferCompleted(internal);
         if (!internal) {
             notifications.notify(to.userId(), NotificationType.MONEY_RECEIVED, "Money received",
                     "You received " + Money.toJson(amount) + " INR from " + fromName + " in account "
