@@ -10,3 +10,7 @@ qg:
   jwt:
     # Dev-only default. Prod reads QG_JWT_SECRET from the environment.
     secret: ${QG_JWT_SECRET:ZGV2LW9ubHktcXVhbnRnZW4tand0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2QtMDEyMzQ1Njc4OQ==}
+  crypto:
+    # Dev-only keys. Prod reads QG_FIELD_KEY / QG_INDEX_KEY (base64 of 32 random bytes) and has no default.
+    field-key: ${QG_FIELD_KEY:ZGV2LW9ubHktZmllbGQta2V5LWRvLW5vdC11c2UhISE=}
+    index-key: ${QG_INDEX_KEY:ZGV2LW9ubHktaW5kZXgta2V5LWRvLW5vdC11c2UhISE=}

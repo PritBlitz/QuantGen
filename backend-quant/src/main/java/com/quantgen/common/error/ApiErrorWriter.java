@@ -32,8 +32,13 @@ public class ApiErrorWriter {
 
     public ApiError build(HttpServletRequest request, HttpStatus status, ErrorCode code, String message,
                           List<ApiError.FieldError> fieldErrors) {
+        return build(request, status, code, message, fieldErrors, null);
+    }
+
+    public ApiError build(HttpServletRequest request, HttpStatus status, ErrorCode code, String message,
+                          List<ApiError.FieldError> fieldErrors, ApiError.StepUpChallenge stepUp) {
         return new ApiError(Instant.now(clock).truncatedTo(ChronoUnit.MILLIS), status.value(), code.name(), message, pathOf(request),
-                fieldErrors, RequestIdFilter.currentRequestId(request));
+                fieldErrors, RequestIdFilter.currentRequestId(request), stepUp);
     }
 
     public void write(HttpServletRequest request, HttpServletResponse response, ErrorCode code) throws IOException {

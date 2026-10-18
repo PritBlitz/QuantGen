@@ -1,4 +1,7 @@
 qg:
+  crypto:
+    field-key: dGVzdC1vbmx5LWZpZWxkLWtleS1ub3QtZm9yLXByb2Q=
+    index-key: dGVzdC1vbmx5LWluZGV4LWtleS1ub3QtZm9yLXByb2Q=
   jwt:
     # Test-only secret.
     secret: dGVzdC1vbmx5LXF1YW50Z2VuLWp3dC1zZWNyZXQtbm90LWZvci1wcm9kdWN0aW9uLXVzZS0wMTIzNDU2Nzg5

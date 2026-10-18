@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/prometheus").access((authn, ctx) ->
                                 new AuthorizationDecision(isInternal(ctx.getRequest().getRemoteAddr())))
                         .requestMatchers(PUBLIC_DOCS).permitAll()
+                        // Step-up lives under /auth but is for signed-in users only. Listed before the public rule.
+                        .requestMatchers("/api/v1/auth/step-up/**").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // The STOMP CONNECT frame carries the JWT and is validated by a ChannelInterceptor.
                         .requestMatchers("/ws", "/ws/**").permitAll()
@@ -85,7 +87,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(props.allowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id",
+                "X-Step-Up-Token"));
         config.setExposedHeaders(List.of("X-Request-Id", "Retry-After", "Content-Disposition", "Location",
                 "Idempotent-Replayed"));
         config.setAllowCredentials(true);

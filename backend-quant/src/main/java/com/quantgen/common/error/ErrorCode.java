@@ -16,6 +16,11 @@ public enum ErrorCode {
     LOAN_NOT_ELIGIBLE(HttpStatus.UNPROCESSABLE_CONTENT, "Loan application is not eligible"),
     INVALID_STATE(HttpStatus.CONFLICT, "Operation not allowed in the current state"),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
+    STEP_UP_REQUIRED(HttpStatus.UNAUTHORIZED, "Extra verification is required for this action"),
+    PIN_LOCKED(HttpStatus.LOCKED, "Transaction PIN is locked"),
+    COOLING_PERIOD(HttpStatus.UNPROCESSABLE_CONTENT, "This payee was added recently; the limit for new payees applies"),
+    KYC_REQUIRED(HttpStatus.FORBIDDEN, "KYC details are required for this action"),
+    FEATURE_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "This feature is currently switched off"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
 
     private final HttpStatus status;

@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 import com.quantgen.account.api.AccountDto;
 import com.quantgen.account.domain.AccountType;
 import com.quantgen.account.service.AccountService;
+import com.quantgen.auth.security.KycService;
+import com.quantgen.auth.security.PinService;
 import com.quantgen.account.service.DepositService;
 import com.quantgen.auth.service.DemoUsers;
 import com.quantgen.loan.api.LoanDtos.ApplyRequest;
@@ -52,6 +54,8 @@ class DemoDataSeeder implements ApplicationRunner {
     static final String PEER_EMAIL = "riya@quantgen.dev";
     static final String DEFAULT_ADMIN_PASSWORD = "Admin@1234";
     static final String DEFAULT_USER_PASSWORD = "Demo@1234";
+    /** Transaction PIN of the demo customer, so step-up can be shown. Override with QG_DEMO_PIN. */
+    static final String DEFAULT_PIN = "246810";
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
 
@@ -63,11 +67,15 @@ class DemoDataSeeder implements ApplicationRunner {
     private final LoanService loans;
     private final PriceSimulator prices;
     private final Environment env;
+    private final PinService pins;
+    private final KycService kyc;
+    private final String demoPin;
     private final String adminPassword;
     private final String userPassword;
 
     DemoDataSeeder(DemoUsers demoUsers, AccountService accounts, DepositService deposits, TransferService transfers,
                    OrderService orders, LoanService loans, PriceSimulator prices, Environment env,
+                   PinService pins, KycService kyc, @Value("${qg.demo.pin:" + DEFAULT_PIN + "}") String demoPin,
                    @Value("${qg.demo.admin-password:" + DEFAULT_ADMIN_PASSWORD + "}") String adminPassword,
                    @Value("${qg.demo.user-password:" + DEFAULT_USER_PASSWORD + "}") String userPassword) {
         this.demoUsers = demoUsers;
@@ -78,6 +86,9 @@ class DemoDataSeeder implements ApplicationRunner {
         this.loans = loans;
         this.prices = prices;
         this.env = env;
+        this.pins = pins;
+        this.kyc = kyc;
+        this.demoPin = demoPin;
         this.adminPassword = adminPassword;
         this.userPassword = userPassword;
     }
@@ -103,6 +114,13 @@ class DemoDataSeeder implements ApplicationRunner {
         // A counterparty for transfers. Nobody needs to log in as Riya, so her password is random each boot.
         UUID peerId = demoUsers.ensureCustomer("Riya Sharma", PEER_EMAIL, "+919800000003",
                 "Rq!" + UUID.randomUUID() + "a1");
+
+        // Like the passwords, the demo PIN is reapplied on every start. KYC is filled in once (sandbox data).
+        pins.setPin(demoId, demoPin);
+        if ("NONE".equals(kyc.get(demoId).status())) {
+            kyc.submit(demoId, null, "ABCDE1234F", java.time.LocalDate.of(1992, 4, 12),
+                    "12 Demo Street, Bengaluru, Karnataka 560001");
+        }
 
         List<AccountDto> demoAccounts = accounts.listAccounts(demoId);
         if (demoAccounts.size() < 2) {
@@ -162,7 +180,7 @@ class DemoDataSeeder implements ApplicationRunner {
 
     private void transfer(UUID userId, UUID from, String toNumber, String name, String amount, String note) {
         transfers.transfer(userId, key("transfer-" + name), "SEED transfer-" + name + " " + amount,
-                new TransferRequest(from, toNumber, new BigDecimal(amount), note));
+                new TransferRequest(from, toNumber, new BigDecimal(amount), note), null);
     }
 
     /** The same key every boot, so the idempotency layer replays instead of moving money twice. */

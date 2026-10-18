@@ -40,7 +40,20 @@ public final class AuthDtos {
         }
     }
 
-    public record UserDto(UUID id, String fullName, String email, String phone, Role role, Instant createdAt) {
+    /**
+     * PRD 7.2 UserDto plus the v2 additions (12.2): {@code handle} (null until payments 2.0), {@code kycStatus}
+     * NONE/PENDING/VERIFIED, and whether a passkey / transaction PIN exists.
+     */
+    public record UserDto(UUID id, String fullName, String email, String phone, Role role, Instant createdAt,
+                          String handle, String kycStatus, boolean hasPasskey, boolean hasPin) {
+
+        public UserDto(UUID id, String fullName, String email, String phone, Role role, Instant createdAt) {
+            this(id, fullName, email, phone, role, createdAt, null, "NONE", false, false);
+        }
+
+        public UserDto withSecurity(String kycStatus, boolean hasPasskey, boolean hasPin) {
+            return new UserDto(id, fullName, email, phone, role, createdAt, handle, kycStatus, hasPasskey, hasPin);
+        }
     }
 
     /** {@code expiresIn} is the access token lifetime in seconds. */

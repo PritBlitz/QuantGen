@@ -885,6 +885,32 @@ Auth notes (2026-10-18): `/auth/step-up/*` and passkey management (`/auth/passke
 so clients don't mistake it for an expired session. A user with no PIN and no passkey gets
 `stepUp.methods: []` and must set one up first.
 
+Backend notes (V2-M1, implemented 2026-10-18):
+- **PIN:** `PUT /users/me/pin` body is `{pin, password?}`. The *first* PIN is proven with the account password
+  (`400` field `password` if missing or wrong; wrong passwords count toward the login lockout). Once any step-up
+  method exists, changing the PIN needs `X-Step-Up-Token` for `SECURITY_SETTINGS`. A PIN is 6 digits and not
+  all-same-digit or an obvious run (`123456`…). 5 wrong tries lock the PIN for 30 min (`423 PIN_LOCKED` + `Retry-After`).
+- **Step-up token:** valid 5 min, bound to (user, action), **reusable inside the window** so a retry with the same
+  `Idempotency-Key` works; a replay of an already-completed request needs no token. The `401` happens before any
+  money moves and does not consume the idempotency key.
+- **When a transfer needs step-up:** external transfer (not between own accounts) above ₹50,000, or the first
+  transfer to a saved payee added < 24 h ago. **Cooling:** at most ₹25,000 in total to a saved payee during its
+  first 24 h (`422 COOLING_PERIOD`), checked before step-up. Order of checks: per-transfer/daily limit, cooling, step-up.
+- **Limits:** platform maximums ₹2,00,000 per transfer and ₹5,00,000 per IST day to other people. `PUT /users/me/limits`
+  needs step-up `SECURITY_SETTINGS`; values may not exceed the platform maximum and `perTransfer` may not exceed `daily`.
+  A customer-chosen limit applies to external transfers only (own-account moves are exempt, as before).
+- **Sessions:** a session is a refresh-token family; the access token carries a `sid` claim so `current` can be
+  marked. `ipCity` is always `null` (no GeoIP). Revoking stops refresh at once; an already-issued access token
+  lives out its ≤ 15 min. `DELETE /users/me/sessions` requires `?others=true`. A sign-in from a user agent the
+  account has not used before creates a `NEW_DEVICE_LOGIN` notification.
+- **KYC:** no real verification in the sandbox, so a valid submission is `VERIFIED` immediately. PAN is
+  `AAAAA9999A` (case-insensitive), unique across users (`409` field `pan`), age ≥ 18. Replacing details already on
+  file needs step-up `SECURITY_SETTINGS`. `POST /loans` above ₹2,00,000 returns `403 KYC_REQUIRED` until `VERIFIED`.
+  Users that existed before V2-M1 are `VERIFIED` (no PAN on file).
+- **Errors/headers:** `STEP_UP_REQUIRED` body adds `stepUp: {methods, action}`; CORS allows `X-Step-Up-Token`.
+  `UserDto` now has `handle` (null until payments 2.0), `kycStatus`, `hasPasskey`, `hasPin`.
+- **Demo:** the `demo` user's PIN is `246810` (env `QG_DEMO_PIN`), reapplied on every start; demo KYC is pre-filled.
+
 `PasskeyDto = {id, name, createdAt, lastUsedAt}` · `SessionDto = {id, device, browser, ipCity, current, createdAt, lastUsedAt}` ·
 `LimitsDto = {perTransfer, daily, perTransferMax, dailyMax, usedToday}`
 

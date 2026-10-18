@@ -262,15 +262,15 @@ class MoneyFlowIT extends IntegrationTest {
         String ownNumber = postJson("/api/v1/accounts", Map.of("type", "CHECKING"), Bank.auth(alice))
                 .jsonBody().get("accountNumber").asString();
 
-        // Own-account moves don't count.
+        // External transfers above 50,000 carry a step-up token; own-account moves need none and don't count.
         assertThat(Bank.transfer(this, alice, aAcc, ownNumber, "200000.00", UUID.randomUUID()).status()).isEqualTo(201);
 
-        assertThat(Bank.transfer(this, alice, aAcc, bNum, "200000.00", UUID.randomUUID()).status()).isEqualTo(201);
-        assertThat(Bank.transfer(this, alice, aAcc, bNum, "200000.00", UUID.randomUUID()).status()).isEqualTo(201);
+        assertThat(Bank.transferStepUp(this, alice, aAcc, bNum, "200000.00", UUID.randomUUID()).status()).isEqualTo(201);
+        assertThat(Bank.transferStepUp(this, alice, aAcc, bNum, "200000.00", UUID.randomUUID()).status()).isEqualTo(201);
         Response over = Bank.transfer(this, alice, aAcc, bNum, "100000.01", UUID.randomUUID());
         assertCode(over, 422, "LIMIT_EXCEEDED");
         assertThat(over.jsonBody().get("message").asString()).contains("100000.00");
-        assertThat(Bank.transfer(this, alice, aAcc, bNum, "100000.00", UUID.randomUUID()).status()).isEqualTo(201);
+        assertThat(Bank.transferStepUp(this, alice, aAcc, bNum, "100000.00", UUID.randomUUID()).status()).isEqualTo(201);
         assertCode(Bank.transfer(this, alice, aAcc, bNum, "1.00", UUID.randomUUID()), 422, "LIMIT_EXCEEDED");
     }
 

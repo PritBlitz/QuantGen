@@ -17,4 +17,10 @@ public interface TransferRepository extends JpaRepository<Transfer, UUID> {
     @Query("select coalesce(sum(t.amount), 0) from Transfer t where t.userId = :userId and t.internal = false "
             + "and t.status = com.quantgen.payment.domain.TransferStatus.COMPLETED and t.createdAt >= :since")
     BigDecimal sumOutgoingSince(UUID userId, Instant since);
+
+    /** Completed transfers by {@code userId} to one account number since {@code since} (new-payee cooling). */
+    @Query("select coalesce(sum(t.amount), 0) from Transfer t where t.userId = :userId "
+            + "and t.toAccountNumber = :toAccountNumber and t.internal = false "
+            + "and t.status = com.quantgen.payment.domain.TransferStatus.COMPLETED and t.createdAt >= :since")
+    BigDecimal sumToAccountSince(UUID userId, String toAccountNumber, Instant since);
 }

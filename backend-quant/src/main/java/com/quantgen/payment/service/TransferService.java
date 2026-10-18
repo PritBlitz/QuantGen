@@ -2,8 +2,10 @@ package com.quantgen.payment.service;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.account.domain.AccountStatus;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
+import com.quantgen.auth.security.StepUpAction;
+import com.quantgen.auth.security.StepUpService;
 import com.quantgen.auth.service.UserService;
 import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.config.TimeConfig;
@@ -33,6 +37,8 @@ import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.ledger.service.PostedEntry;
 import com.quantgen.payment.api.PaymentDtos.TransferDto;
 import com.quantgen.payment.api.PaymentDtos.TransferRequest;
+import com.quantgen.payment.domain.Beneficiary;
+import com.quantgen.payment.domain.BeneficiaryRepository;
 import com.quantgen.payment.domain.Transfer;
 import com.quantgen.payment.domain.TransferRepository;
 
@@ -40,7 +46,12 @@ import com.quantgen.payment.domain.TransferRepository;
 @Service
 public class TransferService {
 
-    public static final BigDecimal DAILY_OUTGOING_LIMIT = new BigDecimal("500000.00");
+    public static final BigDecimal DAILY_OUTGOING_LIMIT = LimitsService.DAILY_MAX;
+    /** F-SEC-2: external transfers above this need a step-up token. */
+    public static final BigDecimal STEP_UP_THRESHOLD = new BigDecimal("50000.00");
+    /** F-SEC-5: at most this much to a payee during the first 24 h after it is saved. */
+    public static final BigDecimal NEW_PAYEE_CAP = new BigDecimal("25000.00");
+    static final Duration NEW_PAYEE_WINDOW = Duration.ofHours(24);
     static final BigDecimal LARGE_TRANSFER_AUDIT_THRESHOLD = new BigDecimal("100000.00");
 
     private final TransferRepository transfers;
@@ -53,11 +64,15 @@ public class TransferService {
     private final AuditService audit;
     private final Clock clock;
     private final QgMetrics metrics;
+    private final LimitsService limits;
+    private final StepUpService stepUp;
+    private final BeneficiaryRepository beneficiaries;
 
     public TransferService(TransferRepository transfers, AccountService accounts, UserService users,
                            LedgerService ledger, IdempotencyService idempotency, AdvisoryLocks locks,
                            NotificationService notifications, AuditService audit, Clock clock,
-                           QgMetrics metrics) {
+                           QgMetrics metrics, LimitsService limits, StepUpService stepUp,
+                           BeneficiaryRepository beneficiaries) {
         this.transfers = transfers;
         this.accounts = accounts;
         this.users = users;
@@ -68,16 +83,21 @@ public class TransferService {
         this.audit = audit;
         this.clock = clock;
         this.metrics = metrics;
+        this.limits = limits;
+        this.stepUp = stepUp;
+        this.beneficiaries = beneficiaries;
     }
 
     @Transactional
     public IdempotencyService.Result<TransferDto> transfer(UUID userId, UUID idempotencyKey, String fingerprint,
-                                                           TransferRequest req) {
+                                                           TransferRequest req, String stepUpToken) {
+        // The step-up check runs inside the action, after the idempotency claim: a rejected attempt rolls the
+        // claim back (so the retry with the same key works), and a replay of a finished request needs no step-up.
         return idempotency.execute(userId, idempotencyKey, fingerprint, 201, TransferDto.class,
-                () -> doTransfer(userId, req));
+                () -> doTransfer(userId, req, stepUpToken));
     }
 
-    private TransferDto doTransfer(UUID userId, TransferRequest req) {
+    private TransferDto doTransfer(UUID userId, TransferRequest req, String stepUpToken) {
         AccountRef from = accounts.requireOwned(userId, req.fromAccountId());
         AccountRef to = accounts.findByNumber(req.toAccountNumber())
                 .orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST, "toAccountNumber",
@@ -98,13 +118,39 @@ public class TransferService {
         if (!internal) {
             // Serialize this user's outgoing transfers so concurrent requests can't overshoot the daily limit.
             locks.lockForTransaction("transfers:" + userId);
+            LimitsService.Effective chosen = limits.effective(userId);
+            if (amount.compareTo(chosen.perTransfer()) > 0) {
+                throw new ApiException(ErrorCode.LIMIT_EXCEEDED,
+                        "Per-transfer limit of " + Money.toJson(chosen.perTransfer()) + " exceeded");
+            }
             Instant startOfDay = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE))
                     .atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant();
             BigDecimal sentToday = transfers.sumOutgoingSince(userId, startOfDay);
-            if (sentToday.add(amount).compareTo(DAILY_OUTGOING_LIMIT) > 0) {
-                BigDecimal remaining = DAILY_OUTGOING_LIMIT.subtract(sentToday).max(BigDecimal.ZERO);
+            if (sentToday.add(amount).compareTo(chosen.daily()) > 0) {
+                BigDecimal remaining = chosen.daily().subtract(sentToday).max(BigDecimal.ZERO);
                 throw new ApiException(ErrorCode.LIMIT_EXCEEDED,
-                        "Daily transfer limit of 500000.00 exceeded; remaining today: " + Money.toJson(remaining));
+                        "Daily transfer limit of " + Money.toJson(chosen.daily()) + " exceeded; remaining today: "
+                                + Money.toJson(remaining));
+            }
+
+            // F-SEC-5 new-payee cooling, then F-SEC-2 step-up. Cooling is a hard stop, so it comes first.
+            Optional<Beneficiary> payee = beneficiaries.findByUserIdAndAccountNumber(userId, to.accountNumber());
+            Instant now = clock.instant();
+            boolean newPayee = payee.isPresent() && payee.get().getCreatedAt().isAfter(now.minus(NEW_PAYEE_WINDOW));
+            boolean firstToNewPayee = false;
+            if (newPayee) {
+                BigDecimal sentToPayee = transfers.sumToAccountSince(userId, to.accountNumber(),
+                        payee.get().getCreatedAt());
+                if (sentToPayee.add(amount).compareTo(NEW_PAYEE_CAP) > 0) {
+                    BigDecimal left = NEW_PAYEE_CAP.subtract(sentToPayee).max(BigDecimal.ZERO);
+                    throw new ApiException(ErrorCode.COOLING_PERIOD, "This payee was added less than 24 hours ago; "
+                            + "you can send at most " + Money.toJson(NEW_PAYEE_CAP) + " to it until then. Remaining: "
+                            + Money.toJson(left));
+                }
+                firstToNewPayee = sentToPayee.signum() == 0;
+            }
+            if (amount.compareTo(STEP_UP_THRESHOLD) > 0 || firstToNewPayee) {
+                stepUp.require(userId, StepUpAction.TRANSFER, stepUpToken);
             }
         }
 

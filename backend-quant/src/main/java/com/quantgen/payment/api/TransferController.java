@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.quantgen.auth.security.StepUpService;
 import com.quantgen.common.idempotency.IdempotencyService;
 import com.quantgen.common.idempotency.Idempotent;
 import com.quantgen.common.security.AuthUser;
@@ -45,10 +46,11 @@ public class TransferController {
             + "Limits: 1.00-200000.00 per transfer, 500000.00 per IST day to other people.")
     public ResponseEntity<TransferDto> transfer(@AuthenticationPrincipal AuthUser user,
                                                 @RequestHeader(Idempotent.HEADER) UUID idempotencyKey,
+                                                @RequestHeader(value = StepUpService.HEADER, required = false) String stepUpToken,
                                                 @Valid @RequestBody TransferRequest request,
                                                 HttpServletRequest http) {
         return Idempotent.created(transfers.transfer(user.id(), idempotencyKey,
-                idempotency.fingerprint(http.getMethod(), http.getRequestURI(), request), request));
+                idempotency.fingerprint(http.getMethod(), http.getRequestURI(), request), request, stepUpToken));
     }
 
     @GetMapping

@@ -29,6 +29,7 @@ public class JwtService implements AccessTokenVerifier {
     private static final Logger log = LoggerFactory.getLogger(JwtService.class);
     private static final String ISSUER = "quantgen";
     private static final String ROLE_CLAIM = "role";
+    private static final String SESSION_CLAIM = "sid";
     private static final int MIN_KEY_BYTES = 32;
 
     private final SecretKey key;
@@ -45,12 +46,18 @@ public class JwtService implements AccessTokenVerifier {
     }
 
     public IssuedToken issue(UUID userId, Role role) {
+        return issue(userId, role, null);
+    }
+
+    /** @param sessionId the refresh-token family, so the session list can mark the caller's own session */
+    public IssuedToken issue(UUID userId, Role role, UUID sessionId) {
         Instant now = clock.instant();
         Instant exp = now.plus(props.jwt().accessTtl());
         String token = Jwts.builder()
                 .issuer(ISSUER)
                 .subject(userId.toString())
                 .claim(ROLE_CLAIM, role.name())
+                .claim(SESSION_CLAIM, sessionId == null ? null : sessionId.toString())
                 .id(UUID.randomUUID().toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
@@ -74,7 +81,8 @@ public class JwtService implements AccessTokenVerifier {
                     .getPayload();
             UUID userId = UUID.fromString(claims.getSubject());
             Role role = Role.valueOf(claims.get(ROLE_CLAIM, String.class));
-            return Optional.of(new AuthUser(userId, role.name()));
+            String sid = claims.get(SESSION_CLAIM, String.class);
+            return Optional.of(new AuthUser(userId, role.name(), sid == null ? null : UUID.fromString(sid)));
         } catch (JwtException | IllegalArgumentException | NullPointerException e) {
             // Never log the token itself.
             log.debug("Rejected access token: {}", e.getClass().getSimpleName());

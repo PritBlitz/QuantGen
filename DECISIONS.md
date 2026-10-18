@@ -56,12 +56,12 @@ you make a new one.
 | D-024 | Autopilot: LLM at authoring time, deterministic engine at run time | Proposed |
 | D-025 | Proof of Balance: hash-chained seals + daily Merkle sum tree | Proposed |
 | D-026 | Seal the ledger asynchronously in a separate table | Proposed |
-| D-027 | Holds and "available balance" outside the ledger lines | Proposed |
-| D-028 | Transactional outbox; Redpanda only for cross-service consumers | Proposed |
-| D-029 | Step-up auth: passkeys first, transaction PIN as fallback | Proposed |
+| D-027 | Holds and "available balance" outside the ledger lines | Accepted |
+| D-028 | Transactional outbox; Redpanda only for cross-service consumers | Accepted |
+| D-029 | Step-up auth: passkeys first, transaction PIN as fallback | Accepted |
 | D-030 | Fraud: deterministic rules decide, the LLM only explains | Proposed |
 | D-031 | Underwriting agent recommends, the admin decides | Proposed |
-| D-032 | Field-level encryption (AES-256-GCM) + blind index for KYC and card data | Proposed |
+| D-032 | Field-level encryption (AES-256-GCM) + blind index for KYC and card data | Accepted |
 | D-033 | GitHub Actions only; drop Jenkins from the roadmap | Proposed |
 | D-034 | Idempotency stays in Postgres; Redis only for rate limits and caches | Proposed |
 | D-035 | Market data stays simulated in v2; live crypto feeds are a stretch | Proposed |
@@ -332,7 +332,7 @@ you make a new one.
   "everything up to seal N". No throughput cost on the money path.
 
 ### D-027 · Holds and "available balance" outside the ledger lines
-- **Date / status:** 2026-10-18 · Proposed
+- **Date / status:** 2026-10-18 · Accepted (built in V2-M1, 2026-10-18)
 - **Context:** card authorizations, open limit-buy orders, fraud reviews and scheduled
   payments need money earmarked but not yet moved.
 - **Options:** post to a "pending" ledger account and reverse later; an earmark table checked by the ledger.
@@ -344,7 +344,7 @@ you make a new one.
   path must respect holds. Avoids filling the ledger with reverse-and-repost noise.
 
 ### D-028 · Transactional outbox; Redpanda only for cross-service consumers
-- **Date / status:** 2026-10-18 · Proposed
+- **Date / status:** 2026-10-18 · Accepted (built in V2-M1, 2026-10-18)
 - **Context:** Autopilot, notifications, fraud scoring and insights must react to money events reliably.
 - **Decision:** every ledger post writes an `outbox_events` row in the same transaction.
   In-core consumers (Autopilot, notifications, insights) read the outbox directly with
@@ -354,7 +354,7 @@ you make a new one.
   Polling adds up to ~1 s latency.
 
 ### D-029 · Step-up auth: passkeys first, transaction PIN as fallback
-- **Date / status:** 2026-10-18 · Proposed
+- **Date / status:** 2026-10-18 · Accepted (built in V2-M1, 2026-10-18)
 - **Context:** large transfers, approving agent intents, activating Autopilot rules and
   revealing card numbers need proof the human is present, not just a valid token.
 - **Decision:** WebAuthn passkeys (Yubico `java-webauthn-server` on the server,
@@ -452,3 +452,18 @@ you make a new one.
   controlled by keeping every mock in `src/mocks/` typed from `src/api/types.ts`, and
   checking each feature against `/v3/api-docs` when it goes live.
 - **Revisit when:** a live endpoint disagrees with §12 → fix the PRD first (contract protocol).
+
+### D-042 · Sandbox KYC, reusable step-up tokens, keyed PIN hashes
+- **Date / status:** 2026-10-18 · Accepted (built in V2-M1)
+- **Context:** F-SEC-2/3/6 left three details open: what "verified" means with no government API,
+  whether a step-up token is single-use, and how to store a 6-digit PIN safely.
+- **Decision:** (1) a well-formed KYC submission is `VERIFIED` immediately; nothing checks it against a real
+  registry (a stated non-goal), and replacing details on file needs step-up. (2) A step-up token is bound to
+  (user, action) and reusable for 5 minutes, because the idempotency claim, not the token, is what makes a money
+  effect happen once, and a retry after a timeout must still work. (3) PINs are BCrypt over an HMAC keyed with the
+  server's index key, so a leaked table cannot be brute-forced offline (only 10^6 PINs exist).
+- **Trade-off:** one passkey/PIN tap authorises several risky actions of the same kind for 5 minutes. Sandbox KYC
+  proves nothing about identity. Losing `QG_INDEX_KEY` invalidates every PIN (users reset via step-up or password).
+- **Revisit when:** real KYC is in scope (add a `PENDING` review path), or a risky action needs per-request
+  binding (bind the token to a hash of the request body).
+

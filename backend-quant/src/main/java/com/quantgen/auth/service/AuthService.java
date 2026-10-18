@@ -25,10 +25,14 @@ import com.quantgen.auth.domain.RefreshTokenRepository;
 import com.quantgen.auth.domain.Role;
 import com.quantgen.auth.domain.User;
 import com.quantgen.auth.domain.UserRepository;
+import com.quantgen.auth.security.SecuritySummaryService;
+import com.quantgen.auth.security.SessionService;
 import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.metrics.QgMetrics;
+import com.quantgen.common.notification.NotificationService;
+import com.quantgen.common.notification.NotificationType;
 import com.quantgen.common.web.ClientInfo;
 
 /**
@@ -53,13 +57,17 @@ public class AuthService {
     private final AuthProperties props;
     private final Clock clock;
     private final QgMetrics metrics;
+    private final SecuritySummaryService summaries;
+    private final SessionService sessions;
+    private final NotificationService notifications;
     private final TransactionTemplate tx;
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository users, RefreshTokenRepository refreshTokens, AccountService accountService,
                        PasswordEncoder passwordEncoder, JwtService jwtService, AuditService audit,
                        AuthProperties props, Clock clock, PlatformTransactionManager txManager,
-                       QgMetrics metrics) {
+                       QgMetrics metrics, SecuritySummaryService summaries, SessionService sessions,
+                       NotificationService notifications) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.accountService = accountService;
@@ -69,6 +77,9 @@ public class AuthService {
         this.props = props;
         this.clock = clock;
         this.metrics = metrics;
+        this.summaries = summaries;
+        this.sessions = sessions;
+        this.notifications = notifications;
         this.tx = new TransactionTemplate(txManager);
         // Used to spend the same BCrypt time for unknown emails, so timing doesn't reveal which exist.
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
@@ -160,8 +171,16 @@ public class AuthService {
                     : new LoginOutcome.Invalid();
         }
         user.recordSuccessfulLogin();
+        // F-SEC-4: tell the owner when a device they have not used before signs in. Checked before the new
+        // session's token is stored, so the new device is not already in the history.
+        boolean newDevice = sessions.isNewDevice(user.getId(), client.userAgent());
         Session session = startSession(user, UUID.randomUUID(), now, client).session();
         audit.record(user.getId(), email, "LOGIN_SUCCESS", "USER", user.getId().toString(), null);
+        if (newDevice) {
+            notifications.notify(user.getId(), NotificationType.NEW_DEVICE_LOGIN, "New sign-in",
+                    "Your account was just signed in from a new device. If this was not you, change your password "
+                            + "and sign out other sessions.");
+        }
         return new LoginOutcome.Success(session);
     }
 
@@ -239,8 +258,13 @@ public class AuthService {
         Duration ttl = props.jwt().refreshTtl();
         RefreshToken saved = refreshTokens.saveAndFlush(new RefreshToken(user.getId(), familyId,
                 RefreshTokens.hash(raw), now.plus(ttl), client.ip(), client.userAgent()));
-        Session session = new Session(jwtService.issue(user.getId(), user.getRole()), raw, ttl, toDto(user));
+        Session session = new Session(jwtService.issue(user.getId(), user.getRole(), familyId), raw, ttl, enrich(toDto(user)));
         return new Started(session, saved.getId());
+    }
+
+    private UserDto enrich(UserDto dto) {
+        SecuritySummaryService.Summary s = summaries.of(dto.id());
+        return dto.withSecurity(s.kycStatus(), s.hasPasskey(), s.hasPin());
     }
 
     static UserDto toDto(User u) {

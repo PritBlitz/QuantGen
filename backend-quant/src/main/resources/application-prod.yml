@@ -22,6 +22,10 @@ qg:
     secret: ${QG_JWT_SECRET}
   cors:
     allowed-origins: ${QG_CORS_ORIGINS}
+  crypto:
+    # No defaults: startup fails if either is missing or not 32 bytes (FieldCrypto).
+    field-key: ${QG_FIELD_KEY}
+    index-key: ${QG_INDEX_KEY}
 
 logging:
   level:

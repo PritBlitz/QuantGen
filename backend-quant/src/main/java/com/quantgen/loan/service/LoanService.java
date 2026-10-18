@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.account.domain.AccountStatus;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
+import com.quantgen.auth.security.KycService;
 import com.quantgen.auth.api.AuthDtos.UserDto;
 import com.quantgen.auth.service.UserService;
 import com.quantgen.common.audit.AuditService;
@@ -84,10 +85,12 @@ public class LoanService {
     private final NotificationService notifications;
     private final AuditService audit;
     private final Clock clock;
+    private final KycService kyc;
 
     public LoanService(LoanRepository loans, LoanInstallmentRepository installments, LoanRepaymentRepository repayments,
                        AccountService accounts, UserService users, LedgerService ledger, IdempotencyService idempotency,
-                       AdvisoryLocks locks, NotificationService notifications, AuditService audit, Clock clock) {
+                       AdvisoryLocks locks, NotificationService notifications, AuditService audit, Clock clock,
+                       KycService kyc) {
         this.loans = loans;
         this.installments = installments;
         this.repayments = repayments;
@@ -99,6 +102,7 @@ public class LoanService {
         this.notifications = notifications;
         this.audit = audit;
         this.clock = clock;
+        this.kyc = kyc;
     }
 
     // ------------------------------------------------------------------ quote and apply
@@ -116,6 +120,10 @@ public class LoanService {
         AccountRef account = accounts.requireOwned(userId, req.disburseAccountId());
         if (account.status() == AccountStatus.CLOSED) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "disburseAccountId", "account is closed");
+        }
+        // F-SEC-6: large loans need KYC on file.
+        if (req.amount().compareTo(KycService.LOAN_KYC_THRESHOLD) > 0) {
+            kyc.requireVerified(userId);
         }
         // Serialize this customer's applications so two at once can't both pass the EMI-to-income rule.
         locks.lockForTransaction("loans:" + userId);

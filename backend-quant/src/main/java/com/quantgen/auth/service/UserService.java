@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.auth.api.AuthDtos.UserDto;
 import com.quantgen.auth.domain.Role;
 import com.quantgen.auth.domain.UserRepository;
+import com.quantgen.auth.security.SecuritySummaryService;
 import com.quantgen.common.error.ApiException;
 
 /** Read access to users for the auth API and for other modules. */
@@ -22,9 +23,11 @@ import com.quantgen.common.error.ApiException;
 public class UserService {
 
     private final UserRepository users;
+    private final SecuritySummaryService summaries;
 
-    public UserService(UserRepository users) {
+    public UserService(UserRepository users, SecuritySummaryService summaries) {
         this.users = users;
+        this.summaries = summaries;
     }
 
     @Transactional(readOnly = true)
@@ -34,7 +37,9 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserDto getUser(UUID id) {
-        return findUser(id).orElseThrow(() -> ApiException.notFound("User"));
+        UserDto user = findUser(id).orElseThrow(() -> ApiException.notFound("User"));
+        SecuritySummaryService.Summary s = summaries.of(id);
+        return user.withSecurity(s.kycStatus(), s.hasPasskey(), s.hasPin());
     }
 
     /** Users by id (missing ids are omitted). */

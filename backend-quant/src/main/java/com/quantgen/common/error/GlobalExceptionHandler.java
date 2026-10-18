@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
         if (ex.retryAfterSeconds() != null) {
             builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
         }
-        return builder.body(writer.build(req, ex.status(), ex.code(), ex.getMessage(), ex.fieldErrors()));
+        return builder.body(writer.build(req, ex.status(), ex.code(), ex.getMessage(), ex.fieldErrors(), ex.stepUp()));
     }
 
     /** Also covers MethodArgumentNotValidException (invalid @Valid request bodies). */

@@ -90,6 +90,10 @@ public abstract class IntegrationTest {
                         body instanceof String s ? s : json.writeValueAsString(body))).build());
     }
 
+    protected Response delete(String path, String bearer) {
+        return send(request(path).header("Authorization", "Bearer " + bearer).DELETE().build());
+    }
+
     protected Response patch(String path, String bearer) {
         return send(request(path).header("Authorization", "Bearer " + bearer)
                 .method("PATCH", HttpRequest.BodyPublishers.noBody()).build());

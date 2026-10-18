@@ -57,6 +57,38 @@ public final class Bank {
         return it.get("/api/v1/accounts/" + accountId, s.accessToken()).jsonBody().get("balance").asString();
     }
 
+    public static final String PIN = "246810";
+
+    /** Sets the transaction PIN (first PIN: proven with the account password) unless the user already has one. */
+    public static void ensurePin(IntegrationTest it, TestUsers.Session s) {
+        if (!it.get("/api/v1/users/me", s.accessToken()).jsonBody().get("hasPin").asBoolean()) {
+            Response res = it.put("/api/v1/users/me/pin", Map.of("pin", PIN, "password", TestUsers.PASSWORD),
+                    s.accessToken());
+            if (res.status() != 204) {
+                throw new IllegalStateException("could not set PIN: " + res.status() + " " + res.body());
+            }
+        }
+    }
+
+    /** A step-up token for {@code action}, setting the PIN first if needed. */
+    public static String stepUpToken(IntegrationTest it, TestUsers.Session s, String action) {
+        ensurePin(it, s);
+        Response res = it.postJson("/api/v1/auth/step-up/verify", Map.of("action", action, "pin", PIN), auth(s));
+        if (res.status() != 200) {
+            throw new IllegalStateException("step-up failed: " + res.status() + " " + res.body());
+        }
+        return res.jsonBody().get("stepUpToken").asString();
+    }
+
+    /** A transfer that carries a step-up token, for amounts above the step-up threshold. */
+    public static Response transferStepUp(IntegrationTest it, TestUsers.Session s, UUID from, String toNumber,
+                                          String amount, UUID key) {
+        Map<String, String> headers = new HashMap<>(authWithKey(s, key));
+        headers.put("X-Step-Up-Token", stepUpToken(it, s, "TRANSFER"));
+        return it.postJson("/api/v1/transfers",
+                Map.of("fromAccountId", from.toString(), "toAccountNumber", toNumber, "amount", amount), headers);
+    }
+
     /** A fresh ADMIN session (registered as a customer, then promoted directly in the DB). */
     public static TestUsers.Session admin(IntegrationTest it) {
         String email = TestUsers.uniqueEmail();
