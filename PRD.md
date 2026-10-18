@@ -953,6 +953,32 @@ Backend notes (V2-M1, implemented 2026-10-18):
 `PaymentRequestDto = {id, fromHandle, toHandle, amount, note, status: "OPEN"|"PAID"|"DECLINED"|"EXPIRED"|"CANCELLED", transferId, expiresAt, createdAt}` ·
 `ScheduledTransferDto = {id, fromAccountId, toAccountNumberMasked, toName, amount, note, frequency, nextRunDate, endDate, remainingCount, status: "ACTIVE"|"PAUSED"|"COMPLETED"|"CANCELLED", lastRun: {date, outcome, transferId}}`
 
+Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; implemented 2026-10-18):
+- **Handles** are always the full form `name@qg`, matched case-insensitively and stored lower-case. The name part
+  is 3–30 of `[a-z0-9.]` and may not start or end with a dot or contain `..`. Taken or reserved (`support`,
+  `admin`, `quantgen`, …) → `409` field `handle`; bad format → `400` field `handle`. Someone else's `accountId` →
+  `404`; a `CLOSED` account → `400` field `accountId`. Changing the handle within 30 days of the last change →
+  `422 LIMIT_EXCEEDED`; pointing the *same* handle at another of your accounts is always allowed and does not move
+  `changeableAt`. A handle you give up stays reserved for you for 30 days, so nobody else can take it and receive
+  payments meant for you. Added `GET /users/me/handle` → `200 HandleDto` or `404` (the handle is also on `UserDto`).
+  Audited as `HANDLE_SET` / `HANDLE_ACCOUNT_CHANGED`.
+- **Resolve:** exactly one of `handle` / `accountNumber` (else `400`); unknown or `CLOSED` → `404`. 30 lookups per
+  minute per user, then `429 RATE_LIMITED` with `Retry-After` (a `400` doesn't count, a `404` does). `handle` in
+  the response is the holder's handle or null.
+- **Transfers:** exactly one of `toAccountNumber` / `toHandle`, else `400` field `toAccountNumber`; an unknown
+  handle → `400` field `toHandle`. `TransferDto` gains `source` (`MANUAL`, `REQUEST`, `SCHEDULED`; `category` comes
+  with V2-M3). Limits, cooling and step-up are unchanged and apply to every source except where noted below.
+- **Requests:** the requester needs a handle (`409 INVALID_STATE` otherwise); asking yourself → `400`; asking
+  someone who blocked you → `400` field `toHandle` ("can't send a request to this handle"); a 21st open request →
+  `422 LIMIT_EXCEEDED`. `amount` 1.00–2,00,000.00, `note` ≤ 140 chars. `GET` defaults to `direction=INCOMING`;
+  a request past `expiresAt` reads `EXPIRED` at once. **Pay:** only the payer (anyone else → `404`); not `OPEN`
+  → `409 INVALID_STATE`; the money goes to the requester's handle account *at pay time*, as a transfer with
+  `source: "REQUEST"` under all the normal transfer rules (step-up above ₹50,000, limits, cooling). Two pays with
+  different keys: exactly one succeeds, the other gets `409`. **Decline:** by the payer → `DECLINED`
+  (`block: true` also declines the requester's other open requests to you, and blocks new ones); by the requester
+  → `CANCELLED`. There is no unblock endpoint yet. The payer gets a `PAYMENT_REQUEST` notification; the requester
+  gets the usual `MONEY_RECEIVED` when it is paid.
+
 ### 12.5 Savings and insights
 | Method | Path | Body / Query | Response |
 |---|---|---|---|

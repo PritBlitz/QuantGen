@@ -64,6 +64,10 @@ public class Transfer {
     @Column(nullable = false, updatable = false)
     private boolean internal;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, updatable = false)
+    private TransferSource source;
+
     @Column(name = "journal_entry_id", updatable = false)
     private UUID journalEntryId;
 
@@ -73,7 +77,7 @@ public class Transfer {
 
     public Transfer(UUID userId, UUID fromAccountId, UUID toAccountId, String fromAccountNumber,
                     String toAccountNumber, String toName, BigDecimal amount, String note, boolean internal,
-                    UUID journalEntryId) {
+                    UUID journalEntryId, TransferSource source) {
         this.userId = userId;
         this.fromAccountId = fromAccountId;
         this.toAccountId = toAccountId;
@@ -84,6 +88,7 @@ public class Transfer {
         this.note = note;
         this.internal = internal;
         this.journalEntryId = journalEntryId;
+        this.source = source;
         this.status = TransferStatus.COMPLETED;
     }
 }

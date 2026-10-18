@@ -26,11 +26,14 @@ public class MoneyFailureRecorder {
 
     private static final Logger log = LoggerFactory.getLogger(MoneyFailureRecorder.class);
 
-    private static final Map<Pattern, String> MONEY_ENDPOINTS = Map.of(
-            Pattern.compile("^/api/v1/transfers$"), "POST /transfers",
-            Pattern.compile("^/api/v1/orders$"), "POST /orders",
-            Pattern.compile("^/api/v1/accounts/[^/]+/deposit$"), "POST /accounts/{id}/deposit",
-            Pattern.compile("^/api/v1/loans/[^/]+/repay$"), "POST /loans/{id}/repay");
+    private static final Map<Pattern, String> MONEY_ENDPOINTS = Map.ofEntries(
+            Map.entry(Pattern.compile("^/api/v1/transfers$"), "POST /transfers"),
+            Map.entry(Pattern.compile("^/api/v1/orders$"), "POST /orders"),
+            Map.entry(Pattern.compile("^/api/v1/accounts/[^/]+/deposit$"), "POST /accounts/{id}/deposit"),
+            Map.entry(Pattern.compile("^/api/v1/loans/[^/]+/repay$"), "POST /loans/{id}/repay"),
+            Map.entry(Pattern.compile("^/api/v1/payment-requests/[^/]+/pay$"), "POST /payment-requests/{id}/pay"),
+            Map.entry(Pattern.compile("^/api/v1/bill-payments$"), "POST /bill-payments"),
+            Map.entry(Pattern.compile("^/api/v1/topups/[^/]+/verify$"), "POST /topups/{id}/verify"));
 
     private final JdbcTemplate jdbc;
 

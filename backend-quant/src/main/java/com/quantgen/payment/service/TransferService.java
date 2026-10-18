@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.account.domain.AccountStatus;
@@ -41,6 +42,7 @@ import com.quantgen.payment.domain.Beneficiary;
 import com.quantgen.payment.domain.BeneficiaryRepository;
 import com.quantgen.payment.domain.Transfer;
 import com.quantgen.payment.domain.TransferRepository;
+import com.quantgen.payment.domain.TransferSource;
 
 /** F-PAY-1..3: transfers to own accounts or to any account number, idempotent, with limits. */
 @Service
@@ -67,12 +69,13 @@ public class TransferService {
     private final LimitsService limits;
     private final StepUpService stepUp;
     private final BeneficiaryRepository beneficiaries;
+    private final HandleService handles;
 
     public TransferService(TransferRepository transfers, AccountService accounts, UserService users,
                            LedgerService ledger, IdempotencyService idempotency, AdvisoryLocks locks,
                            NotificationService notifications, AuditService audit, Clock clock,
                            QgMetrics metrics, LimitsService limits, StepUpService stepUp,
-                           BeneficiaryRepository beneficiaries) {
+                           BeneficiaryRepository beneficiaries, HandleService handles) {
         this.transfers = transfers;
         this.accounts = accounts;
         this.users = users;
@@ -86,6 +89,7 @@ public class TransferService {
         this.limits = limits;
         this.stepUp = stepUp;
         this.beneficiaries = beneficiaries;
+        this.handles = handles;
     }
 
     @Transactional
@@ -93,26 +97,54 @@ public class TransferService {
                                                            TransferRequest req, String stepUpToken) {
         // The step-up check runs inside the action, after the idempotency claim: a rejected attempt rolls the
         // claim back (so the retry with the same key works), and a replay of a finished request needs no step-up.
-        return idempotency.execute(userId, idempotencyKey, fingerprint, 201, TransferDto.class,
-                () -> doTransfer(userId, req, stepUpToken));
+        return idempotency.execute(userId, idempotencyKey, fingerprint, 201, TransferDto.class, () -> {
+            Target target = resolveTarget(req.toAccountNumber(), req.toHandle());
+            return execute(userId, req.fromAccountId(), target, req.amount(), req.note(), TransferSource.MANUAL,
+                    stepUpToken, false);
+        });
     }
 
-    private TransferDto doTransfer(UUID userId, TransferRequest req, String stepUpToken) {
-        AccountRef from = accounts.requireOwned(userId, req.fromAccountId());
-        AccountRef to = accounts.findByNumber(req.toAccountNumber())
-                .orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST, "toAccountNumber",
-                        "no account with this number"));
-        if (to.id().equals(from.id())) {
+    /** Where a transfer goes, plus the request field to blame if it can't receive money. */
+    public record Target(AccountRef account, String field) {
+    }
+
+    /** Exactly one of an account number and a handle (PRD 12.4); 400 on the named field if it doesn't exist. */
+    public Target resolveTarget(String toAccountNumber, String toHandle) {
+        boolean byNumber = toAccountNumber != null && !toAccountNumber.isBlank();
+        boolean byHandle = toHandle != null && !toHandle.isBlank();
+        if (byNumber == byHandle) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "toAccountNumber",
+                    "give exactly one of toAccountNumber or toHandle");
+        }
+        if (byHandle) {
+            return new Target(handles.accountFor(toHandle).orElseThrow(() -> ApiException.fieldError(
+                    HttpStatus.BAD_REQUEST, "toHandle", "no account with this handle")), "toHandle");
+        }
+        return new Target(accounts.findByNumber(toAccountNumber).orElseThrow(() -> ApiException.fieldError(
+                HttpStatus.BAD_REQUEST, "toAccountNumber", "no account with this number")), "toAccountNumber");
+    }
+
+    /**
+     * One transfer with every check (limits, new-payee cooling, step-up), inside the caller's transaction and
+     * idempotency claim. {@code preAuthorized} skips the step-up prompt for runs nobody is present for (scheduled
+     * transfers, whose creation was stepped up instead); limits and cooling still apply.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TransferDto execute(UUID userId, UUID fromAccountId, Target target, BigDecimal rawAmount, String rawNote,
+                               TransferSource source, String stepUpToken, boolean preAuthorized) {
+        AccountRef from = accounts.requireOwned(userId, fromAccountId);
+        AccountRef to = target.account();
+        if (to.id().equals(from.id())) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(),
                     "must be different from the source account");
         }
         if (to.status() == AccountStatus.CLOSED) {
-            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "toAccountNumber", "this account cannot receive money");
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(), "this account cannot receive money");
         }
         if (from.status() == AccountStatus.FROZEN) {
             throw new ApiException(ErrorCode.ACCOUNT_FROZEN, "Account is frozen and cannot send money");
         }
-        BigDecimal amount = Money.normalize(req.amount());
+        BigDecimal amount = Money.normalize(rawAmount);
         boolean internal = to.userId().equals(userId);
 
         if (!internal) {
@@ -149,14 +181,14 @@ public class TransferService {
                 }
                 firstToNewPayee = sentToPayee.signum() == 0;
             }
-            if (amount.compareTo(STEP_UP_THRESHOLD) > 0 || firstToNewPayee) {
+            if (!preAuthorized && (amount.compareTo(STEP_UP_THRESHOLD) > 0 || firstToNewPayee)) {
                 stepUp.require(userId, StepUpAction.TRANSFER, stepUpToken);
             }
         }
 
         String fromName = users.getUser(from.userId()).fullName();
         String toName = users.getUser(to.userId()).fullName();
-        String note = blankToNull(req.note());
+        String note = blankToNull(rawNote);
         String description = note != null ? note : (internal ? "Transfer between own accounts" : "Fund transfer");
 
         PostedEntry entry = ledger.post(JournalRequest.builder(JournalType.TRANSFER, description, userId)
@@ -165,7 +197,7 @@ public class TransferService {
                 .build());
 
         Transfer transfer = transfers.saveAndFlush(new Transfer(userId, from.id(), to.id(), from.accountNumber(),
-                to.accountNumber(), toName, amount, note, internal, entry.journalEntryId()));
+                to.accountNumber(), toName, amount, note, internal, entry.journalEntryId(), source));
 
         metrics.transferCompleted(internal);
         if (!internal) {
@@ -186,9 +218,9 @@ public class TransferService {
         return PageDto.of(transfers.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable), TransferService::toDto);
     }
 
-    static TransferDto toDto(Transfer t) {
+    public static TransferDto toDto(Transfer t) {
         return new TransferDto(t.getId(), t.getFromAccountNumber(), t.getToAccountNumber(), t.getToName(),
-                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt());
+                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt(), t.getSource());
     }
 
     private static String blankToNull(String s) {

@@ -39,7 +39,7 @@ public class UserService {
     public UserDto getUser(UUID id) {
         UserDto user = findUser(id).orElseThrow(() -> ApiException.notFound("User"));
         SecuritySummaryService.Summary s = summaries.of(id);
-        return user.withSecurity(s.kycStatus(), s.hasPasskey(), s.hasPin());
+        return user.withSecurity(s.handle(), s.kycStatus(), s.hasPasskey(), s.hasPin());
     }
 
     /** Users by id (missing ids are omitted). */

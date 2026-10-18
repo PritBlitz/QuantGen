@@ -41,7 +41,7 @@ public final class AuthDtos {
     }
 
     /**
-     * PRD 7.2 UserDto plus the v2 additions (12.2): {@code handle} (null until payments 2.0), {@code kycStatus}
+     * PRD 7.2 UserDto plus the v2 additions (12.2): {@code handle} (null until the user picks one), {@code kycStatus}
      * NONE/PENDING/VERIFIED, and whether a passkey / transaction PIN exists.
      */
     public record UserDto(UUID id, String fullName, String email, String phone, Role role, Instant createdAt,
@@ -51,7 +51,7 @@ public final class AuthDtos {
             this(id, fullName, email, phone, role, createdAt, null, "NONE", false, false);
         }
 
-        public UserDto withSecurity(String kycStatus, boolean hasPasskey, boolean hasPin) {
+        public UserDto withSecurity(String handle, String kycStatus, boolean hasPasskey, boolean hasPin) {
             return new UserDto(id, fullName, email, phone, role, createdAt, handle, kycStatus, hasPasskey, hasPin);
         }
     }

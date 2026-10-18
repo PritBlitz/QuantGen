@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 
 import com.quantgen.common.money.MoneyAmount;
 import com.quantgen.common.web.TextRules;
+import com.quantgen.payment.domain.TransferSource;
 import com.quantgen.payment.domain.TransferStatus;
 
 /** PRD §7.4 request and response bodies. */
@@ -21,12 +22,20 @@ public final class PaymentDtos {
 
     private static final String NO_CONTROL_CHARS = TextRules.NO_CONTROL_CHARS;
 
-    /** F-PAY-3: ₹1 to ₹2,00,000 per transfer. */
+    /** Handles are matched case-insensitively; the server stores them lower-cased (F-PAY-5). */
+    public static final String HANDLE_PATTERN = "^[A-Za-z0-9.]{3,30}@[qQ][gG]$";
+
+    /** F-PAY-3: ₹1 to ₹2,00,000 per transfer. Exactly one of {@code toAccountNumber} and {@code toHandle} (12.4). */
     public record TransferRequest(
             @NotNull UUID fromAccountId,
-            @NotBlank @Pattern(regexp = "^[0-9]{12}$", message = "must be a 12-digit account number") String toAccountNumber,
+            @Pattern(regexp = "^[0-9]{12}$", message = "must be a 12-digit account number") String toAccountNumber,
+            @Pattern(regexp = HANDLE_PATTERN, message = "must look like name@qg") String toHandle,
             @NotNull @MoneyAmount(min = "1.00", max = "200000.00") BigDecimal amount,
             @Size(max = 140) @Pattern(regexp = NO_CONTROL_CHARS, message = "must not contain control characters") String note) {
+
+        public TransferRequest(UUID fromAccountId, String toAccountNumber, BigDecimal amount, String note) {
+            this(fromAccountId, toAccountNumber, null, amount, note);
+        }
     }
 
     public record TransferDto(
@@ -37,7 +46,8 @@ public final class PaymentDtos {
             BigDecimal amount,
             String note,
             TransferStatus status,
-            Instant createdAt) {
+            Instant createdAt,
+            TransferSource source) {
     }
 
     public record BeneficiaryRequest(

@@ -298,7 +298,7 @@ public class AuthService {
 
     private UserDto enrich(UserDto dto) {
         SecuritySummaryService.Summary s = summaries.of(dto.id());
-        return dto.withSecurity(s.kycStatus(), s.hasPasskey(), s.hasPin());
+        return dto.withSecurity(s.handle(), s.kycStatus(), s.hasPasskey(), s.hasPin());
     }
 
     static UserDto toDto(User u) {
