@@ -203,6 +203,12 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'proof',
+                lazy: async () => ({
+                  Component: (await import('@/features/proof/ProofPage')).ProofPage,
+                }),
+              },
+              {
                 path: 'copilot',
                 lazy: async () => ({
                   Component: (await import('@/features/copilot/CopilotPage')).CopilotPage,

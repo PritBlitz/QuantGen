@@ -17,9 +17,16 @@ interface Snapshot {
 }
 
 const cache = new Map<string, Snapshot>()
+const DAYS_KEPT = 7
 
+/** Tests reset the mock DB between cases; drop frozen snapshots with it. */
+export function resetProofSnapshots() {
+  cache.clear()
+}
+
+/** A snapshot is frozen once taken (like the nightly job), so later payments don't change it. */
 async function build(date: string): Promise<Snapshot> {
-  const key = `${date}:${[...db.accounts.values()].map((a) => a.balance).join(',')}`
+  const key = date
   const hit = cache.get(key)
   if (hit) return hit
   const customer = [...db.accounts.values()].filter((a) => a.status !== 'CLOSED').sort((a, b) => a.id.localeCompare(b.id))
@@ -57,12 +64,8 @@ export const proofHandlers = [
   http.get(`${BASE}/public/proofs/roots`, async () => {
     await delay(200)
     const today = todayIst()
-    const out: ProofRootDto[] = [(await build(today)).root]
-    // Earlier days: deterministic placeholder roots (the mock only keeps today's tree).
-    for (let d = 1; d < 7; d++) {
-      const date = addDays(today, -d)
-      out.push({ date, root: await sha256Hex(`root|${date}`), totalLiabilities: new Decimal(out[0]!.totalLiabilities).minus(d * 3125.5).toFixed(4), leafCount: out[0]!.leafCount, chainHead: { position: out[0]!.chainHead.position - d * 140, hash: await sha256Hex(`chain|${date}`) } })
-    }
+    const out: ProofRootDto[] = []
+    for (let d = 0; d < DAYS_KEPT; d++) out.push((await build(addDays(today, -d))).root)
     return json(out)
   }),
   http.get(`${BASE}/proofs/accounts/:accountId`, async ({ request, params }) => {
@@ -71,7 +74,11 @@ export const proofHandlers = [
     if (!r.user) return r.res
     const acc = db.accounts.get(String(params.accountId))
     if (!acc || acc.userId !== r.user.id) return notFound(request, 'Account')
-    const snap = await build(todayIst())
+    const today = todayIst()
+    const date = new URL(request.url).searchParams.get('date') ?? today
+    const oldest = addDays(today, -(DAYS_KEPT - 1))
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today || date < oldest) return notFound(request, 'Snapshot')
+    const snap = await build(date)
     const entry = snap.index.get(acc.id)
     if (!entry) return notFound(request, 'Account')
     const path: BalanceProofDto['path'] = []

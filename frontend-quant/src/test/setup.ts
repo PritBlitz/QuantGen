@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/store'
 import { resetMockDb } from '@/mocks/handlers'
 import { server } from '@/mocks/node'
+import { resetProofSnapshots } from '@/mocks/v2/proof'
 
 // jsdom has no canvas, so lightweight-charts can't render; the chart is exercised in
 // browser screenshots/e2e instead. A no-op stub keeps the rest of the page testable.
@@ -48,11 +49,17 @@ class NoopObserver {
 globalThis.IntersectionObserver ??= NoopObserver as unknown as typeof IntersectionObserver
 globalThis.ResizeObserver ??= NoopObserver as unknown as typeof ResizeObserver
 
+// jsdom lacks pointer capture and scrollIntoView, which Radix Select uses when it opens.
+Element.prototype.hasPointerCapture ??= () => false
+Element.prototype.releasePointerCapture ??= () => {}
+Element.prototype.scrollIntoView ??= () => {}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()
   server.resetHandlers()
   resetMockDb()
+  resetProofSnapshots()
   // The mock refresh cookie lands in jsdom's jar; drop it so sessions don't leak across tests.
   for (const c of document.cookie.split(';')) {
     const name = c.split('=')[0]?.trim()

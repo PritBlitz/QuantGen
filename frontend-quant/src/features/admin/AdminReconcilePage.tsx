@@ -1,10 +1,14 @@
-import { CircleAlert, CircleCheck, Loader2, Play, Scale } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { CircleAlert, CircleCheck, Link2, Loader2, Play, Scale } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { proofApi } from '@/api/endpoints.v2'
+import { errorMessage, toApiError } from '@/api/errors'
 import { useReconcile } from '@/api/queries'
 import { Money } from '@/components/Money'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { Decimal } from '@/lib/money'
 import { EASE_OUT_EXPO } from '@/lib/motion'
@@ -179,6 +183,80 @@ export function AdminReconcilePage() {
           </motion.div>
         )}
       </div>
+
+      <IntegrityChecks />
     </div>
+  )
+}
+
+/**
+ * Proof of Balance back office (PRD §12.10): the ledger hash chain is intact, and assets cover
+ * customer balances. Both run on demand (the chain check walks every seal).
+ */
+function IntegrityChecks() {
+  const chain = useQuery({ queryKey: ['admin', 'verify-chain'], queryFn: proofApi.verifyChain, enabled: false, retry: false })
+  const solvency = useQuery({ queryKey: ['admin', 'solvency'], queryFn: proofApi.solvency, retry: false })
+  return (
+    <section aria-label="Ledger integrity" className="mt-6 grid gap-4 md:grid-cols-2">
+      <Card className="flex flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Hash chain</h2>
+            <p className="mt-1 text-sm text-muted">Re-hashes every sealed journal entry and checks each link.</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void chain.refetch()} disabled={chain.isFetching}>
+            {chain.isFetching ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+            {chain.data ? 'Verify again' : 'Verify chain'}
+          </Button>
+        </div>
+        <div aria-live="polite" className="mt-4 text-sm">
+          {chain.isError ? (
+            <p className="text-loss">{errorMessage(chain.error)}</p>
+          ) : chain.data ? (
+            chain.data.intact ? (
+              <p className="flex items-center gap-2 text-gain">
+                <CircleCheck aria-hidden="true" className="size-4" /> Intact through seal #{chain.data.checkedUpTo.toLocaleString('en-IN')}
+              </p>
+            ) : (
+              <p role="alert" className="flex items-center gap-2 text-loss">
+                <CircleAlert aria-hidden="true" className="size-4" /> Broken at seal #{chain.data.firstBrokenPosition?.toLocaleString('en-IN')}. Stop and investigate.
+              </p>
+            )
+          ) : (
+            <p className="text-muted">{chain.isFetching ? 'Walking the chain…' : 'Not run yet.'}</p>
+          )}
+        </div>
+      </Card>
+      <Card>
+        <h2 className="font-medium">Solvency</h2>
+        <p className="mt-1 text-sm text-muted">Assets held against what customers are owed.</p>
+        {solvency.isError ? (
+          <p className="mt-4 text-sm text-muted">{toApiError(solvency.error).code === 'NOT_FOUND' ? 'Not available until Proof of Balance ships.' : errorMessage(solvency.error)}</p>
+        ) : !solvency.data ? (
+          <Skeleton className="mt-4 h-16" />
+        ) : (
+          <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted">Owed to customers</dt>
+              <dd className="mt-0.5">
+                <Money value={solvency.data.totalLiabilities} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Assets</dt>
+              <dd className="mt-0.5">
+                <Money value={solvency.data.totalAssets} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Ratio</dt>
+              <dd className={cn('num mt-0.5', new Decimal(solvency.data.ratio).lt(1) ? 'text-loss' : 'text-gain')}>
+                {new Decimal(solvency.data.ratio).toFixed(2)}×
+              </dd>
+            </div>
+          </dl>
+        )}
+      </Card>
+    </section>
   )
 }
