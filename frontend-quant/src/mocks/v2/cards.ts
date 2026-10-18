@@ -23,8 +23,9 @@ function newPan() {
     for (let c = 0; c <= 9; c++) if (luhn(body + c)) return body + c
   }
 }
-const cvvFor = (pan: string) => {
-  const window = Math.floor(Date.now() / 30_000)
+/** Time-based demo CVV (exported for tests). */
+export const cvvFor = (pan: string, at: number = Date.now()) => {
+  const window = Math.floor(at / 30_000)
   let h = window
   for (const ch of pan) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return String(h % 1000).padStart(3, '0')
@@ -90,7 +91,7 @@ export const cardHandlers = [
       if (card) notify(card.userId, 'CARD_DECLINED', 'Card payment declined', `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`)
       return json({ authId: crypto.randomUUID(), status: 'DECLINED', reason })
     }
-    if (!card || b.expiry !== card.expiry || b.cvv !== cvvFor(card.pan)) return decline('Card details don’t match')
+    if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline('Card details don’t match')
     if (!isMoney(b.amount) || new Decimal(b.amount).lt(1)) return invalid(request, 'amount', 'must be at least 1.00')
     const amount = new Decimal(b.amount)
     if (card.controls.frozen) return decline('Card is frozen')
