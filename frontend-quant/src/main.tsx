@@ -6,6 +6,7 @@ import './styles/globals.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './app/App'
+import { registerServiceWorker } from './lib/pwa'
 
 async function enableMocks() {
   // DEV guard first, so production builds drop MSW entirely.
@@ -13,6 +14,8 @@ async function enableMocks() {
   const { worker } = await import('./mocks/browser')
   await worker.start({ onUnhandledFrame: 'bypass', quiet: true })
 }
+
+registerServiceWorker()
 
 void enableMocks().then(() => {
   const root = document.getElementById('root')
