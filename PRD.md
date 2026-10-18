@@ -982,7 +982,10 @@ Backend notes (V2-M1, implemented 2026-10-18):
 | POST | `/intents/{id}/reject` | | `200 IntentDto` |
 
 The browser only ever talks to the core; the core proxies copilot traffic to `agent-quant`.
-SSE events: `token {text}`, `tool {agent, tool, status}` (progress only, no raw data),
+SSE wire format: each event is `event: <type>
+data: <JSON payload>
+
+`, where `<type>` is the event name and the payload is the object shown. Events: `token {text}`, `tool {agent, tool, status}` (progress only, no raw data),
 `intent {IntentDto}`, `citation {type, id, label}`, `done {runId, usage}`, `error {code, message}`.
 
 `IntentDto = {id, kind: "TRANSFER"|"BILL_PAYMENT"|"SCHEDULED_TRANSFER"|"PAYMENT_REQUEST"|"ORDER"|"GOAL_TRANSFER"|"FD_BOOKING"|"LOAN_APPLICATION"|"AUTOPILOT_RULE",
@@ -1047,6 +1050,15 @@ model's own text and is labelled as such in the UI. The raw `payload` is not ech
 | GET | `/proofs/accounts/{accountId}` | customer (own account) | `?date=` → `200 {date, leaf: {accountId, balance, salt}, path: [{hash, sum, side}], root, totalLiabilities}` |
 | GET | `/admin/ledger/verify-chain` | admin | `200 {intact, checkedUpTo, firstBrokenPosition?}` |
 | GET | `/admin/ledger/solvency` | admin | `200 {totalLiabilities, totalAssets, ratio}` |
+
+**Canonical hashing (exact; the browser recomputes it, so both sides must match byte for byte):**
+- Amounts are plain decimal strings with exactly 4 fraction digits (`"1250.5000"`, `"0.0000"`); hashes are lowercase hex SHA-256 of the UTF-8 string.
+- `leaf.hash = SHA256("<accountId>|<balance>|<salt>")`, `leaf.sum = balance`.
+- `node.hash = SHA256("<left.hash>|<left.sum>|<right.hash>|<right.sum>")`, `node.sum = left.sum + right.sum`.
+- Leaves are ordered by account id, then padded to a power of two with `SHA256("pad-<index>|0.0000|pad")` zero-sum leaves.
+- In `path`, each node is the **sibling** at that level, from the leaf upward; `side` says which side the sibling sits on (`LEFT` → parent = H(sibling, current)).
+- A verifier rejects any negative `sum` in the path, a root mismatch, or a total that differs from `/public/proofs/roots`.
+- Reference implementation: `frontend-quant/src/lib/merkle.ts` (with tests).
 
 ### 12.11 Cards
 | Method | Path | Body | Response |
