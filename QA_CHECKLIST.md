@@ -240,3 +240,23 @@ The admin sees a different menu: **Overview, Users, Loan queue, Audit log, Recon
 | Variable interest rates, prepayment penalties | Fixed 12% a year; repayments are capped at what's owed |
 | Deleting users, creating admins from the UI | Admins are seeded |
 | AI copilot, crypto, passkeys, hash-chained ledger | Planned for **v2** (PRD §11) |
+
+## 14. V2-M3 savings and insights (demo script)
+
+Use a fresh customer. Add ₹1,00,000 to the savings account first.
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | Create a goal "Goa trip", target ₹25,000, a date 6 months out, an emoji | It appears with 0% progress; your 3-account cap is untouched |
+| 2 | Move ₹5,000 from savings to the goal, then ₹1,000 back | Goal shows ₹4,000; try paying someone else *from* the goal: refused |
+| 3 | Ask a second user to pay into your goal's account number | They get "no account with this number", exactly as for a made-up number |
+| 4 | Turn round-ups on for savings (round to ₹10, into the goal); pay someone ₹123.40 | Round-up of ₹6.60 is moved to the goal at 23:30 IST as one "Round-up savings" transfer |
+| 5 | Book an FD of ₹50,000 for 365 days, pay out at maturity | 7.00% p.a.; maturity amount ₹53,500.00; savings drops by ₹50,000; a new FD account appears and can't send or receive |
+| 6 | Close the FD early | Asks for step-up (PIN); within the first 7 days it pays back exactly ₹50,000 (no interest) |
+| 7 | Pay someone with notes "Lunch at the cafe" and "Rent for October", and pay a bill | Insights show FOOD, RENT and BILLS; transactions and transfers each carry a category |
+| 8 | Recategorize a payment, then choose "always for this person" | The category sticks for past and future payments to that person, for you only |
+| 9 | Set a FOOD budget just above what you spent, then spend past it | A BUDGET_ALERT at 80% and another at 100%, once each this month |
+| 10 | Open net worth and the 30-day forecast with a scheduled transfer set up | Net worth = cash + goals + FDs + portfolio − loans; the forecast dips on the scheduled date and warns below ₹1,000 |
+
+Interest is checked to the paisa in `FixedDepositsAndInterestIT` (FDs: principal × rate × days / 36500; savings: 3%
+on the daily closing balance, credited on the 1st).

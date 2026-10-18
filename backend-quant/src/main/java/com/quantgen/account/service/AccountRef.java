@@ -11,4 +11,9 @@ public record AccountRef(UUID id, UUID userId, String accountNumber, AccountType
     public boolean isActive() {
         return status == AccountStatus.ACTIVE;
     }
+
+    /** SAVINGS or CHECKING: can deal with other people. Goals and FDs only move money to the owner's accounts. */
+    public boolean isEveryday() {
+        return type.isEveryday();
+    }
 }

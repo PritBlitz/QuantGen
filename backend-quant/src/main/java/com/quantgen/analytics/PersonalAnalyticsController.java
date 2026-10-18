@@ -86,7 +86,7 @@ public class PersonalAnalyticsController {
     }
 
     @GetMapping("/goals")
-    public List<Object> goals(@AuthenticationPrincipal AuthUser user) {
+    public List<AnalyticsDtos.GoalProgressDto> goals(@AuthenticationPrincipal AuthUser user) {
         return analytics.goals(user.id());
     }
 

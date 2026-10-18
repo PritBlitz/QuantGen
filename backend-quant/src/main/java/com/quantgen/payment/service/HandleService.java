@@ -93,6 +93,9 @@ public class HandleService {
             throw ApiException.fieldError(HttpStatus.CONFLICT, "handle", "is already taken");
         }
         AccountRef account = accounts.requireOwned(userId, accountId);
+        if (!account.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountId", "pick a savings or checking account");
+        }
         if (account.status() == AccountStatus.CLOSED) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountId", "this account cannot receive money");
         }
@@ -196,7 +199,7 @@ public class HandleService {
         }
         rateLimiter.acquire(RESOLVE_LIMIT, callerId);
         Optional<AccountRef> account = byHandle ? accountFor(handle) : accounts.findByNumber(accountNumber.trim());
-        AccountRef found = account.filter(a -> a.status() != AccountStatus.CLOSED)
+        AccountRef found = account.filter(a -> a.status() != AccountStatus.CLOSED && a.isEveryday())
                 .orElseThrow(() -> ApiException.notFound("Payee"));
         return new PayeeDto(maskName(users.getUser(found.userId()).fullName()), handleOf(found.userId()),
                 AccountNumbers.mask(found.accountNumber()));

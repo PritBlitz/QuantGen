@@ -69,6 +69,9 @@ public class OrderService {
 
     private OrderDto doPlace(UUID userId, OrderRequest req) {
         AccountRef account = accounts.requireOwned(userId, req.accountId());
+        if (!account.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountId", "trade from a savings or checking account");
+        }
         if (account.status() == AccountStatus.FROZEN) {
             throw new ApiException(ErrorCode.ACCOUNT_FROZEN, "Account is frozen and cannot trade");
         }

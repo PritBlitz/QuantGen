@@ -1048,6 +1048,104 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
 
 `FixedDepositDto = {id, accountNumberMasked, principal, annualRate, tenureDays, startDate, maturityDate, accruedInterest, maturityAmount, onMaturity, status: "ACTIVE"|"MATURED"|"CLOSED"}`
 
+Backend notes (V2-M3 part 1: goals and round-ups; implemented 2026-10-18):
+- **Goals:** `POST /accounts {type: "GOAL", name, target, targetDate?, emoji?}`. `name` 1–40 chars (trimmed,
+  required), `target` 100.00–10,00,00,000.00 (required), `targetDate` today (IST) or later, `emoji` ≤ 16 chars.
+  Missing/invalid → `400` with the field. At most 10 open goals (`422 LIMIT_EXCEEDED`); goals and FDs don't count
+  toward the 3 everyday accounts (D-037). `POST /accounts {type: "FIXED_DEPOSIT"}` → `400` (book FDs via
+  `/fixed-deposits`). `AccountDto.goal` is `{name, target, targetDate, emoji}` on GOAL accounts and `null` otherwise.
+  Progress = `balance / target` (the client computes it for display only).
+- **D-037 enforcement:** a goal can only send to, and receive from, its owner's accounts. Transfers out to someone
+  else → `400` field `fromAccountId`; someone else paying into your goal (by number, handle or saved payee) gets
+  exactly the answer an unknown number gets (`400` "no account with this number"), so goals can't be probed for.
+  `/payees/resolve` → `404`; a goal can't hold a handle, pay bills, trade, take loan disbursals, repay loans or be
+  topped up (`400` with the field). Moving money between your own accounts and goals uses the normal transfer.
+- **Round-ups:** `GET|PUT /accounts/{id}/round-up` on a SAVINGS/CHECKING account you own (someone else's → `404`;
+  a goal/FD → `400` field `accountId`). Default when never set: `{enabled: false, roundTo: 10, goalAccountId: null}`.
+  `roundTo` must be 10, 50 or 100; `enabled: true` needs `goalAccountId` = one of *your* open goals (else `400`
+  field `goalAccountId`). What counts: transfers to **another person** (incl. paid requests and scheduled runs) and
+  bill payments (cards from V2-M9). Moves between your own accounts don't. An exact multiple rounds up by 0.
+  Round-ups are recorded as they happen and moved **once a day at 23:30 IST** as one transfer per (account, goal),
+  description "Round-up savings". If that move can't be made (not enough available balance, account frozen or
+  closed), that day's round-ups are dropped, never overdrawn and never retried.
+
+Backend notes (V2-M3 part 2: fixed deposits and savings interest; implemented 2026-10-18):
+- **Rates:** `GET /fixed-deposits/rates` → 7 slabs, simple interest: 7–45 d 3.50 · 46–90 d 4.50 · 91–180 d 5.50 ·
+  181–364 d 6.25 · 365–729 d 7.00 · 730–1095 d 7.25 · 1096–1825 d 6.75 (`annualRate` is a string like `"7.00"`).
+- **Interest formula** (FDs): `principal × annualRate × days / 36500`, rounded half-even to the paisa. Nothing is
+  posted until the term ends.
+- **Booking:** `POST /fixed-deposits` 🔒💰 → `201 FixedDepositDto`. `amount` 1,000.00–10,00,000.00, `tenureDays`
+  7–1825, `onMaturity` `PAYOUT`|`RENEW` (else `400`). `fromAccountId` must be your SAVINGS/CHECKING (someone else's
+  → `404`, a goal/FD → `400`); not enough available balance → `422 INSUFFICIENT_FUNDS`. At most 20 ACTIVE FDs
+  (`422 LIMIT_EXCEEDED`). The principal moves into a new `FIXED_DEPOSIT` account (shown in `GET /accounts`), and
+  that account can't send, receive, take deposits or be used anywhere else (`400`). The rate is fixed at booking.
+  `startDate` = today (IST), `maturityDate` = start + `tenureDays`. `accountNumberMasked` is the FD account's own number.
+- **DTO fields:** while `ACTIVE`, `accruedInterest` = interest for the days held so far (capped at the tenure) and
+  `maturityAmount` = principal + full-term interest. Once `MATURED`/`CLOSED`, both reflect what was actually paid.
+- **Maturity:** a nightly job (00:10 IST) ends every term due on or before today. Interest is posted
+  `INTEREST_EXPENSE → FD` (type `INTEREST`, description "Fixed deposit interest"). `PAYOUT`: principal + interest
+  go back to the account it was booked from, and the FD account becomes `CLOSED`. `RENEW`: the old row becomes
+  `MATURED` and a new `ACTIVE` row starts on the **same FD account** at the old maturity date, with principal +
+  interest as the new principal, the same tenure, and *today's* slab rate (so `GET` lists both rows). The user gets
+  `FD_MATURED`. If the FD account is frozen by an admin, the payout waits for the next night.
+- **Premature closure:** `POST /fixed-deposits/{id}/close` 🔒💰🛡️ → `200 FixedDepositDto` (status `CLOSED`). It
+  **always** needs step-up `FD_CLOSE` (`401 STEP_UP_REQUIRED` otherwise). Rate = the slab for the days actually held
+  minus 1% (floor 0), and nothing at all under 7 days. Someone else's FD → `404`; already ended → `409 INVALID_STATE`.
+  Two concurrent closes: one `200`, the other `409`. Audited as `FD_BOOKED` / `FD_CLOSED`.
+- **Savings interest (F-SAV-4):** SAVINGS accounts only (not CHECKING, goals or FDs). Per day: closing balance at
+  IST midnight × 3 / 36500, kept to 4 dp (half-even); the nightly job records the last 7 days (catches up after
+  downtime, never twice). On the 1st of each month the previous month's days are summed, rounded half-even to the
+  paisa and credited as one `INTEREST` transaction, "Savings interest". A total under ₹0.005 is carried forward.
+- `TransactionDto.type` can now be `INTEREST`. The new notification types `FD_MATURED` (now) and `BUDGET_ALERT`
+  (part 3) are in use.
+
+Backend notes (V2-M3 part 3: categories, budgets, insights; implemented 2026-10-18):
+- **Category rules** (no AI; the D-020 model isn't used yet). Deposits, top-ups, interest and money received from
+  another person → `INCOME`; bills → `BILLS`; loan disbursals/repayments → `LOANS`; trades → `INVESTMENTS`; moves
+  between your own accounts (goals, FDs, round-ups) → `TRANSFERS`. Payments to another person go by keywords in
+  the note (e.g. "lunch", "swiggy" → `FOOD`; "rent" → `RENT`; "uber" → `TRANSPORT`; "movie" → `ENTERTAINMENT`) and
+  default to `TRANSFERS`. Categories are computed when read, so better rules also apply to old transactions.
+- **Overrides:** `PATCH /transactions/{id}/category {category, applyToCounterparty?}` → `200 TransactionDto`. `id`
+  is a `TransactionDto.id` on one of your accounts (anything else → `404`); an unknown category → `400`.
+  `applyToCounterparty: true` (only for payments to or from another person, else `400` field
+  `applyToCounterparty`) applies to every past and future payment to/from that person's account, and clears a
+  one-off pick on this transaction. Priority: one-off pick > counterparty choice > rules. Only you see your choices.
+- `TransactionDto.category` and `TransferDto.category` (the sender's category) are filled everywhere.
+- **Spending** = payments to other people, bills and loan repayments, exactly the analytics definition (own
+  moves, trades and income never count). `GET /insights/spending?from&to&groupBy=category|month` → rows with
+  `amount ≠ 0`, `count` = number of spends (a reversal subtracts). Default range is the last 30 days, max 366; by
+  category sorted by amount desc, by month (`"2026-10"`) ascending. A bad `groupBy` → `400`.
+- **Budgets:** `GET /budgets` → `BudgetDto[]` for the **current calendar month (IST)**, in category order;
+  `pct` = spent / limit × 100 to 2 dp (can exceed 100). `PUT /budgets` **replaces the whole set** (an empty list
+  removes all) and returns the new list. Each item needs a known category (not `INCOME`), listed once, with
+  `monthlyLimit` 1.00–10,00,00,000.00 and at most 2 dp; field errors are `[i].category` / `[i].monthlyLimit`.
+- **Alerts:** a `BUDGET_ALERT` notification at 80% and at 100%, at most once each per category per month. They are
+  checked after every spend (outbox, within about a second), after a `PUT /budgets`, and after recategorizing. A
+  jump straight past 100% sends only the 100% alert.
+- **Analytics:** `summary.topCategory` and the admin `SPEND_CATEGORY` breakdown now use these categories (labels
+  e.g. "Food and dining"); interest now counts as income. `/analytics/goals` is live: `saved` = goal balance, `pct`
+  = saved / target × 100, `monthlyPace` = net amount added over the last 90 days × 30 / 90, `projectedDate` =
+  today + remaining / pace × 30 days (today if reached, null if the pace isn't positive), `onTrack` = reached, or
+  projected by `targetDate` (any positive pace when there is no target date).
+
+Backend notes (V2-M3 part 4: net worth and forecast; implemented 2026-10-18):
+- **Net worth:** `GET /insights/net-worth?months=12` (1–24, else `400`). `breakdown` (all non-negative): `cash` =
+  SAVINGS + CHECKING balances, `goals`, `fixedDeposits` (ledger balance = principal; unpaid interest isn't
+  counted), `investments` = holdings × current price, `loans` = outstanding loan principal. `current` = cash +
+  goals + fixedDeposits + investments − loans. `history` = one point per month, oldest first, `month` `"2026-10"`,
+  value at the end of that month (the current month's point = `current`). Past investments come from the nightly
+  portfolio snapshot (0 before the first one).
+- **Forecast:** `GET /insights/forecast?days=30` (1–90, else `400`). `points` has `days + 1` entries: today
+  (spendable balance now = available balance of savings + checking, after holds) and then the end of each day.
+  Known items: unpaid EMIs (an overdue one is expected tomorrow), ACTIVE scheduled transfers (incl. recurrences
+  and money scheduled *to* you; moves between your own everyday accounts net out, moves to/from your goals count),
+  FD payouts at maturity (principal + interest; `RENEW` FDs don't pay out), and detected salary (money from the
+  same person's account, ₹1,000+, in at least 2 of the last three 30-day windows; expected again a month after the
+  latest, same amount). Autopilot schedules join in V2-M5. Money in is applied before money out on the same day.
+  **Warnings:** `LOW_BALANCE` once, on the first day the balance drops below ₹1,000; `EMI_AT_RISK` /
+  `SCHEDULED_AT_RISK` on each day an EMI or scheduled payment would take the projected balance below zero. All
+  accounts are pooled (it doesn't model which account pays).
+
 ### 12.6 Copilot and intents
 | Method | Path | Body | Response |
 |---|---|---|---|

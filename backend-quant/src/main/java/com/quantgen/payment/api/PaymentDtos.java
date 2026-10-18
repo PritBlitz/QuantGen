@@ -47,7 +47,8 @@ public final class PaymentDtos {
             String note,
             TransferStatus status,
             Instant createdAt,
-            TransferSource source) {
+            TransferSource source,
+            String category) {
     }
 
     public record BeneficiaryRequest(

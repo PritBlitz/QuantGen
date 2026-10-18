@@ -20,6 +20,8 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     long countByUserIdAndStatusNot(UUID userId, AccountStatus status);
 
+    long countByUserIdAndTypeInAndStatusNot(UUID userId, Collection<AccountType> types, AccountStatus status);
+
     /** Rows of (userId, count) for the given users. */
     @Query("select a.userId, count(a) from Account a where a.userId in :userIds group by a.userId")
     List<Object[]> countByUserIds(Collection<UUID> userIds);

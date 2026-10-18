@@ -33,5 +33,8 @@ public interface LedgerLineRepository extends JpaRepository<LedgerLine, UUID> {
     @Query(VIEW + "where l.ledgerAccountId = :accountId and l.journalEntryId = :entryId")
     List<LedgerLineView> linesOf(UUID accountId, UUID entryId);
 
+    @Query(VIEW + "where l.id = :lineId")
+    java.util.Optional<LedgerLineView> lineById(UUID lineId);
+
     List<LedgerLine> findByJournalEntryId(UUID journalEntryId);
 }

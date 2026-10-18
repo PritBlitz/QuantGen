@@ -91,4 +91,8 @@ public class Transfer {
         this.source = source;
         this.status = TransferStatus.COMPLETED;
     }
+
+    public UUID getJournalEntryId() {
+        return journalEntryId;
+    }
 }

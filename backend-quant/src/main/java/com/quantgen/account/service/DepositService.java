@@ -1,5 +1,8 @@
 package com.quantgen.account.service;
 
+import com.quantgen.common.error.ApiException;
+import com.quantgen.account.domain.AccountType;
+import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -35,11 +38,14 @@ public class DepositService {
                                                              String fingerprint, BigDecimal amount) {
         return idempotency.execute(userId, idempotencyKey, fingerprint, 201, TransactionDto.class, () -> {
             AccountRef account = accounts.requireOwned(userId, accountId);
+            if (account.type() == AccountType.FIXED_DEPOSIT) {
+                throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountId", "a fixed deposit can't take more money");
+            }
             PostedEntry entry = ledger.post(JournalRequest.builder(JournalType.DEPOSIT, DESCRIPTION, userId)
                     .debit(SystemAccount.BANK_CASH.id(), amount, null)
                     .credit(account.id(), amount, "Add money")
                     .build());
-            return TransactionDto.of(entry.lineFor(account.id()));
+            return TransactionDto.of(entry.lineFor(account.id())).withCategory("INCOME");
         });
     }
 }

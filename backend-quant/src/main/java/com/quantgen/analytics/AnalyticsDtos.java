@@ -135,6 +135,11 @@ public final class AnalyticsDtos {
     public record SummaryTotals(String income, String spending, String net, String savingsRatePct) {
     }
 
+    /** PRD 12.13 /analytics/goals. */
+    public record GoalProgressDto(UUID accountId, String name, String target, String saved, String pct,
+                                  String monthlyPace, LocalDate projectedDate, boolean onTrack) {
+    }
+
     public record TopCategory(String key, String label, String amount) {
     }
 

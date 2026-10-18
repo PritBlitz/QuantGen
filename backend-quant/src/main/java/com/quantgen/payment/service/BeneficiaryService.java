@@ -41,7 +41,9 @@ public class BeneficiaryService {
 
     @Transactional
     public BeneficiaryDto add(UUID userId, BeneficiaryRequest req) {
+        // Someone else's goal or FD looks exactly like a number that doesn't exist (D-037, no existence leak).
         AccountRef target = accounts.findByNumber(req.accountNumber())
+                .filter(a -> a.userId().equals(userId) || a.isEveryday())
                 .orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountNumber",
                         "no account with this number"));
         if (target.userId().equals(userId)) {

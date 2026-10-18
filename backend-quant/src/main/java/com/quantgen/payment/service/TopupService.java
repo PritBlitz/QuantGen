@@ -108,7 +108,7 @@ public class TopupService {
             if (account.status() == AccountStatus.FROZEN) {
                 throw new ApiException(ErrorCode.ACCOUNT_FROZEN, "Account is frozen");
             }
-            if (account.status() != AccountStatus.ACTIVE) {
+            if (account.status() != AccountStatus.ACTIVE || !account.isEveryday()) {
                 throw new ApiException(ErrorCode.INVALID_STATE, "This account cannot be topped up");
             }
             BigDecimal amount = Money.normalize(rawAmount);

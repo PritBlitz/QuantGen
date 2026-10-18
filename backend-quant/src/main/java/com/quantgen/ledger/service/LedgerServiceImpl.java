@@ -387,6 +387,12 @@ class LedgerServiceImpl implements LedgerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<LedgerLineView> line(UUID lineId) {
+        return lines.lineById(lineId);
+    }
+
+    @Override
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ReconcileReport reconcile() {
         BigDecimal ledgerSum = jdbc.queryForObject(

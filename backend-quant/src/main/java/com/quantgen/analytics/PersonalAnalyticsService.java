@@ -7,6 +7,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.money.AccountNumbers;
+import com.quantgen.insights.CategoryService;
 
 /**
  * F-ANL-11..17: a customer's own numbers. Every query is filtered by the caller's user id, taken from the token and
@@ -85,18 +87,13 @@ public class PersonalAnalyticsService {
         Totals before = totals(userId, r.previous());
         SummaryTotals cur = summaryTotals(now);
 
-        // Coarse categories until the category engine (V2-M3) arrives: where spending went by kind.
-        String[][] coarse = {{"TRANSFER_OUT", "TRANSFERS", "Transfers"},
-                {"LOAN_REPAYMENT", "LOAN_REPAYMENTS", "Loan repayments"}, {"BILL_PAYMENT", "BILLS", "Bills"}};
-        TopCategory top = null;
-        BigDecimal topAmount = BigDecimal.ZERO;
-        for (String[] c : coarse) {
-            BigDecimal amount = now.byKind().getOrDefault(c[0], BigDecimal.ZERO);
-            if (amount.compareTo(topAmount) > 0) {
-                topAmount = amount;
-                top = new TopCategory(c[1], c[2], money(amount));
-            }
-        }
+        // F-INS-1 categories: the biggest spending category in the period.
+        List<TopCategory> tops = jdbc.query("WITH " + LedgerKinds.cl(true) + ", " + CategoryService.catCte() + """
+                SELECT category, SUM(amt) AS v FROM cat WHERE kind IN (%s)
+                 GROUP BY category HAVING SUM(amt) > 0 ORDER BY v DESC, category LIMIT 1
+                """.formatted(LedgerKinds.SPENDING), params(userId, r), (rs, i) -> new TopCategory(
+                rs.getString("category"), CategoryService.label(rs.getString("category")), money(rs.getBigDecimal("v"))));
+        TopCategory top = tops.isEmpty() ? null : tops.getFirst();
         List<LargestSpend> largest = jdbc.query("WITH " + LedgerKinds.cl(true) + """
                 SELECT line_id, amt, description, day FROM cl
                  WHERE kind IN (%s) AND sgn = 1 ORDER BY amt DESC, created_at DESC, line_id LIMIT 1
@@ -397,9 +394,48 @@ public class PersonalAnalyticsService {
 
     // ------------------------------------------------------------------ goals (V2-M3)
 
-    /** Goal progress arrives with goals in V2-M3; until then the answer is an empty list, not an error. */
+    /** Days of history behind {@code monthlyPace}. */
+    static final int PACE_DAYS = 90;
+
+    /**
+     * F-SAV-1 goal progress. {@code monthlyPace} is the net amount added over the last 90 days, per 30 days;
+     * {@code projectedDate} extrapolates it (null when the pace isn't positive, today when the target is reached);
+     * {@code onTrack} means reached, or projected to reach it by {@code targetDate} (any positive pace when there is
+     * no target date).
+     */
     @Transactional(readOnly = true)
-    public List<Object> goals(UUID userId) {
-        return List.of();
+    public List<GoalProgressDto> goals(UUID userId) {
+        LocalDate today = today();
+        Instant since = today.minusDays(PACE_DAYS - 1L).atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant();
+        return jdbc.query("""
+                SELECT a.id, g.name, g.target, g.target_date, la.balance,
+                       COALESCE((SELECT SUM(CASE WHEN l.direction = 'CREDIT' THEN l.amount ELSE -l.amount END)
+                                   FROM ledger_lines l WHERE l.ledger_account_id = a.id AND l.created_at >= :since), 0)
+                           AS added
+                  FROM accounts a JOIN goals g ON g.account_id = a.id JOIN ledger_accounts la ON la.id = a.id
+                 WHERE a.user_id = :uid AND a.status <> 'CLOSED' ORDER BY a.created_at, a.id
+                """, new MapSqlParameterSource().addValue("uid", userId).addValue("since", Timestamp.from(since)),
+                (rs, i) -> {
+                    BigDecimal target = rs.getBigDecimal("target");
+                    BigDecimal saved = rs.getBigDecimal("balance");
+                    java.sql.Date td = rs.getDate("target_date");
+                    LocalDate targetDate = td == null ? null : td.toLocalDate();
+                    BigDecimal pace = rs.getBigDecimal("added").multiply(BigDecimal.valueOf(30))
+                            .divide(BigDecimal.valueOf(PACE_DAYS), 2, RoundingMode.HALF_EVEN);
+                    boolean reached = saved.compareTo(target) >= 0;
+                    LocalDate projected = null;
+                    if (reached) {
+                        projected = today;
+                    } else if (pace.signum() > 0) {
+                        long days = target.subtract(saved).multiply(BigDecimal.valueOf(30))
+                                .divide(pace, 0, RoundingMode.CEILING).longValueExact();
+                        projected = today.plusDays(Math.min(days, 365L * 100));
+                    }
+                    boolean onTrack = reached || (projected != null
+                            && (targetDate == null || !projected.isAfter(targetDate)));
+                    return new GoalProgressDto(rs.getObject("id", UUID.class), rs.getString("name"), money(target),
+                            money(saved), pct(saved.multiply(BigDecimal.valueOf(100))
+                            .divide(target, 2, RoundingMode.HALF_EVEN)), money(pace), projected, onTrack);
+                });
     }
 }

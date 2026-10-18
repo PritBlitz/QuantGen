@@ -145,6 +145,10 @@ public class BillService {
                 throw new ApiException(ErrorCode.INVALID_STATE, "This bill has expired; fetch it again");
             }
             AccountRef from = accounts.requireOwned(userId, fromAccountId);
+            if (!from.isEveryday()) {
+                throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId",
+                        "pay bills from a savings or checking account");
+            }
             String masked = AccountNumbers.mask(bill.consumerNumber());
             PostedEntry entry = ledger.post(JournalRequest.builder(JournalType.BILL_PAYMENT,
                             bill.biller().name() + " bill " + masked, userId)

@@ -11,7 +11,9 @@ public enum SystemAccount {
     /** Bill payments owed onwards to billers (V10). */
     BILLER_CLEARING("00000000-0000-0000-0000-000000000005"),
     /** Money collected by the payment gateway for top-ups (V10). */
-    GATEWAY_CLEARING("00000000-0000-0000-0000-000000000006");
+    GATEWAY_CLEARING("00000000-0000-0000-0000-000000000006"),
+    /** Interest paid to customers on FDs and savings (V14). */
+    INTEREST_EXPENSE("00000000-0000-0000-0000-000000000007");
 
     private final UUID id;
 

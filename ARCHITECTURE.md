@@ -380,7 +380,7 @@ Same module rules as §3 (talk through service interfaces only).
 | `security` (in `auth`) | passkeys, step-up tokens, PIN, sessions, PATs, field encryption | — |
 | `payment` (extended) | handles, payee resolve, requests, schedules, billers, splits, top-ups | ledger, account, risk |
 | `savings` | goals, round-ups, FDs, interest jobs | ledger, account |
-| `insights` | categories, budgets, forecast, net worth (read models) | events |
+| `insights` | categories, budgets, forecast, net worth: computed live from the ledger with the analytics `LedgerKinds` rules (only user overrides and budgets are stored); budget alerts are an outbox consumer | events, analytics |
 | `intent` | intents: validate, render summary, approve → dispatch to the owning service | payment, trading, savings, loan, autopilot |
 | `autopilot` | rule DSL, validator, renderer, simulator, engine, runs | events, intent, payment, trading, savings |
 | `risk` | fraud rules + scoring, cases, loan documents | events |
@@ -420,7 +420,8 @@ sequenceDiagram
   end
 ```
 - Delivery is **at least once**. Each consumer records `(consumer, event_id)` in the same
-  transaction as its own work, so a redelivered event is a no-op.
+  transaction as its own work, so a redelivered event is a no-op. That transaction is separate per
+  (event, consumer) (`REQUIRES_NEW`), so one failing consumer never undoes another's work.
 - Events carry ids and amounts, never names, notes or full account numbers.
 - Event types: `MONEY_MOVED`, `TRANSFER_REVIEW_OPENED`, `HOLD_PLACED`, `HOLD_RELEASED`,
   `PRICE_TICK` (in-memory only, not stored), `LOAN_STATUS_CHANGED`, `RULE_RUN_FINISHED`.

@@ -5,9 +5,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,8 +18,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.account.domain.AccountStatus;
+import com.quantgen.account.domain.AccountType;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
+import com.quantgen.account.service.TransactionCategorizer;
 import com.quantgen.auth.security.StepUpAction;
 import com.quantgen.auth.security.StepUpService;
 import com.quantgen.auth.service.UserService;
@@ -70,12 +75,14 @@ public class TransferService {
     private final StepUpService stepUp;
     private final BeneficiaryRepository beneficiaries;
     private final HandleService handles;
+    private final TransactionCategorizer categorizer;
 
     public TransferService(TransferRepository transfers, AccountService accounts, UserService users,
                            LedgerService ledger, IdempotencyService idempotency, AdvisoryLocks locks,
                            NotificationService notifications, AuditService audit, Clock clock,
                            QgMetrics metrics, LimitsService limits, StepUpService stepUp,
-                           BeneficiaryRepository beneficiaries, HandleService handles) {
+                           BeneficiaryRepository beneficiaries, HandleService handles,
+                           TransactionCategorizer categorizer) {
         this.transfers = transfers;
         this.accounts = accounts;
         this.users = users;
@@ -90,6 +97,7 @@ public class TransferService {
         this.stepUp = stepUp;
         this.beneficiaries = beneficiaries;
         this.handles = handles;
+        this.categorizer = categorizer;
     }
 
     @Transactional
@@ -146,6 +154,22 @@ public class TransferService {
         }
         BigDecimal amount = Money.normalize(rawAmount);
         boolean internal = to.userId().equals(userId);
+        // D-037: goals and fixed deposits deal only with their owner's accounts, in both directions.
+        if (!internal && !from.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId", "goals and fixed deposits can only move money to your own accounts");
+        }
+        if (!internal && !to.isEveryday()) {
+            // Same answer as an unknown number or handle, so someone else's goal or FD can't be probed for.
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(),
+                    target.field().equals("toHandle") ? "no account with this handle" : "no account with this number");
+        }
+        if (from.type() == AccountType.FIXED_DEPOSIT) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId",
+                    "a fixed deposit pays out when it matures or is closed");
+        }
+        if (to.type() == AccountType.FIXED_DEPOSIT) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(), "this account cannot receive money");
+        }
 
         if (!internal) {
             // Serialize this user's outgoing transfers so concurrent requests can't overshoot the daily limit.
@@ -210,17 +234,22 @@ public class TransferService {
                     "amount=" + Money.toJson(amount) + " from=" + AccountNumbers.mask(from.accountNumber())
                             + " to=" + AccountNumbers.mask(to.accountNumber()));
         }
-        return toDto(transfer);
+        return toDto(transfer, categorizer.categoriesOfEntries(userId, List.of(transfer.getJournalEntryId()))
+                .get(transfer.getJournalEntryId()));
     }
 
     @Transactional(readOnly = true)
     public PageDto<TransferDto> list(UUID userId, Pageable pageable) {
-        return PageDto.of(transfers.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable), TransferService::toDto);
+        Page<Transfer> page = transfers.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+        Map<UUID, String> cats = categorizer.categoriesOfEntries(userId,
+                page.getContent().stream().map(Transfer::getJournalEntryId).filter(java.util.Objects::nonNull).toList());
+        return PageDto.of(page, t -> toDto(t, cats.get(t.getJournalEntryId())));
     }
 
-    public static TransferDto toDto(Transfer t) {
+    /** {@code category} is the sender's category for the transfer (PRD 12.2). */
+    public static TransferDto toDto(Transfer t, String category) {
         return new TransferDto(t.getId(), t.getFromAccountNumber(), t.getToAccountNumber(), t.getToName(),
-                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt(), t.getSource());
+                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt(), t.getSource(), category);
     }
 
     private static String blankToNull(String s) {

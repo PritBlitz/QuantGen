@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
+import com.quantgen.insights.CategoryService;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.ledger.service.ReconcileReport;
 
@@ -319,7 +320,12 @@ public class AdminAnalyticsService {
                            COUNT(DISTINCT user_id) AS users
                       FROM request_failures WHERE created_at >= :lo AND created_at < :hi GROUP BY code
                     """, r);
-            case SPEND_CATEGORY -> List.of(); // categories arrive with V2-M3
+            case SPEND_CATEGORY -> cells("WITH " + LedgerKinds.cl(false) + ", " + CategoryService.catCte() + """
+                    SELECT cat.category AS k, c.label, SUM(cat.sgn) AS cnt, SUM(cat.amt) AS val,
+                           COUNT(DISTINCT cat.user_id) AS users
+                      FROM cat JOIN categories c ON c.key = cat.category
+                     WHERE cat.kind IN (%s) GROUP BY cat.category, c.label HAVING SUM(cat.amt) > 0
+                    """.formatted(LedgerKinds.SPENDING), r);
         };
         Unit unit = switch (dim) {
             case ERROR_CODE -> Unit.COUNT;

@@ -20,4 +20,13 @@ public final class Idempotent {
         }
         return builder.body(result.body());
     }
+
+    /** For 🔒💰 actions on an existing resource that answer 200. */
+    public static <T> ResponseEntity<T> ok(IdempotencyService.Result<T> result) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
+        if (result.replayed()) {
+            builder.header(REPLAYED_HEADER, "true");
+        }
+        return builder.body(result.body());
+    }
 }

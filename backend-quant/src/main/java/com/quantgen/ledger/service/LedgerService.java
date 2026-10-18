@@ -74,6 +74,9 @@ public interface LedgerService {
     /** The account's line(s) in one entry (used to build a transaction view after posting). */
     List<LedgerLineView> linesOf(UUID ledgerAccountId, UUID journalEntryId);
 
+    /** One line by id (any account; callers check ownership). */
+    java.util.Optional<LedgerLineView> line(UUID lineId);
+
     /** F-LED-8: verifies every cached balance and that the whole ledger sums to zero. */
     ReconcileReport reconcile();
 }

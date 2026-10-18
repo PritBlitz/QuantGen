@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.quantgen.account.domain.AccountStatus;
+import com.quantgen.account.domain.AccountType;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
 import com.quantgen.auth.security.StepUpAction;
@@ -124,6 +125,21 @@ public class ScheduledTransferService {
         }
         if (from.status() == AccountStatus.FROZEN) {
             throw new ApiException(ErrorCode.ACCOUNT_FROZEN, "Account is frozen and cannot send money");
+        }
+        if (!to.userId().equals(userId) && !from.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId", "goals and fixed deposits can only move money to your own accounts");
+        }
+        if (!to.userId().equals(userId) && !to.isEveryday()) {
+            // Same answer as an unknown number or handle, so someone else's goal or FD can't be probed for.
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(),
+                    target.field().equals("toHandle") ? "no account with this handle" : "no account with this number");
+        }
+        if (from.type() == AccountType.FIXED_DEPOSIT) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId",
+                    "a fixed deposit pays out when it matures or is closed");
+        }
+        if (to.type() == AccountType.FIXED_DEPOSIT) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, target.field(), "this account cannot receive money");
         }
         LocalDate today = today();
         LocalDate start = cmd.startDate();

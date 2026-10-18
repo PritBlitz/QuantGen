@@ -118,6 +118,10 @@ public class LoanService {
     @Transactional
     public LoanDto apply(UUID userId, ApplyRequest req) {
         AccountRef account = accounts.requireOwned(userId, req.disburseAccountId());
+        if (!account.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "disburseAccountId",
+                    "loans are paid into a savings or checking account");
+        }
         if (account.status() == AccountStatus.CLOSED) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "disburseAccountId", "account is closed");
         }
@@ -197,6 +201,9 @@ public class LoanService {
             throw new ApiException(ErrorCode.INVALID_STATE, "Only an active loan can be repaid");
         }
         AccountRef account = accounts.requireOwned(userId, req.accountId());
+        if (!account.isEveryday()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "accountId", "repay from a savings or checking account");
+        }
         if (account.status() == AccountStatus.FROZEN) {
             throw new ApiException(ErrorCode.ACCOUNT_FROZEN, "Account is frozen and cannot repay loans");
         }
