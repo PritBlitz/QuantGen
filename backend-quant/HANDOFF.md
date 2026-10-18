@@ -7,6 +7,8 @@ dev DB on :5433 is now at **V12**. :8080 runs the current build from a jar copy 
 profile); restart it from `target/` after the next build.
 
 ## Resume here
+Frontend state (2026-10-18): V2-M3 and V2-M7 flipped live in hybrid mode (b152ffa, 320abd9); the frontend session paused with its handoff in `frontend-quant/HANDOFF.md` (18807e4).
+
 1. Read `CLAUDE.md`, then this file. The frontend's state is in `frontend-quant/HANDOFF.md`; the frontend session
    was `quantgen-69` on 2026-10-18 (find it with `ListAgents`).
 2. Start the stack: `docker compose -f docker-compose.dev.yml up -d`, then
@@ -14,7 +16,7 @@ profile); restart it from `target/` after the next build.
 3. `./mvnw verify` should show 33 unit + 182 IT green. Don't compile while a verify runs (it deletes classes mid-run).
 4. Next, in this order (told to the frontend): **V2-M8 Proof of Balance** (hashing pinned in PRD §12.10; cross-check
    `frontend-quant/src/lib/merkle.ts`; `GET /public/proofs/roots` must be permitAll; `/proofs/accounts/{id}?date=` →
-   404 when the account isn't in that snapshot), V2-M9 Cards, V2-M6 rules-based fraud parts, V2-M10 tokens, then the
+   404 when the account isn't in that snapshot), V2-M9 Cards (frontend asked 2026-10-18: sandbox authorize must also accept the *previous* 30 s CVV window, or checkout races the rotation), V2-M6 rules-based fraud parts, V2-M10 tokens, then the
    core side of V2-M4 (intents, delegated tokens, SSE proxy, budgets) and V2-M5 (Autopilot engine; also F-TRD-9 SIP). `agent-quant/` belongs to a
    separate agent session per ARCHITECTURE.md; ask the owner before building it.
 
