@@ -978,6 +978,19 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
   (`block: true` also declines the requester's other open requests to you, and blocks new ones); by the requester
   → `CANCELLED`. There is no unblock endpoint yet. The payer gets a `PAYMENT_REQUEST` notification; the requester
   gets the usual `MONEY_RECEIVED` when it is paid.
+- **Scheduled transfers (part 2):** `POST` needs `Idempotency-Key`. Exactly one of `toAccountNumber` / `toHandle`;
+  the destination *account* is fixed at creation even if the handle is re-pointed later. `startDate` must be after
+  today (IST) and within a year; `MONTHLY` needs a start day of 1–28; `endDate` must be after `startDate`; `count`
+  1–120; `endDate`/`count` with `ONCE` → `400`. **Step-up at creation:** above ₹50,000 to someone else the `POST`
+  itself needs step-up `TRANSFER` (🛡️), because runs happen unattended; runs never prompt. Limits and cooling are
+  checked at run time. At most 25 `ACTIVE`/`PAUSED` instructions (`422 LIMIT_EXCEEDED`). `toName` is masked
+  ("Aarav S."), so creating an instruction can't be used to learn a full name. Runs: 07:00 IST on the occurrence
+  date; any refusal (funds, limit, frozen, cooling) → `lastRun.outcome: "RETRYING"`, `nextRunDate` = tomorrow and a
+  `SCHEDULED_FAILED` notification; a second refusal → `MISSED` (notified) and the instruction moves to its next
+  occurrence. `remainingCount` counts paid and missed occurrences (`ONCE` starts at 1). Resume skips occurrences that
+  fell inside the pause (never paid late). `DELETE` is idempotent (`204` again); a `COMPLETED` instruction → `409`.
+  `GET` lists all of yours, newest first, including completed and cancelled ones. Transfers made by a run have
+  `source: "SCHEDULED"`. An occurrence is paid at most once even if job runs overlap.
 
 ### 12.5 Savings and insights
 | Method | Path | Body / Query | Response |
