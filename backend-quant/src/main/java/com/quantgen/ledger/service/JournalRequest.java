@@ -13,8 +13,15 @@ import com.quantgen.ledger.domain.JournalType;
  * A balanced set of ledger lines describing one business event. Build with {@link #builder}.
  *
  * @param createdBy the acting user, or null for system jobs
+ * @param captureHoldId an ACTIVE hold on a debited account that this entry settles (it becomes CAPTURED in the
+ *                      same transaction); the debit may not exceed the hold's amount. Null for ordinary entries.
  */
-public record JournalRequest(JournalType type, String description, UUID createdBy, List<Line> lines) {
+public record JournalRequest(JournalType type, String description, UUID createdBy, List<Line> lines,
+                             UUID captureHoldId) {
+
+    public JournalRequest(JournalType type, String description, UUID createdBy, List<Line> lines) {
+        this(type, description, createdBy, lines, null);
+    }
 
     public JournalRequest {
         Objects.requireNonNull(type, "type");
@@ -41,6 +48,7 @@ public record JournalRequest(JournalType type, String description, UUID createdB
         private final String description;
         private final UUID createdBy;
         private final List<Line> lines = new ArrayList<>();
+        private UUID captureHoldId;
 
         private Builder(JournalType type, String description, UUID createdBy) {
             this.type = type;
@@ -58,8 +66,14 @@ public record JournalRequest(JournalType type, String description, UUID createdB
             return this;
         }
 
+        /** Settles this hold with the entry (F-HOLD-1): its amount stops being earmarked when the debit lands. */
+        public Builder captureHold(UUID holdId) {
+            this.captureHoldId = holdId;
+            return this;
+        }
+
         public JournalRequest build() {
-            return new JournalRequest(type, description, createdBy, lines);
+            return new JournalRequest(type, description, createdBy, lines, captureHoldId);
         }
     }
 }

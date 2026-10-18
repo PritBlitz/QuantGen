@@ -49,6 +49,22 @@ public interface LedgerService {
         return balance;
     }
 
+    /**
+     * Earmarks {@code amount} on a customer account without moving it (F-HOLD-1). Takes the same row lock as a
+     * posting and requires {@code balance - active holds >= amount}, so a hold and a transfer can never both
+     * spend the same rupee. Frozen accounts cannot place holds. Requires an active transaction.
+     */
+    UUID placeHold(UUID ledgerAccountId, BigDecimal amount, String reason, String reference, Instant expiresAt);
+
+    /** ACTIVE to RELEASED. INVALID_STATE if the hold is not active. Releasing is allowed on frozen accounts. */
+    void releaseHold(UUID holdId);
+
+    /** Moves every ACTIVE hold past its {@code expires_at} to EXPIRED; returns how many. */
+    int expireHolds(Instant now);
+
+    /** Sum of ACTIVE holds per ledger account (accounts without holds map to zero). */
+    Map<UUID, BigDecimal> holdsTotals(Collection<UUID> ledgerAccountIds);
+
     /** Sum of all customer balances: what the bank owes its depositors (admin stats). */
     BigDecimal totalCustomerBalances();
 

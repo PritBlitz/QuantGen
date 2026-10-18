@@ -83,6 +83,13 @@ public abstract class IntegrationTest {
         return send(builder.build());
     }
 
+    protected Response put(String path, Object body, String bearer) {
+        return send(request(path).header("Authorization", "Bearer " + bearer)
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(
+                        body instanceof String s ? s : json.writeValueAsString(body))).build());
+    }
+
     protected Response patch(String path, String bearer) {
         return send(request(path).header("Authorization", "Bearer " + bearer)
                 .method("PATCH", HttpRequest.BodyPublishers.noBody()).build());

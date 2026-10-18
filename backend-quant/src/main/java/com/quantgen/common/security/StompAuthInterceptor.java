@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class StompAuthInterceptor implements ChannelInterceptor {
 
-    static final Set<String> SUBSCRIBABLE = Set.of("/topic/prices");
+    static final Set<String> SUBSCRIBABLE = Set.of("/topic/prices", "/user/queue/notifications");
 
     private final AccessTokenVerifier verifier;
 
@@ -40,8 +40,15 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         switch (command) {
             case CONNECT, STOMP -> {
                 AuthUser user = authenticate(accessor.getFirstNativeHeader("Authorization"));
+                // The principal name is the user id: that is how /user/queue/** destinations are routed, so a
+                // user can only ever receive their own messages.
                 accessor.setUser(new UsernamePasswordAuthenticationToken(user, null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))));
+                        List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))) {
+                    @Override
+                    public String getName() {
+                        return user.id().toString();
+                    }
+                });
             }
             case SUBSCRIBE -> {
                 requireUser(accessor);

@@ -17,7 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * STOMP over {@code /ws} (PRD §7.5): a plain WebSocket endpoint at {@code /ws} and a SockJS fallback under
- * {@code /ws/**}. A simple in-memory broker serves {@code /topic/prices}. Payloads use the app's
+ * {@code /ws/**}. A simple in-memory broker serves {@code /topic/prices} and the per-user {@code /user/queue/notifications}. Payloads use the app's
  * JsonMapper, so money stays a JSON string.
  */
 @Configuration(proxyBeanMethods = false)
@@ -43,7 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
     }
 

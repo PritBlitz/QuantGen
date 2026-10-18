@@ -71,7 +71,7 @@ class AccountServiceImpl implements AccountService {
         }
         UUID ledgerAccountId = ledger.openCustomerAccount();
         Account account = accounts.saveAndFlush(new Account(ledgerAccountId, userId, uniqueAccountNumber(), type));
-        return toDto(account, BigDecimal.ZERO);
+        return toDto(account, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     @Override
@@ -118,7 +118,7 @@ class AccountServiceImpl implements AccountService {
     @Transactional(readOnly = true)
     public AccountDto getAccount(UUID userId, UUID accountId) {
         Account account = owned(userId, accountId);
-        return toDto(account, ledger.balanceOf(account.getId()));
+        return toDto(account, ledger.balanceOf(account.getId()), holdsOf(account.getId()));
     }
 
     @Override
@@ -199,7 +199,7 @@ class AccountServiceImpl implements AccountService {
         }
         account.changeStatus(status);
         accounts.flush();
-        return toDto(account, ledger.balanceOf(accountId));
+        return toDto(account, ledger.balanceOf(accountId), holdsOf(accountId));
     }
 
     // ------------------------------------------------------------------ helpers
@@ -209,8 +209,11 @@ class AccountServiceImpl implements AccountService {
     }
 
     private List<AccountDto> withBalances(List<Account> owned) {
-        Map<UUID, BigDecimal> balances = ledger.balancesOf(owned.stream().map(Account::getId).toList());
-        return owned.stream().map(a -> toDto(a, balances.getOrDefault(a.getId(), BigDecimal.ZERO))).toList();
+        List<UUID> ids = owned.stream().map(Account::getId).toList();
+        Map<UUID, BigDecimal> balances = ledger.balancesOf(ids);
+        Map<UUID, BigDecimal> holds = ledger.holdsTotals(ids);
+        return owned.stream().map(a -> toDto(a, balances.getOrDefault(a.getId(), BigDecimal.ZERO),
+                holds.getOrDefault(a.getId(), BigDecimal.ZERO))).toList();
     }
 
     private record Range(Instant from, Instant to) {
@@ -232,8 +235,12 @@ class AccountServiceImpl implements AccountService {
         return new AccountRef(a.getId(), a.getUserId(), a.getAccountNumber(), a.getType(), a.getStatus());
     }
 
-    static AccountDto toDto(Account a, BigDecimal balance) {
+    private BigDecimal holdsOf(UUID accountId) {
+        return ledger.holdsTotals(List.of(accountId)).getOrDefault(accountId, BigDecimal.ZERO);
+    }
+
+    static AccountDto toDto(Account a, BigDecimal balance, BigDecimal holdsTotal) {
         return new AccountDto(a.getId(), a.getAccountNumber(), a.getType(), a.getStatus(), balance,
-                a.getCurrency(), a.getCreatedAt());
+                balance.subtract(holdsTotal), holdsTotal, a.getCurrency(), a.getCreatedAt());
     }
 }

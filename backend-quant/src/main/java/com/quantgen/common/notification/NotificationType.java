@@ -9,5 +9,7 @@ public enum NotificationType {
     EMI_PAID,
     EMI_OVERDUE,
     ACCOUNT_FROZEN,
-    ACCOUNT_UNFROZEN
+    ACCOUNT_UNFROZEN,
+    NEW_DEVICE_LOGIN,
+    TRANSFER_UNDER_REVIEW
 }
