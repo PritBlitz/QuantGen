@@ -26,6 +26,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/users/me/sessions', milestone: 'V2-M1' },
   { prefix: '/api/v1/users/me/kyc', milestone: 'V2-M1' },
   { prefix: '/api/v1/auth/passkeys', milestone: 'V2-M1' },
+  // Backend cb0ee45 (announced 2026-10-18): business + personal analytics, §12.13.
+  { prefix: '/api/v1/admin/analytics', milestone: 'V2-MA' },
+  { prefix: '/api/v1/analytics/', milestone: 'V2-MA' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -38,7 +41,7 @@ export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/accounts\/[^/]+\/(topups|round-up|cards)/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/orders\/[^/]+\/cancel/,
-  /^\/api\/v1\/admin\/(analytics|fraud-cases|ai)(\/|$)/,
+  /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
   /^\/api\/v1\/admin\/loans\/[^/]+\/underwriting/,
   /^\/api\/v1\/admin\/ledger\/(verify-chain|solvency)/,
 ]
