@@ -23,3 +23,23 @@ export function writeTheme(theme: Theme): void {
     /* storage blocked: the choice lasts for this page view only */
   }
 }
+
+const ONBOARDING_KEY = 'qg.onboarding.hidden'
+
+/** Whether the dashboard's "get set up" checklist was dismissed in this browser. */
+export function readOnboardingHidden(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function writeOnboardingHidden(hidden: boolean): void {
+  try {
+    if (hidden) localStorage.setItem(ONBOARDING_KEY, '1')
+    else localStorage.removeItem(ONBOARDING_KEY)
+  } catch {
+    /* storage blocked: hidden for this page view only */
+  }
+}

@@ -5,6 +5,7 @@ import { ActivityCard } from './components/ActivityCard'
 import { AccountsCard } from './components/AccountsCard'
 import { LoanCard } from './components/LoanCard'
 import { NetWorthCard } from './components/NetWorthCard'
+import { OnboardingCard } from './components/OnboardingCard'
 import { PortfolioCard } from './components/PortfolioCard'
 import { QuickActions } from './components/QuickActions'
 import { AutopilotCard, CopilotStrip, ProofCard, SpendingCard, UpcomingCard } from './components/V2Cards'
@@ -44,6 +45,7 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 lg:grid-cols-12">
         <NetWorthCard className="md:col-span-6 lg:col-span-8" />
         <QuickActions className="md:col-span-6 lg:col-span-4" />
+        <OnboardingCard className="md:col-span-6 lg:col-span-12" />
         <CopilotStrip className="md:col-span-6 lg:col-span-12" />
         <AccountsCard className="md:col-span-3 lg:col-span-4" />
         <SpendingCard className="md:col-span-3 lg:col-span-4" />

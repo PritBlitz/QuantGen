@@ -129,3 +129,34 @@ describe('dashboard', () => {
     expect(await screen.findByRole('link', { name: /emi calculator/i })).toBeInTheDocument()
   })
 })
+
+describe('setup checklist (F-UX-3)', () => {
+  it('ticks steps off from server state, links to the missing one, and can be hidden', async () => {
+    const { db } = await import('@/mocks/handlers')
+    const { readOnboardingHidden, writeOnboardingHidden } = await import('@/lib/prefs')
+    writeOnboardingHidden(false)
+    db.v2.passkeys = db.v2.passkeys.filter((p) => p.userId !== DEMO_USER_ID)
+    signInAsDemo()
+    // What /auth/login returns for this user now (v2 fields included).
+    useAuthStore.setState((st) => ({ user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: false } }))
+    const user = userEvent.setup()
+    renderApp('/dashboard')
+    const region = await screen.findByRole('region', { name: 'Get set up' })
+    expect(await within(region).findByRole('img', { name: '3 of 4 done' })).toBeInTheDocument()
+    expect(within(region).getByRole('link', { name: 'Add a passkey' })).toHaveAttribute('href', '/settings/security')
+    expect(within(region).getByRole('link', { name: 'Claim your handle (done)' })).toBeInTheDocument()
+
+    await user.click(within(region).getByRole('button', { name: 'Hide the setup checklist' }))
+    expect(screen.queryByRole('region', { name: 'Get set up' })).not.toBeInTheDocument()
+    expect(readOnboardingHidden()).toBe(true)
+    writeOnboardingHidden(false)
+  })
+
+  it('stays out of the way once everything is done', async () => {
+    signInAsDemo()
+    useAuthStore.setState((st) => ({ user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: true } }))
+    renderApp('/dashboard')
+    await screen.findByRole('region', { name: 'Accounts' })
+    expect(screen.queryByRole('region', { name: 'Get set up' })).not.toBeInTheDocument()
+  })
+})
