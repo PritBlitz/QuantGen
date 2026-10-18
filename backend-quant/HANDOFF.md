@@ -32,6 +32,9 @@ data: <json>`, errors before the stream are normal §7.1 JSON
    `X-Step-Up-Token` for INTENT_APPROVE), 200 with status FAILED + failureCode for business refusals.
    Then M5 Autopilot, M6 risk, M7 trading 2.0, M8 Proof of Balance (hashing pinned in PRD §12.10; cross-check against
    `frontend-quant/src/lib/merkle.ts`), M9 cards, M10 MCP, M11 platform.
+   For M8 the frontend asked (2026-10-18) that `GET /public/proofs/roots` be `permitAll` (the landing page may call it
+   signed out); its UI calls `GET /proofs/accounts/{id}?date=YYYY-MM-DD` for any date in the roots list and treats
+   `404` as "not in that snapshot" (account opened later).
 
 ## Known gaps and cautions
 - Cooling and first-transfer step-up cover **saved payees only** (spec F-SEC-5); an unsaved recipient (including
