@@ -1,61 +1,78 @@
 # Frontend → Backend handoff
 
-## 2026-10-18: v2 frontend — progress and what's left (session paused for context)
+## 2026-10-18 (end of day): v2 frontend state, for a cold restart
 
-**Read first in a new session:** this section, PRD §11–§13 (esp. §12.14 DTO reference, §12.13
-analytics), DECISIONS.md D-040/D-041, `src/api/types.v2.ts`, `src/mocks/live.ts`.
+**Read first:** this section, PRD §11–§13 (§12.14 DTO reference; the "Backend notes" blocks in §12.3,
+§12.4, §7.9, §12.13 record every backend deviation), `src/api/types.v2.ts`, `src/mocks/live.ts`.
+The backend's own list is in `backend-quant/HANDOFF.md`. Find the backend session with `ListAgents`
+(its name changes; it was `backend-quant-04` today) and message it via `SendMessage`.
 
-### Done (committed)
-- **Design "Signal"**: tokens (`styles/tokens.css`: aurora, glass, violet/cyan, chart palette),
-  utilities in `globals.css` (glass, eyebrow, edge-light, text-gradient, dot-grid), floating rail +
-  glass top bar (`app/layouts/AppShell.tsx`), mobile dock + quick-action sheet (`MobileDock.tsx`),
-  grouped nav with feature-flag filtering (`app/nav.ts`), restyled Card/Button/Dialog(+Sheet)/Badge/
-  PageHeader, `Tabs`, `Panel`, `KpiTile`, chart kit (`components/charts/*`).
-- **API layer**: `types.v2.ts`, `endpoints.v2.ts` (every §12 route), `flags.ts`, `availability.ts`,
-  step-up bridge (`api/stepUp.ts` + interceptor in `client.ts`; non-public `/auth/*` now carry the bearer).
-- **Mocks for every §12 group** (`src/mocks/v2/*`, combined in `allHandlers.ts`), incl. SSE copilot,
-  autopilot renderer/simulator, real Merkle sum tree for Proof of Balance (`lib/merkle.ts` + tests).
-- **Screens**: Step-up dialog (PIN/passkey), passkey sign-in on login, Settings (`/settings/*`:
-  profile, passkeys, PIN, sessions, limits, KYC, MCP tokens), Admin analytics (`/admin/analytics`),
-  customer Insights (`/insights`, 4 tabs), redesigned Home dashboard, Payments 2.0 (`/pay`,
-  `/pay/requests|scheduled|bills|splits|splits/:id|qr`, handle + confirmation of payee in `/transfer`,
-  Razorpay test top-ups in Add money), Savings (`/savings`: goals, round-ups, FDs).
-- Realtime notifications over STOMP `/user/queue/notifications`; nginx CSP allows Razorpay.
-- Backend integration so far (backend session `backend-quant-9d`): V2-M1 fully live — flags,
-  availableBalance/holds, step-up+PIN, limits, sessions, KYC, passkeys. Marked in `live.ts`;
-  `NOT_YET_LIVE` keeps unbuilt v2 routes mocked in hybrid mode. Backend next: V2-MA or V2-M2 (owner to pick).
+### Backend state (from the backend session)
+V2-M0, V2-M1, V2-MA (analytics) and V2-M2 (Payments 2.0 incl. Razorpay top-ups) are **done and live
+on :8080**; dev DB at migration V12. Next backend milestone: **V2-M3 savings/insights**, in this order:
+(1) GOAL accounts + round-ups, (2) fixed deposits + interest, (3) categories/overrides/budgets
+(`/insights/*`, real `/analytics/goals`, `SPEND_CATEGORY`), (4) net worth + forecast. The backend
+pings per group. All five feature flags are **false** on :8080, so in hybrid mode Copilot, Autopilot,
+Cards and Razorpay are hidden until an admin turns them on (`/admin/flags`).
 
-### Update 2026-10-18 (later, session quantgen-27; backend is now `backend-quant-04`)
-- **Analytics live** (backend cb0ee45): `/admin/analytics/*` and `/analytics/*` are in
-  `LIVE_PREFIXES` (1598a00). Deviations are in PRD §12.13 "Backend notes (V2-MA)".
-- **Copilot UI done** (70098b1): `features/copilot/` — `stream.ts` (fetch SSE + parser),
-  `hooks.ts` (`useCopilotChat`), `IntentCard`, `TraceDialog`, `ChatView`, sheet + `/copilot`
-  page, "Ask Copilot" in ⌘K. 7 tests. Still mocked; flip `/api/v1/copilot` + `/api/v1/intents`
-  when V2-M4 lands. The client refetches the conversation after the stream closes and expects
-  both the USER and ASSISTANT messages to be stored by then.
-- Not done yet: visual check at 360/768/1440 in a real browser.
+### Live vs mocked (`src/mocks/live.ts`)
+- **Live in hybrid mode:** all v1 (§7); V2-M1 (flags, holds/availableBalance, step-up/PIN, limits,
+  sessions, KYC, passkeys); analytics `/admin/analytics/*`, `/analytics/*`; Payments 2.0
+  `/users/me/handle`, `/payees/resolve`, transfers by handle, `/payment-requests`,
+  `/scheduled-transfers`, `/billers`, `/bill-payments`, `/split-groups`, `/topups` +
+  `/accounts/{id}/topups` (no Razorpay keys on :8080 → 503 GATEWAY_UNAVAILABLE; flag off anyway).
+- **Still mocked** (`NOT_YET_LIVE` or no live prefix): `/users/me/tokens`, `/accounts/{id}/round-up`,
+  `/accounts/{id}/cards`, `/loans/{id}/documents`, `/orders/{id}/cancel`, `/admin/fraud-cases`,
+  `/admin/ai`, `/admin/loans/{id}/underwriting`, `/admin/ledger/verify-chain|solvency`, and everything
+  outside the live prefixes: `/fixed-deposits`, `/insights/*`, `/budgets`, `/transactions/{id}/category`,
+  `/copilot/*`, `/intents`, `/autopilot/*`, `/watchlists`, `/price-alerts`, `/backtests`, `/reports/*`,
+  `/public/proofs/*`, `/proofs/*`, `/cards`, `/sandbox/*`.
+- Known hybrid gap (agreed with backend): `POST /accounts` with `type: GOAL` goes to the real API and
+  gets `400` until V2-M3.
 
-### Left to do (in this order)
-1. ~~Copilot UI~~ done, see above.
-2. **Autopilot UI** (`/autopilot`, `/autopilot/new`, `/autopilot/:id`): templates, NL compile →
-   server rendering → 90-day replay → activate (step-up), rule form builder, runs history. Hooks exist.
-3. **Proof of Balance page** (`/proof`): verify in browser with `lib/merkle.ts`, step-by-step path view,
-   published roots; admin chain verify + solvency on `/admin/reconcile`.
-4. **Admin v2**: overview redesign (`/admin`), fraud queue + case detail (`/admin/fraud`), AI usage
-   (`/admin/ai`), feature flags (`/admin/flags`), underwriting memo in loan queue; loan document upload
-   on customer loan detail. Endpoints/mocks exist; routes not added yet.
-5. **Trading 2.0**: limit/stop in `OrderTicket`, cancel open orders in `OrdersPage`, watchlists +
-   price alerts on Markets, Strategy lab (`/lab`, backtests), tax P&L report. Mocks exist.
-6. **Cards** (`/cards`): virtual card UI, reveal (step-up, auto-hide 30 s), controls, merchant sandbox page.
-7. **Landing page redesign** (still v1 look) + **DESIGN.md v2** write-up (tokens, shell, motion).
-8. **PWA** manifest/offline shell (F-UX-1); CommandPalette v2.
-9. **Tests**: add component tests for step-up flow, handle payment, requests, savings, analytics;
-   update `e2e/live.spec.ts` for >₹50k step-up (PIN 246810); run full suite + `npm run build`.
-10. **Integration**: when the backend announces each group, remove its pattern from `NOT_YET_LIVE`
-    and add the prefix to `LIVE_PREFIXES`; check shapes against `/v3/api-docs`.
+### Built (all committed; 110 tests green, lint + build clean)
+- Foundation: "Signal" design system, shell, nav with flag filtering, API layer for every §12 route,
+  step-up bridge, mocks for every §12 group, STOMP notifications.
+- Settings/security, Insights, Home, Payments 2.0 (incl. top-ups), Savings, admin analytics.
+- **Copilot** (68706f2): fetch-SSE client + parser, `useCopilotChat`, intent approval cards (one
+  Idempotency-Key per intent, step-up), trace viewer, sheet + `/copilot`, Ask Copilot in ⌘K. 7 tests.
+- **Payments 2.0 go-live** (161f316, ff3c449): live prefixes + the backend's 9 deviations.
+- **Autopilot** (5159610): `/autopilot`, `/autopilot/new`, `/autopilot/:id`, `/autopilot/:id/edit`;
+  templates, NL compile, structured DSL form, server-rendered sentence via `/validate`, 90-day replay
+  required before switch-on, step-up, runs history. 6 tests.
+- **Proof of Balance** (8184478): `/proof` in-browser Merkle verification with step-by-step view,
+  root history; chain verify + solvency on `/admin/reconcile`. Mock snapshots frozen per date. 4 tests.
+- **Admin v2** (304d409): `/admin/fraud` + `/admin/fraud/:id`, `/admin/ai`, `/admin/flags`,
+  underwriting memo in the loan queue, loan document upload on customer loan detail, overview
+  "needs attention" chips. **No dedicated tests yet** (see next steps).
 
-Routes referenced in nav but not built yet (show 404 in-shell): `/copilot`, `/autopilot`, `/cards`,
-`/lab`, `/proof`, `/admin/fraud`, `/admin/ai`, `/admin/flags`.
+### Next, in this order
+1. **Tests for Admin v2**: fraud release/reject (reason required, 409 refresh), flags toggle refreshes
+   `/feature-flags`, document upload validation, underwriting memo render.
+2. **Trading 2.0**: limit/stop in `OrderTicket`, cancel open orders in `OrdersPage`, watchlists +
+   price alerts on Markets, Strategy lab (`/lab`, backtests), tax P&L report. Endpoints/mocks exist.
+3. **Cards** (`/cards`): virtual card, reveal (step-up `CARD_REVEAL`, auto-hide 30 s, never cached),
+   controls, merchant sandbox page.
+4. **Landing redesign** (still v1 look) + **DESIGN.md v2** write-up.
+5. **PWA** manifest/offline shell (F-UX-1).
+6. **Tests/e2e**: step-up, handle payment, requests, savings, analytics; update `e2e/live.spec.ts` for
+   the >₹50k step-up (PIN 246810); visual check at 360/768/1440, both themes, reduced motion
+   (not done for any v2 page yet).
+7. **Integration** as the backend announces V2-M3+ groups: add the prefix to `LIVE_PREFIXES`, drop
+   the `NOT_YET_LIVE` pattern, spot-check shapes against `/v3/api-docs` with a demo login.
+
+### Open requests to the backend
+- **V2-M4 Copilot:** persist both the USER and ASSISTANT messages before closing the SSE stream (the
+  client refetches the conversation on close); pre-stream errors as §7.1 JSON; same Idempotency-Key
+  on every approve retry (sent 2026-10-18).
+- **V2-M8 Proof:** `GET /public/proofs/roots` must be `permitAll`; `/proofs/accounts/{id}?date=` for
+  any published date, `404` = account not in that snapshot. Recorded in backend HANDOFF (e39daab).
+
+### Gotchas
+- Shared git index: `git commit -- <paths>` **skips untracked files**; `git add` new files first.
+- Vitest filters `console.log`; debug by throwing an `Error`.
+- Radix Select in tests needs the jsdom stubs now in `src/test/setup.ts`.
+- MSW handlers that `fetch` their own route must be `{ once: true }` or they recurse.
 
 ## 2026-10-16 (end of day): all v1 milestones integrated
 
