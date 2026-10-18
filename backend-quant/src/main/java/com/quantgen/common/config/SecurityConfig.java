@@ -65,6 +65,9 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_DOCS).permitAll()
                         // Step-up lives under /auth but is for signed-in users only. Listed before the public rule.
                         .requestMatchers("/api/v1/auth/step-up/**").authenticated()
+                        // Passkey sign-in is public; registering, listing and removing passkeys is not.
+                        .requestMatchers("/api/v1/auth/passkeys/login", "/api/v1/auth/passkeys/login/**").permitAll()
+                        .requestMatchers("/api/v1/auth/passkeys", "/api/v1/auth/passkeys/**").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // The STOMP CONNECT frame carries the JWT and is validated by a ChannelInterceptor.
                         .requestMatchers("/ws", "/ws/**").permitAll()

@@ -909,6 +909,17 @@ Backend notes (V2-M1, implemented 2026-10-18):
   Users that existed before V2-M1 are `VERIFIED` (no PAN on file).
 - **Errors/headers:** `STEP_UP_REQUIRED` body adds `stepUp: {methods, action}`; CORS allows `X-Step-Up-Token`.
   `UserDto` now has `handle` (null until payments 2.0), `kycStatus`, `hasPasskey`, `hasPin`.
+- **Passkeys (WebAuthn, Yubico java-webauthn-server):** `register/options` and `login/options` return the WebAuthn
+  JSON *directly* (`challenge`, `rp`, `user`, … as base64url strings), i.e. what `PublicKeyCredential.parse*OptionsFromJSON`
+  takes; credentials are posted as the standard `credential.toJSON()` object. Up to 5 per user (`422 LIMIT_EXCEEDED`).
+  Challenges are server-side, single-use and expire after 5 min; a challenge is bound to its purpose (register /
+  sign-in / step-up) and a step-up challenge to its user and action. `login/options` ignores `email` and never names an
+  account, so it reveals nothing about who has a passkey (sign-in uses discoverable credentials; user verification is
+  required). Any failed sign-in is the same `401`; a failed registration or step-up is `400` field `credential`.
+  A regressing signature counter is rejected as a cloned authenticator. `DELETE /auth/passkeys/{id}` needs step-up
+  `SECURITY_SETTINGS`. `step-up/options` returns `passkeyOptions` only when the user has a passkey, and
+  `methods` lists `PASSKEY` before `PIN`. Config: `QG_WEBAUTHN_RP_ID` (default `localhost`; must be the domain the SPA
+  is served from), allowed origins = `QG_CORS_ORIGINS`.
 - **Demo:** the `demo` user's PIN is `246810` (env `QG_DEMO_PIN`), reapplied on every start; demo KYC is pre-filled.
 
 `PasskeyDto = {id, name, createdAt, lastUsedAt}` · `SessionDto = {id, device, browser, ipCity, current, createdAt, lastUsedAt}` ·

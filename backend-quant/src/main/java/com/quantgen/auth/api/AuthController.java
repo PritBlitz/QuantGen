@@ -34,10 +34,12 @@ public class AuthController {
 
     private final AuthService authService;
     private final RefreshCookies cookies;
+    private final SessionResponses responses;
 
-    public AuthController(AuthService authService, RefreshCookies cookies) {
+    public AuthController(AuthService authService, RefreshCookies cookies, SessionResponses responses) {
         this.authService = authService;
         this.cookies = cookies;
+        this.responses = responses;
     }
 
     @PostMapping("/register")
@@ -73,10 +75,6 @@ public class AuthController {
     }
 
     private ResponseEntity<AuthResponse> sessionResponse(AuthService.Session session) {
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookies.issue(session.refreshToken(), session.refreshTtl()))
-                .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .body(new AuthResponse(session.accessToken().token(), session.accessToken().expiresInSeconds(),
-                        session.user()));
+        return responses.of(session);
     }
 }

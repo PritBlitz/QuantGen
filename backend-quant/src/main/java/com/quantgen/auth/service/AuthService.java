@@ -170,6 +170,40 @@ public class AuthService {
                     ? new LoginOutcome.Locked(secondsUntil(now, user.getLockedUntil()))
                     : new LoginOutcome.Invalid();
         }
+        return completeLogin(user, email, client);
+    }
+
+    /** Passkey sign-in: the authenticator already proved possession and user verification, so no password. */
+    public Session loginWithPasskey(UUID userId, ClientInfo client) {
+        LoginOutcome outcome = tx.execute(status -> {
+            Instant now = clock.instant();
+            Optional<User> found = users.findById(userId)
+                    .flatMap(u -> users.findByEmailForUpdate(u.getEmail()));
+            if (found.isEmpty()) {
+                return new LoginOutcome.Invalid();
+            }
+            User user = found.get();
+            if (user.isLocked(now)) {
+                audit.record(user.getId(), user.getEmail(), "LOGIN_BLOCKED", "USER", user.getId().toString(),
+                        "account locked");
+                return new LoginOutcome.Locked(secondsUntil(now, user.getLockedUntil()));
+            }
+            audit.record(user.getId(), user.getEmail(), "PASSKEY_LOGIN", "USER", user.getId().toString(), null);
+            return completeLogin(user, user.getEmail(), client);
+        });
+        metrics.login(outcome instanceof LoginOutcome.Success ? "success" : "failed");
+        if (outcome instanceof LoginOutcome.Success s) {
+            return s.session();
+        }
+        if (outcome instanceof LoginOutcome.Locked l) {
+            throw ApiException.rateLimited("Too many failed logins. Try again in " + minutes(l.retryAfterSeconds())
+                    + ".", l.retryAfterSeconds());
+        }
+        throw new ApiException(ErrorCode.UNAUTHORIZED, "Passkey sign-in failed");
+    }
+
+    private LoginOutcome completeLogin(User user, String email, ClientInfo client) {
+        Instant now = clock.instant();
         user.recordSuccessfulLogin();
         // F-SEC-4: tell the owner when a device they have not used before signs in. Checked before the new
         // session's token is stored, so the new device is not already in the history.

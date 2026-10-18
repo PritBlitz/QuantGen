@@ -56,10 +56,18 @@ public class StepUpService {
     @Transactional(readOnly = true)
     public List<String> methods(UUID userId) {
         List<String> methods = new ArrayList<>();
+        if (hasPasskey(userId)) {
+            methods.add("PASSKEY");
+        }
         if (pins.hasPin(userId)) {
             methods.add("PIN");
         }
         return methods;
+    }
+
+    private boolean hasPasskey(UUID userId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM passkeys WHERE user_id = ?)",
+                Boolean.class, userId));
     }
 
     /** Throws 401 STEP_UP_REQUIRED unless {@code rawToken} is a live token for exactly this user and action. */
@@ -86,7 +94,9 @@ public class StepUpService {
         return issue(userId, action, "PIN");
     }
 
-    IssuedToken issue(UUID userId, StepUpAction action, String method) {
+    /** Issues a token after the caller has verified the user by {@code method} ("PASSKEY" or "PIN"). */
+    @Transactional
+    public IssuedToken issue(UUID userId, StepUpAction action, String method) {
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

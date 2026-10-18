@@ -24,9 +24,10 @@ public class SecuritySummaryService {
     public Summary of(UUID userId) {
         return jdbc.query("""
                 SELECT COALESCE((SELECT status FROM kyc_profiles WHERE user_id = ?), 'NONE') AS kyc,
-                       EXISTS (SELECT 1 FROM user_pins WHERE user_id = ?) AS has_pin
+                       EXISTS (SELECT 1 FROM user_pins WHERE user_id = ?) AS has_pin,
+                       EXISTS (SELECT 1 FROM passkeys WHERE user_id = ?) AS has_passkey
                 """, rs -> rs.next()
-                ? new Summary(rs.getString("kyc"), false, rs.getBoolean("has_pin"))
-                : Summary.NONE, userId, userId);
+                ? new Summary(rs.getString("kyc"), rs.getBoolean("has_passkey"), rs.getBoolean("has_pin"))
+                : Summary.NONE, userId, userId, userId);
     }
 }

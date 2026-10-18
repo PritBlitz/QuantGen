@@ -61,6 +61,10 @@ qg:
     # Used only by the dev/demo seeder (DemoDataSeeder). Change both on any public deployment.
     admin-password: ${QG_DEMO_ADMIN_PASSWORD:Admin@1234}
     user-password: ${QG_DEMO_USER_PASSWORD:Demo@1234}
+  webauthn:
+    # Must be the domain the SPA is served from (localhost in dev). Allowed origins are qg.cors.allowed-origins.
+    rp-id: ${QG_WEBAUTHN_RP_ID:localhost}
+    rp-name: QuantGen
   rate-limit:
     # Per-IP limits on /api/v1/auth/** (RateLimitFilter). Only switch off for automated e2e runs.
     enabled: ${QG_RATE_LIMIT_ENABLED:true}
