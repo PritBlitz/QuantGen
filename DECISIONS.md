@@ -45,7 +45,7 @@ you make a new one.
 | D-013 | Demo seed as a separate `demo` profile | Accepted |
 | D-014 | PDF statements left as a stretch goal | Accepted |
 | D-015 | v1 declared feature-complete; close-out items move to V2-M0 | Proposed |
-| D-016 | Razorpay (test mode) for gateway top-ups, not Stripe | Proposed |
+| D-016 | Razorpay (test mode) for gateway top-ups, not Stripe | Accepted (built in V2-M2) |
 | D-017 | Agents never move money: they propose *intents* | Proposed |
 | D-018 | Separate `agent-quant` service, in Java | Proposed |
 | D-019 | Self-hosted agent loop on the Claude API, not Managed Agents | Proposed |
@@ -199,7 +199,7 @@ you make a new one.
 - **Revisit when:** V2-M0 is done; then mark v1 shipped.
 
 ### D-016 · Razorpay (test mode) for gateway top-ups, not Stripe
-- **Date / status:** 2026-10-16 · Proposed (full spec: PRD §7.9)
+- **Date / status:** 2026-10-16 · Accepted, built in V2-M2 on 2026-10-18 (full spec: PRD §7.9)
 - **Context:** "proper payments" needs a real checkout, not only the demo deposit.
 - **Options:** Stripe; Razorpay; Cashfree; keep only the simulator.
 - **Decision:** Razorpay in **test mode**: order → Checkout → server-side signature check

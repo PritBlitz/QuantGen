@@ -69,6 +69,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/passkeys/login", "/api/v1/auth/passkeys/login/**").permitAll()
                         .requestMatchers("/api/v1/auth/passkeys", "/api/v1/auth/passkeys/**").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Razorpay calls this without a JWT; TopupService verifies its HMAC signature instead.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/razorpay").permitAll()
                         // The STOMP CONNECT frame carries the JWT and is validated by a ChannelInterceptor.
                         .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

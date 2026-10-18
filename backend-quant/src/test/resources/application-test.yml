@@ -14,3 +14,8 @@ qg:
   rate-limit:
     # Integration tests register and log in many users from 127.0.0.1; RateLimitFilterTest covers the limiter.
     enabled: false
+  razorpay:
+    # Test-only values; Razorpay's REST API is replaced by FakeRazorpayApi.
+    key-id: rzp_test_fake000000
+    key-secret: test-key-secret
+    webhook-secret: test-webhook-secret

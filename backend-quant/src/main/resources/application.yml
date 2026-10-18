@@ -65,6 +65,12 @@ qg:
     # Must be the domain the SPA is served from (localhost in dev). Allowed origins are qg.cors.allowed-origins.
     rp-id: ${QG_WEBAUTHN_RP_ID:localhost}
     rp-name: QuantGen
+  razorpay:
+    # Test-mode keys only (PRD 7.9). Empty = top-ups answer 503 GATEWAY_UNAVAILABLE. Secrets never leave the server.
+    key-id: ${QG_RAZORPAY_KEY_ID:}
+    key-secret: ${QG_RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${QG_RAZORPAY_WEBHOOK_SECRET:}
+    base-url: https://api.razorpay.com/v1
   rate-limit:
     # Per-IP limits on /api/v1/auth/** (RateLimitFilter). Only switch off for automated e2e runs.
     enabled: ${QG_RATE_LIMIT_ENABLED:true}

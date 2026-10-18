@@ -21,6 +21,8 @@ public enum ErrorCode {
     COOLING_PERIOD(HttpStatus.UNPROCESSABLE_CONTENT, "This payee was added recently; the limit for new payees applies"),
     KYC_REQUIRED(HttpStatus.FORBIDDEN, "KYC details are required for this action"),
     FEATURE_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "This feature is currently switched off"),
+    PAYMENT_VERIFICATION_FAILED(HttpStatus.BAD_REQUEST, "The payment could not be verified"),
+    GATEWAY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The payment gateway is unavailable"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
 
     private final HttpStatus status;

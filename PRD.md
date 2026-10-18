@@ -311,11 +311,10 @@ Approve and reject return `409 INVALID_STATE` unless the loan is `PENDING`.
 recent. Another user's notification returns `404`. `read-all` was added in v1.0 for the
 "mark all as read" action.
 
-### 7.9 Gateway top-ups (Razorpay test mode) — PROPOSED, scheduled for V2-M2, not implemented
-> **Status:** proposal written 2026-10-16, folded into the v2 plan on 2026-10-18 (§11.7,
-> D-016). Nothing below exists yet, and no session builds against it until the owner
-> approves V2-M2 and this banner is removed. Test mode only: no real money
-> moves, so the §2 non-goal ("real payment rails") still holds. The demo deposit (§7.3) stays.
+### 7.9 Gateway top-ups (Razorpay test mode) — implemented in V2-M2 (2026-10-18)
+> **Status:** proposal written 2026-10-16, folded into the v2 plan (§11.7, D-016), built with V2-M2 on
+> 2026-10-18 (see "Backend notes" at the end of this section). Test mode only: no real money moves, so the §2
+> non-goal ("real payment rails") still holds. The demo deposit (§7.3) stays.
 
 **Why Razorpay, not Stripe:** Stripe is invite-only for new Indian accounts (since May 2024).
 Razorpay gives test keys (`rzp_test_…`) before KYC, works in INR and supports UPI, cards and
@@ -371,6 +370,21 @@ Rules:
   poll `GET /topups/{id}` until `CREDITED` or `FAILED`, with no optimistic balance.
 - Local webhooks need a public tunnel (Razorpay rejects `localhost`, `ngrok.io` and
   `loca.lt`; Cloudflare Tunnel or zrok work). Without one, steps 1–3 still work locally.
+
+Backend notes (implemented 2026-10-18, V2-M2 part 5):
+- Credits appear in history as `type: "TOPUP"` (per §12.2), counterparty `Razorpay`, posted
+  `GATEWAY_CLEARING` → customer. `transactionId` is that line's `TransactionDto.id`.
+- `POST /accounts/{id}/topups`: keys unset → `503 GATEWAY_UNAVAILABLE`; feature flag `razorpay` off →
+  `503 FEATURE_DISABLED`; Razorpay unreachable → `503 GATEWAY_UNAVAILABLE` (the same key can be retried).
+  The flag only gates *new* top-ups: verify and the webhook keep working for top-ups already started.
+- `verify`: a payment that is not `captured`, or is for another order, amount or currency, is also
+  `400 PAYMENT_VERIFICATION_FAILED` (audited as `TOPUP_VERIFICATION_FAILED` without the signature). Razorpay
+  unreachable → `503`, so the client retries (or the webhook credits).
+- Webhook: the event id comes from `X-Razorpay-Event-Id` (a hash of the body if the header is missing);
+  `payment.captured` and `order.paid` credit; a captured amount that doesn't match the order is logged and not
+  credited. Webhook secret unset → `503`.
+- A capture that arrives after the top-up was marked `FAILED` or `EXPIRED` is still credited (the customer's money
+  did arrive), and so is one for an account frozen since (frozen accounts can receive).
 
 ## 8. Data model (core tables)
 `users`, `refresh_tokens`, `accounts`, `ledger_accounts`, `journal_entries`,
