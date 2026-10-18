@@ -46,6 +46,7 @@ export function TrendChart({
   className,
   ariaLabel,
   hideYAxis,
+  yDomain = 'zero',
 }: {
   rows: TrendRow[]
   series: TrendSeries[]
@@ -57,6 +58,8 @@ export function TrendChart({
   className?: string
   ariaLabel: string
   hideYAxis?: boolean
+  /** `auto` fits the data (balances, portfolio value); `zero` anchors at 0 (volumes, counts). */
+  yDomain?: 'zero' | 'auto'
 }) {
   const gid = useId().replace(/:/g, '')
   const data = useMemo(
@@ -94,6 +97,7 @@ export function TrendChart({
           {!hideYAxis && (
             <YAxis
               width={64}
+              domain={yDomain === 'auto' ? ['auto', 'auto'] : [0, 'auto']}
               tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)' }}
               axisLine={false}
               tickLine={false}

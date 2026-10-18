@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowRight, Eye, EyeOff, Fingerprint, Loader2, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router'
@@ -8,7 +8,8 @@ import { errorMessage, toApiError } from '@/api/errors'
 import { FormField } from '@/components/FormField'
 import { homeFor } from '@/app/nav'
 import { Button } from '@/components/ui/button'
-import { useLogin } from '../session'
+import { usePasskeyLogin, useLogin } from '../session'
+import { webauthnSupported } from '@/lib/webauthn'
 import { loginSchema, type LoginValues } from '../schemas'
 import { applyFieldErrors } from '../serverErrors'
 
@@ -25,6 +26,7 @@ export function LoginPage() {
   const location = useLocation()
   const state = (location.state ?? {}) as LocationState
   const login = useLogin()
+  const passkey = usePasskeyLogin()
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(
     state.reason === 'idle' ? 'You were signed out after 10 minutes of inactivity.' : null,
@@ -38,18 +40,36 @@ export function LoginPage() {
     formState: { errors },
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema), mode: 'onTouched' })
 
+  function goHome(user: { role: 'CUSTOMER' | 'ADMIN'; fullName: string }) {
+    // Only same-app paths, never an absolute URL (open-redirect guard).
+    const safe = state.from?.startsWith('/') && !state.from.startsWith('//') ? state.from : null
+    // Only return to a page meant for this role (an admin never lands on the customer app).
+    const from = safe && safe.startsWith('/admin') === (user.role === 'ADMIN') ? safe : null
+    void navigate(from ?? homeFor(user.role), { replace: true })
+    toast.success(`Welcome back, ${user.fullName.split(' ')[0]}`)
+  }
+
+  function signInWithPasskey() {
+    setFormError(null)
+    passkey.mutate(undefined, {
+      onSuccess: (res) => {
+        if (res) goHome(res.user)
+      },
+      onError: (err) => {
+        const e = toApiError(err)
+        setFormError(
+          e.code === 'UNAUTHORIZED'
+            ? 'Passkey sign-in failed. Try again, or use your email and password.'
+            : errorMessage(e),
+        )
+      },
+    })
+  }
+
   const onSubmit = handleSubmit((values) => {
     setFormError(null)
     login.mutate(values, {
-      onSuccess: (res) => {
-        // Only same-app paths, never an absolute URL (open-redirect guard).
-        const safe = state.from?.startsWith('/') && !state.from.startsWith('//') ? state.from : null
-        // Only return to a page meant for this role (an admin never lands on the customer app).
-        const isAdmin = res.user.role === 'ADMIN'
-        const from = safe && safe.startsWith('/admin') === isAdmin ? safe : null
-        void navigate(from ?? homeFor(res.user.role), { replace: true })
-        toast.success(`Welcome back, ${res.user.fullName.split(' ')[0]}`)
-      },
+      onSuccess: (res) => goHome(res.user),
       onError: (err) => {
         const e = toApiError(err)
         if (e.code === 'UNAUTHORIZED') {
@@ -64,7 +84,7 @@ export function LoginPage() {
     })
   })
 
-  const pending = login.isPending
+  const pending = login.isPending || passkey.isPending
 
   return (
     <div className="w-full max-w-sm">
@@ -122,6 +142,24 @@ export function LoginPage() {
             </>
           )}
         </Button>
+
+        {webauthnSupported() && (
+          <>
+            <div className="flex items-center gap-3 text-xs text-muted" aria-hidden="true">
+              <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full"
+              disabled={pending}
+              onClick={signInWithPasskey}
+            >
+              <Fingerprint aria-hidden="true" />
+              {passkey.isPending ? 'Waiting for your passkey…' : 'Continue with a passkey'}
+            </Button>
+          </>
+        )}
 
         {DEMO && (
           <Button

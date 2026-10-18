@@ -109,17 +109,19 @@ export function Funnel({
             <p className="truncate text-sm">{s.label}</p>
             {i > 0 && <p className="text-xs text-muted">{formatPercent(s.stepConversionPct)} of previous</p>}
           </div>
-          <div className="relative h-10 overflow-hidden rounded-[10px] bg-surface-2">
-            <motion.div
-              className="absolute inset-y-0 left-0 rounded-[10px]"
-              style={{ background: `linear-gradient(90deg, var(--chart-${(i % 3) + 1}), color-mix(in oklab, var(--chart-${(i % 3) + 1}) 40%, transparent))` }}
-              initial={reduce ? false : { width: 0 }}
-              animate={{ width: `${Math.max(plotValue(s.conversionPct), 2)}%` }}
-              transition={{ duration: 0.8, ease: EASE_OUT_EXPO, delay: i * 0.06 }}
-            />
-            <div className="relative flex h-full items-center justify-between px-3 text-xs">
-              <span className="num font-semibold text-text mix-blend-normal">{formatCount(s.users)}</span>
-              <span className="num text-muted">{formatPercent(s.conversionPct)}</span>
+          <div className="flex items-center gap-3">
+            <div className="relative h-9 flex-1 overflow-hidden rounded-[10px] bg-surface-2">
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded-[10px]"
+                style={{ background: `linear-gradient(90deg, var(--chart-${(i % 3) + 1}), color-mix(in oklab, var(--chart-${(i % 3) + 1}) 35%, transparent))` }}
+                initial={reduce ? false : { width: 0 }}
+                animate={{ width: `${Math.max(plotValue(s.conversionPct), 2)}%` }}
+                transition={{ duration: 0.8, ease: EASE_OUT_EXPO, delay: i * 0.06 }}
+              />
+            </div>
+            <div className="w-20 shrink-0 text-right">
+              <p className="num text-sm font-medium">{formatCount(s.users)}</p>
+              <p className="num text-[0.6875rem] text-muted">{formatPercent(s.conversionPct)}</p>
             </div>
           </div>
         </li>

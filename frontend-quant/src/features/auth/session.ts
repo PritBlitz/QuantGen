@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { refreshSession } from '@/api/client'
 import { authApi } from '@/api/endpoints'
+import { securityApi } from '@/api/endpoints.v2'
+import { getPasskeyAssertion } from '@/lib/webauthn'
 import type { LoginRequest, RegisterRequest } from '@/api/types'
 import { useAuthStore } from './store'
 
@@ -31,6 +33,25 @@ export function useLogin() {
   return useMutation({
     mutationFn: (body: LoginRequest) => authApi.login(body),
     onSuccess: setSession,
+  })
+}
+
+/**
+ * Passwordless sign-in (F-SEC-1): discoverable credential, so no email is needed. Resolves null if
+ * the user dismisses the browser prompt. Any server failure is a 401 → "sign-in failed".
+ */
+export function usePasskeyLogin() {
+  const setSession = useAuthStore((s) => s.setSession)
+  return useMutation({
+    mutationFn: async () => {
+      const options = await securityApi.passkeyLoginOptions()
+      const credential = await getPasskeyAssertion(options)
+      if (!credential) return null
+      return securityApi.passkeyLogin(credential)
+    },
+    onSuccess: (res) => {
+      if (res) setSession(res)
+    },
   })
 }
 

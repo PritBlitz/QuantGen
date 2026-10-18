@@ -25,6 +25,7 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/users/me/limits', milestone: 'V2-M1' },
   { prefix: '/api/v1/users/me/sessions', milestone: 'V2-M1' },
   { prefix: '/api/v1/users/me/kyc', milestone: 'V2-M1' },
+  { prefix: '/api/v1/auth/passkeys', milestone: 'V2-M1' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -33,7 +34,6 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  * mocked in hybrid mode. Remove a pattern when the backend announces the route.
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
-  /^\/api\/v1\/auth\/passkeys/,
   /^\/api\/v1\/users\/me\/(handle|tokens)/,
   /^\/api\/v1\/accounts\/[^/]+\/(topups|round-up|cards)/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,

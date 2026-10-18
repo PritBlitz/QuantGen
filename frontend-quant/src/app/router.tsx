@@ -16,6 +16,12 @@ const admin: RouteObject = {
       }),
     },
     {
+      path: 'analytics',
+      lazy: async () => ({
+        Component: (await import('@/features/analytics/AdminAnalyticsPage')).AdminAnalyticsPage,
+      }),
+    },
+    {
       path: 'users',
       lazy: async () => ({
         Component: (await import('@/features/admin/AdminUsersPage')).AdminUsersPage,
@@ -97,6 +103,12 @@ export const routes: RouteObject[] = [
                 path: 'dashboard',
                 lazy: async () => ({
                   Component: (await import('@/features/dashboard/DashboardPage')).DashboardPage,
+                }),
+              },
+              {
+                path: 'insights',
+                lazy: async () => ({
+                  Component: (await import('@/features/insights/InsightsPage')).InsightsPage,
                 }),
               },
               {
