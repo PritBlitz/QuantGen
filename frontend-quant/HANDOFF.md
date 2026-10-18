@@ -1,6 +1,102 @@
 # Frontend → Backend handoff
 
-## 2026-10-18 (end of day): v2 frontend state, for a cold restart
+## 2026-10-18 (late): v2 frontend state, for a cold restart  ← READ THIS FIRST
+
+**Read first:** this section, PRD §11–§13 (the "Backend notes" blocks in §12.3, §12.4, §12.5, §12.9,
+§7.9 and §12.13 record every backend deviation), `src/api/types.v2.ts`, `src/mocks/live.ts`,
+`src/api/capabilities.ts`. The backend's own list is in `backend-quant/HANDOFF.md`. Find the backend
+session with `ListAgents` (its name changes; it was `backend-quant-c0` here) and message it via `SendMessage`.
+
+### Backend state (as announced to this session)
+Live on :8080: all v1, **V2-M0, V2-M1, V2-MA, V2-M2, V2-M3 (d737264, savings + insights), V2-M7
+(0604a02, Trading 2.0)**, dev DB at V16. The backend's order from here: **V2-M8 Proof of Balance** (next),
+then M9 Cards, M6 (rules-based fraud), M10 tokens, then the core side of M4 Copilot / M5 Autopilot.
+It pings per milestone. All five feature flags are **false** on :8080 (turn them on in `/admin/flags`).
+
+### Going live with a milestone (checklist)
+1. Add its prefixes to `LIVE_PREFIXES` in `src/mocks/live.ts` and drop its `NOT_YET_LIVE` patterns.
+2. Add the milestone to `SHIPPED_MILESTONES` in `src/api/capabilities.ts`. This gates features that
+   reuse a v1 route with new fields (LIMIT/STOP orders on `POST /orders`); an older backend would
+   silently do the v1 thing.
+3. Spot-check shapes: `curl :8080/v3/api-docs` plus a demo login (`demo@quantgen.dev` / `Demo@1234`).
+   Money is serialized as strings even though OpenAPI says `number`.
+4. Run the page in hybrid mode (`npm run dev:hybrid`) and, if it moves money, add a step to
+   `e2e/live.spec.ts`.
+
+### Live vs mocked now
+- **Live in hybrid mode:** all v1; V2-M1; analytics (incl. the real `/analytics/goals`); Payments 2.0
+  (and `/payees/`, which was never actually live before because a comment swallowed it; fixed);
+  **V2-M3**: goals (`POST /accounts {type: GOAL}`), round-ups, `/fixed-deposits`, `/insights/*`,
+  `/budgets`, `/transactions/{id}/category`; **V2-M7**: limit/stop/cancel, `/watchlists`,
+  `/price-alerts`, `/backtests`, `/reports/tax-pnl`.
+- **Still mocked:** `/users/me/tokens`, `/accounts/{id}/cards`, `/cards`, `/sandbox/*`,
+  `/loans/{id}/documents`, `/admin/fraud-cases`, `/admin/ai`, `/admin/loans/{id}/underwriting`,
+  `/admin/ledger/verify-chain|solvency`, `/public/proofs/*`, `/proofs/*`, `/copilot/*`, `/intents`,
+  `/autopilot/*`.
+
+### Built this session (all committed; 137 unit tests green, lint + typecheck + build clean)
+- `072a27f` Admin v2 tests (fraud release/reject + 409, flag toggle refresh, document upload, memo).
+  Vitest now uses `maxWorkers: '50%'`: one jsdom per core starved the CPU and timed out `findBy`s.
+- `a9dd0ea` **Trading 2.0 UI**: order ticket with Market/Limit/Stop-loss + validity (stop only on SELL,
+  `availableBalance` used), Orders page with statuses and cancel-with-confirm, watchlists (filter on
+  Markets, Watch button on instrument), price alerts, `/lab` strategy lab, `/portfolio/tax` capital-gains report + CSV.
+- `b69329e` **Cards** `/cards` (step-up reveal, kept only in component state, auto-hides after
+  `hideAfterSeconds`, on tab hide and on unmount; freeze/online/limit/blocked categories) +
+  `/cards/sandbox` "QuantGen Store" (authorize → hold → auto-capture after 5 s → refund).
+- `927ad30` **Setup checklist** on Home (F-UX-3).
+- `69e3bd7` **PWA** (F-UX-1): `public/sw.js` (static assets + offline page only, never `/api` or `/ws`),
+  manifest, icons, `public/offline.html`; registered in production builds only (`src/lib/pwa.ts`).
+  Verified in a real production build: offline navigation shows the offline page and no API response is cached.
+- `008d6bc` **Landing redesign** (Signature section: Autopilot / Copilot / Proof with a live root; v2
+  product bento; security section reflects what shipped) + **DESIGN.md v2 "Signal"**, rewritten.
+  Section numbers are stable because code cites them.
+- `2b7e52e` Payments 2.0 tests (handle payment > ₹50k with step-up, cancelled step-up, requests).
+- `b152ffa` **V2-M3 go-live** + FD/goal accounts kept out of pickers they can't use (`isEveryday()` in
+  `features/accounts/labels.ts`); the FD mock no longer has an invented KYC gate; a11y fixes (17
+  unlabelled Selects now take `aria-label`, focusable heatmap, visible text inside accessible names);
+  e2e updated for the v2 nav; a new live e2e test (PIN → goal → FD → close early with step-up) passes against :8080.
+- `320abd9` **V2-M7 go-live** (endpoints spot-checked against :8080).
+
+### Next, in this order
+1. **Finish the mocked e2e repair.** It was mid-run when the session ended:
+   - Run it against your own mock server: `npx vite --mode mock --port 5199`, then
+     `QG_BASE_URL=http://localhost:5199 npx playwright test`. **Don't rely on :5173.** The owner
+     sometimes runs a real-API `vite` there, and `reuseExistingServer` would test against the live backend.
+   - Still failing: `e2e/admin.spec.ts`. On desktop, "Run reconciliation" stays disabled (the mock takes
+     900 ms, so check the button label or the flow; v2 also renamed the page to "Ledger integrity"). On
+     mobile, the dock's "More" button is "not stable", probably a sonner toast over the dock (dismiss it
+     first). `e2e/money.spec.ts` step "command palette → Orders": the option is off-screen, so type
+     "Orders" into the combobox first.
+   - Mock e2e must navigate **in-app** (`go()` uses the rail, the dock or the More sheet): a page
+     reload resets the in-browser MSW state.
+   - `e2e/a11y.spec.ts` now audits every v1+v2 screen by path, in both themes. Fix whatever it finds.
+2. **Visual pass** at 360/768/1440, both themes, reduced motion, for v2 pages (not done yet except the landing page).
+3. **Integrate the next backend milestones** with the checklist above: M8 Proof (public roots
+   `permitAll`, 404 = not in snapshot), M9 Cards (backend CVV should accept the previous 30 s window,
+   like the mock does, or the sandbox races), M6 fraud, M10 tokens, M4/M5.
+4. Backend V2-M7 bounds that differ from the client checks (the server's 400s show inline, so nothing
+   breaks): backtest `initialCash` minimum is ₹1,000 server-side (the client asks for ₹10,000);
+   `from` ≥ 2021-01-01 and a 30-day to 5-year range aren't checked client-side yet.
+5. Not built (P2 or no contract): F-CARD-4 disputes (no endpoint in §12.11), F-UX-5 Hindi/i18n,
+   F-TRD-12 crypto feed, F-TRD-9 SIP (an Autopilot template, waits for M5).
+
+### Open requests to the backend
+- **V2-M4 Copilot:** persist the USER and ASSISTANT messages before closing the SSE stream; pre-stream
+  errors as §7.1 JSON; the same Idempotency-Key on every approve retry.
+- **V2-M8 Proof:** `GET /public/proofs/roots` `permitAll`; `/proofs/accounts/{id}?date=` → 404 when the
+  account isn't in that snapshot (backend confirmed).
+- **V2-M9 Cards:** accept the previous CVV window (30 s TOTP-style tolerance).
+
+### Gotchas
+- Shared git index: `git commit -- <paths>` **skips untracked files**; `git add` new files first.
+- Some files are CRLF (`src/mocks/live.ts` and a few payments files). Python `str.replace` with `\n`
+  misses them, so use the Edit tool. Long heredocs in Git Bash fail; write files with the Write tool.
+- Vitest filters `console.log`; debug by throwing an `Error`. Radix Select in tests needs the jsdom
+  stubs in `src/test/setup.ts`. MSW handlers that `fetch` their own route must be `{ once: true }`.
+- jsdom `FormData` can't be parsed by undici's multipart parser. Tests of uploads assert on the raw
+  body (see `adminV2.test.tsx`).
+
+## 2026-10-18 (end of day, superseded by the section above): v2 frontend state
 
 **Read first:** this section, PRD §11–§13 (§12.14 DTO reference; the "Backend notes" blocks in §12.3,
 §12.4, §7.9, §12.13 record every backend deviation), `src/api/types.v2.ts`, `src/mocks/live.ts`.
