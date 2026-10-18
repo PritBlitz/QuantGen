@@ -116,7 +116,9 @@ class TopupsIT extends IntegrationTest {
         assertThat(notCaptured.jsonBody().get("code").asString()).isEqualTo("PAYMENT_VERIFICATION_FAILED");
 
         String paymentId = razorpay.pay(order, "captured");
-        Response forged = verify(alice, id, paymentId, "00" + sign(order, paymentId).substring(2));
+        String good = sign(order, paymentId);
+        // Change the first hex digit (a fixed "00" prefix would equal the real signature 1 time in 256).
+        Response forged = verify(alice, id, paymentId, (good.charAt(0) == '0' ? "1" : "0") + good.substring(1));
         assertThat(forged.status()).isEqualTo(400);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action = 'TOPUP_VERIFICATION_FAILED' "
                 + "AND target_id = ?", Integer.class, id)).isEqualTo(2);

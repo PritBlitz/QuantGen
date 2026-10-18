@@ -41,11 +41,14 @@ public class PriceSimulator {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final boolean enabled;
+    private final OrderBook orderBook;
+    private final WatchlistService watchlists;
     private final Random random = new Random();
 
     public PriceSimulator(JdbcTemplate jdbc, MarketService market, SimpMessagingTemplate messaging, AdvisoryLocks locks,
                           PlatformTransactionManager txManager, Clock clock,
-                          @Value("${qg.market.simulator-enabled:true}") boolean enabled) {
+                          @Value("${qg.market.simulator-enabled:true}") boolean enabled, OrderBook orderBook,
+                          WatchlistService watchlists) {
         this.jdbc = jdbc;
         this.market = market;
         this.messaging = messaging;
@@ -53,6 +56,8 @@ public class PriceSimulator {
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
         this.enabled = enabled;
+        this.orderBook = orderBook;
+        this.watchlists = watchlists;
     }
 
     @Scheduled(fixedRateString = "${qg.market.tick-millis:3000}", initialDelayString = "${qg.market.tick-millis:3000}")
@@ -86,6 +91,9 @@ public class PriceSimulator {
         });
         if (prices != null && !prices.isEmpty()) {
             messaging.convertAndSend(TOPIC, prices);
+            // F-TRD-7/8: open orders and price alerts react to the new prices, each in its own transaction.
+            orderBook.matchAll();
+            watchlists.fireAlerts();
         }
         return prices == null ? List.of() : prices;
     }

@@ -122,7 +122,7 @@ public class CategoryService implements TransactionCategorizer {
         Map<UUID, String> out = new HashMap<>();
         named.query("WITH " + LedgerKinds.cl(true, "         AND l.id IN (:ids)\n") + ", " + catCte()
                         + " SELECT line_id, category FROM cat",
-                allTime(userId).addValue("ids", lineIds),
+                around(userId, "id", lineIds).addValue("ids", lineIds),
                 rs -> {
                     out.put(rs.getObject("line_id", UUID.class), rs.getString("category"));
                 });
@@ -139,7 +139,7 @@ public class CategoryService implements TransactionCategorizer {
         // odir DESC puts 'DEBIT' before 'CREDIT', so for a move between own accounts the sending side wins.
         named.query("WITH " + LedgerKinds.cl(true, "         AND l.journal_entry_id IN (:ids)\n") + ", " + catCte()
                         + " SELECT journal_entry_id, category FROM cat ORDER BY journal_entry_id, odir DESC",
-                allTime(userId).addValue("ids", journalEntryIds),
+                around(userId, "journal_entry_id", journalEntryIds).addValue("ids", journalEntryIds),
                 rs -> {
                     out.putIfAbsent(rs.getObject("journal_entry_id", UUID.class), rs.getString("category"));
                 });
@@ -158,6 +158,21 @@ public class CategoryService implements TransactionCategorizer {
                 (rs, i) -> new LineFacts(rs.getObject("line_id", UUID.class), rs.getString("kind"),
                         rs.getObject("other_account", UUID.class), rs.getObject("other_user", UUID.class)))
                 .stream().findFirst();
+    }
+
+    /**
+     * Parameters whose [lo, hi) is just the time span of the given lines, so the planner never considers scanning
+     * the whole ledger for an all-time range (this runs inside every transfer).
+     */
+    private MapSqlParameterSource around(UUID userId, String column, Collection<UUID> ids) {
+        Map<String, Object> span = named.queryForMap("SELECT min(created_at) AS lo, max(created_at) AS hi FROM ledger_lines "
+                + "WHERE " + column + " IN (:ids)", new MapSqlParameterSource("ids", ids));
+        if (span.get("lo") == null) {
+            return allTime(userId);
+        }
+        Timestamp hi = (Timestamp) span.get("hi");
+        return new MapSqlParameterSource().addValue("uid", userId).addValue("lo", span.get("lo"))
+                .addValue("hi", Timestamp.from(hi.toInstant().plusNanos(1000)));
     }
 
     static MapSqlParameterSource allTime(UUID userId) {

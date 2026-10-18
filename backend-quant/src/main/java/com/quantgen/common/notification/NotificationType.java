@@ -15,5 +15,6 @@ public enum NotificationType {
     PAYMENT_REQUEST,
     SCHEDULED_FAILED,
     FD_MATURED,
-    BUDGET_ALERT
+    BUDGET_ALERT,
+    PRICE_ALERT
 }

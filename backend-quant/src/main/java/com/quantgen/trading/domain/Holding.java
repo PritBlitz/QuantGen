@@ -45,6 +45,10 @@ public class Holding {
     @Column(nullable = false)
     private long quantity;
 
+    /** Shares promised to open SELL orders (V2-M7); they can't be sold or reserved again. */
+    @Column(name = "reserved_qty", nullable = false)
+    private long reservedQty;
+
     @Column(name = "cost_basis", nullable = false, precision = 19, scale = 4)
     private BigDecimal costBasis;
 
@@ -88,6 +92,25 @@ public class Holding {
         BigDecimal realized = proceeds.subtract(released);
         realizedPnl = realizedPnl.add(realized);
         return realized;
+    }
+
+    /** Shares free to sell or reserve. */
+    public long available() {
+        return quantity - reservedQty;
+    }
+
+    public void reserve(long qty) {
+        if (qty <= 0 || qty > available()) {
+            throw new IllegalArgumentException("invalid reserve quantity");
+        }
+        reservedQty += qty;
+    }
+
+    public void unreserve(long qty) {
+        if (qty <= 0 || qty > reservedQty) {
+            throw new IllegalArgumentException("invalid unreserve quantity");
+        }
+        reservedQty -= qty;
     }
 
     /** Average cost per share (4 dp); zero for an empty position. */

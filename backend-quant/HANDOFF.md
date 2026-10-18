@@ -1,4 +1,4 @@
-# Backend handoff (2026-10-18, after V2-M2)
+# Backend handoff (2026-10-18, after V2-M7)
 
 State of the backend for the next session. Latest commits: V2-M2 `807e831` (handles, resolve, requests), `9bc5dba`
 (scheduled), `a5101f5` (bills), `f3cd38c` (split groups), `81487e2` (Razorpay top-ups). Test status: 30 unit + 158
@@ -6,19 +6,29 @@ integration, all green (`./mvnw verify`, JDK 25). Migrations V8–V12 were smoke
 dev DB on :5433 is now at **V12**. :8080 runs the current build from a jar copy in this session's scratchpad (dev
 profile); restart it from `target/` after the next build.
 
-## Resume here (paused 2026-10-18 by the owner)
-1. Read `CLAUDE.md`, then this file, then PRD §11.4.4 + §12.5 (V2-M3) and §12.14 (DTOs). The frontend's state is in
-   `frontend-quant/HANDOFF.md`.
-2. Start the stack: `docker compose -f docker-compose.dev.yml up -d` (Postgres on :5433), then
-   `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` in `backend-quant/` (JDK 25). The dev DB is at V12; the
-   :8080 process from the last session ran from a scratchpad jar and won't survive a reboot.
-3. Check: `./mvnw verify` should show 30 unit + 158 IT green.
-4. Build V2-M3 in the agreed order (already told to the frontend): (1) GOAL accounts + round-ups, (2) fixed deposits +
-   interest, (3) categories / overrides / budgets (`/insights/*`, then real `/analytics/goals` and `SPENDING_CATEGORY`),
-   (4) net worth + forecast. Per group: PRD notes first, migration V13+, tests, smoke-run on a pg_dump clone, restart
-   :8080, message the frontend session (find it with `ListAgents`; if none, write a dated note here and tell the owner).
+## Resume here
+1. Read `CLAUDE.md`, then this file. The frontend's state is in `frontend-quant/HANDOFF.md`; the frontend session
+   was `quantgen-69` on 2026-10-18 (find it with `ListAgents`).
+2. Start the stack: `docker compose -f docker-compose.dev.yml up -d`, then
+   `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` (or run a jar copy from the scratchpad). Dev DB is at **V16**.
+3. `./mvnw verify` should show 33 unit + 182 IT green. Don't compile while a verify runs (it deletes classes mid-run).
+4. Next, in this order (told to the frontend): **V2-M8 Proof of Balance** (hashing pinned in PRD §12.10; cross-check
+   `frontend-quant/src/lib/merkle.ts`; `GET /public/proofs/roots` must be permitAll; `/proofs/accounts/{id}?date=` →
+   404 when the account isn't in that snapshot), V2-M9 Cards, V2-M6 rules-based fraud parts, V2-M10 tokens, then the
+   core side of V2-M4 (intents, delegated tokens, SSE proxy, budgets) and V2-M5 (Autopilot engine; also F-TRD-9 SIP). `agent-quant/` belongs to a
+   separate agent session per ARCHITECTURE.md; ask the owner before building it.
 
 ## Done
+- **V2-M7 Trading 2.0** (commit after `d737264`, see `git log`): limit/stop-loss orders (open BUY = cash hold, open
+  SELL = `holdings.reserved_qty`), matched after every tick by `OrderBook` (own tx per order; order row locked first),
+  cancel, expiry job, watchlists, price alerts (`PRICE_ALERT`), deterministic simulated-daily-price backtests,
+  FIFO tax P&L (JSON/CSV). Migration V16. Notes in PRD §12.9 "Backend notes (V2-M7)". Also fixed: category lookup in
+  every transfer used an all-time range (100 parallel transfers went 10 s → 50 s on a big DB); a flaky forged-signature
+  assertion in TopupsIT.
+- **V2-M3 savings + insights** (`d737264`): goals, round-ups, FDs + maturity/renewal/closure, savings interest,
+  categories + overrides, spending, budgets + alerts, net worth, forecast, real `/analytics/goals`. Notes in PRD
+  §12.5 "Backend notes (V2-M3 parts 1–4)". Also fixed the outbox poller, which had never run a consumer
+  (NESTED unsupported; FOR UPDATE claim deadlocked the consumer_offsets FK).
 - **V2-M0 (backend part):** `/actuator/prometheus` (loopback/private only) with `qg.*` metrics.
 - **V2-M1:** outbox + poller, holds + `availableBalance`, STOMP `/user/queue/notifications`, feature flags,
   PIN, step-up (401 `STEP_UP_REQUIRED`), limits, new-payee cooling, sessions, KYC (AES-GCM + blind index), passkeys.
@@ -32,11 +42,7 @@ profile); restart it from `target/` after the next build.
   to flip top-ups (dev has no Razorpay keys, so they answer 503).
 
 ## Not done / next
-1. **V2-M3 savings/insights** (§11.4.4, §12.5): GOAL / FIXED_DEPOSIT accounts (D-037: outside the 3-account cap),
-   round-ups, FDs + interest accruals (`INTEREST_EXPENSE` system account), categories + overrides + budgets,
-   `/insights/*`, net worth, forecast. Then replace the coarse `topCategory` / `SPENDING_CATEGORY` and make
-   `/analytics/goals` real. `POST /accounts {type: GOAL}` returns 400 today; the frontend expects that until M3.
-2. Then M4 copilot + `agent-quant` (needs an `agent-quant/` row in `CLAUDE.md` first). The frontend's expectations
+1. See "Resume here". Then M4 copilot + `agent-quant` (needs an `agent-quant/` row in `CLAUDE.md` first). The frontend's expectations
    (sent 2026-10-18): SSE frames `event: <type>
 data: <json>`, errors before the stream are normal §7.1 JSON
    (503 FEATURE_DISABLED, 429 BUDGET_EXHAUSTED, 404), mid-stream `event: error {code, message}`, both USER and
@@ -49,6 +55,11 @@ data: <json>`, errors before the stream are normal §7.1 JSON
    `404` as "not in that snapshot" (account opened later).
 
 ## Known gaps and cautions
+- V2-M7: backtests use simulated daily closes (not stored ticks); no notification on a limit fill; a fill that
+  fails (e.g. account frozen) stays OPEN and retries next tick until it expires.
+- V2-M3: the D-020 model classifier for notes isn't used (keywords only); the forecast pools all everyday accounts
+  and has no Autopilot items yet; net worth counts FD principal only; salary detection can't be integration-tested
+  (ledger rows can't be backdated).
 - Cooling and first-transfer step-up cover **saved payees only** (spec F-SEC-5); an unsaved recipient (including
   one paid by handle or via a payment request) skips both.
 - No unblock endpoint for blocked requesters, no saved billers, no way to leave a split group (none are in §12.4).

@@ -1221,6 +1221,39 @@ model's own text and is labelled as such in the UI. The raw `payload` is not ech
 | POST 🤖 | `/backtests` | `{strategy, symbols, from, to, initialCash}` | `201 BacktestDto` |
 | GET | `/reports/tax-pnl` | `?fy=2026-27&format=json\|csv` | P&L report |
 
+Backend notes (V2-M7, implemented 2026-10-18):
+- **Orders:** `orderType` defaults to `MARKET`; an unknown value (or unknown `validity`) → `400 VALIDATION_FAILED`,
+  never a silent market fill. `LIMIT` needs `limitPrice` (no `triggerPrice`); `STOP_LOSS` must be a `SELL` with
+  `triggerPrice` (no `limitPrice`); `MARKET` takes neither, nor `validity` (all `400` with the field). Prices
+  0.01–1,00,00,000.00, ≤ 2 dp. `validity` defaults to `DAY` (24 h); `GTC` = 90 days.
+- A limit/stop whose price is **already reached** fills at once at the current price (at least as good as the
+  limit) → `201` `FILLED`. Otherwise `201` `OPEN`: `price` = the limit (or trigger), `total` = estimate,
+  `filledAt` null. An open BUY holds `qty × limit` (`availableBalance` drops; `422 INSUFFICIENT_FUNDS` if it can't),
+  and an open SELL reserves shares, so a further sell beyond the free shares → `422 INSUFFICIENT_HOLDINGS`.
+- After every price tick, open orders whose price is reached fill, each in its own transaction: LIMIT at the
+  **limit price**, STOP_LOSS at the **tick price**. `price`/`total`/`filledAt` then show the fill.
+- `POST /orders/{id}/cancel` → `200 OrderDto` (`CANCELLED`); someone else's → `404`; not OPEN → `409
+  INVALID_STATE`. A fill and a cancel racing on the same order: exactly one wins. Expired orders → `EXPIRED`
+  (checked every minute). Ending an order releases its hold or shares.
+- **Watchlists:** `GET /watchlists` → `WatchlistDto[]` (oldest first); `POST {name}` (1–40 chars) → `201`;
+  max 5 (`422 LIMIT_EXCEEDED`); `POST|DELETE /watchlists/{id}/symbols/{symbol}` → `200 WatchlistDto` (symbol is
+  case-insensitive; adding one already there is a no-op; unknown → `400`; max 50 → `422`); `DELETE /watchlists/{id}`
+  → `204`. Someone else's → `404`.
+- **Price alerts:** `GET /price-alerts` (newest first), `POST {symbol, direction, price}` → `201`, `DELETE
+  /price-alerts/{id}` → `204`; max 20 ACTIVE. Checked on every tick; fires once (`TRIGGERED` + `triggeredAt`) with a
+  `PRICE_ALERT` notification (new type). An alert whose level is already crossed fires on the next tick.
+- **Backtests:** request `{strategy, symbols (1–5), from ≥ 2021-01-01, to ≤ today, ≥ 30 days and ≤ 5 years apart,
+  initialCash 1,000–1,00,00,000}`. Strategy bounds: `SMA_CROSS` fast 2–100, slow fast+1–250; `RSI` period 2–50,
+  buyBelow 1–98, sellAbove > buyBelow ≤ 99; `BUY_THE_DIP` dropPct 0.5–50 (vs the 20-day high), takeProfitPct
+  0.5–100; `REBALANCE` everyDays 1–365, weights for exactly the symbols, summing to 100. Prices are **simulated
+  daily closes** (deterministic per symbol, so the same request gives the same result; D-035). Whole shares, no
+  fees; the non-rebalance strategies split cash equally per symbol, all in / all out. `equity` ≤ 400 points.
+  `winRatePct` = profitable sells / all sells. `GET /backtests` = the last 20 (older ones are deleted).
+- **Tax P&L:** `fy` like `2026-27` (default: the current FY), else `400`; `format=json|csv` (else `400`). Sells
+  are matched to buys **FIFO** (the portfolio's realized P&L uses average cost, so it can differ); `LONG` = sold
+  more than 12 months after the buy. CSV columns are as in `TaxPnlDto.rows`, plus a `TOTAL` line.
+- Not built: F-TRD-9 SIP (comes with Autopilot, V2-M5), F-TRD-12 live crypto (P2).
+
 ### 12.10 Proof of Balance
 | Method | Path | Auth | Response |
 |---|---|---|---|
