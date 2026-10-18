@@ -21,7 +21,7 @@ class RateLimitFilterTest {
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
 
     private RateLimitFilter filter(boolean enabled) {
-        return new RateLimitFilter(new ApiErrorWriter(json, clock), clock, enabled);
+        return new RateLimitFilter(new ApiErrorWriter(json, clock, new com.quantgen.common.metrics.MoneyFailureRecorder(null)), clock, enabled);
     }
 
     private static MockHttpServletResponse call(RateLimitFilter filter, String uri, String ip) throws Exception {

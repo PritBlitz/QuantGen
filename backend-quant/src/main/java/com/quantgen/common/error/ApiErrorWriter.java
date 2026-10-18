@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
+import com.quantgen.common.metrics.MoneyFailureRecorder;
 import com.quantgen.common.web.RequestIdFilter;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -24,10 +25,12 @@ public class ApiErrorWriter {
 
     private final JsonMapper jsonMapper;
     private final Clock clock;
+    private final MoneyFailureRecorder failures;
 
-    public ApiErrorWriter(JsonMapper jsonMapper, Clock clock) {
+    public ApiErrorWriter(JsonMapper jsonMapper, Clock clock, MoneyFailureRecorder failures) {
         this.jsonMapper = jsonMapper;
         this.clock = clock;
+        this.failures = failures;
     }
 
     public ApiError build(HttpServletRequest request, HttpStatus status, ErrorCode code, String message,
@@ -37,6 +40,7 @@ public class ApiErrorWriter {
 
     public ApiError build(HttpServletRequest request, HttpStatus status, ErrorCode code, String message,
                           List<ApiError.FieldError> fieldErrors, ApiError.StepUpChallenge stepUp) {
+        failures.record(request, status.value(), code.name());
         return new ApiError(Instant.now(clock).truncatedTo(ChronoUnit.MILLIS), status.value(), code.name(), message, pathOf(request),
                 fieldErrors, RequestIdFilter.currentRequestId(request), stepUp);
     }
