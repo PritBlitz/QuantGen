@@ -68,10 +68,8 @@ public class PersonalAnalyticsService {
                 params(userId, r), rs -> {
                     byKind.put(rs.getString("kind"), rs.getBigDecimal("v"));
                 });
-        BigDecimal income = byKind.getOrDefault("DEPOSIT", BigDecimal.ZERO)
-                .add(byKind.getOrDefault("TRANSFER_IN", BigDecimal.ZERO));
-        BigDecimal spending = byKind.getOrDefault("TRANSFER_OUT", BigDecimal.ZERO)
-                .add(byKind.getOrDefault("LOAN_REPAYMENT", BigDecimal.ZERO));
+        BigDecimal income = LedgerKinds.sum(byKind, LedgerKinds.INCOME_KINDS);
+        BigDecimal spending = LedgerKinds.sum(byKind, LedgerKinds.SPENDING_KINDS);
         return new Totals(income, spending, byKind);
     }
 
@@ -88,13 +86,16 @@ public class PersonalAnalyticsService {
         SummaryTotals cur = summaryTotals(now);
 
         // Coarse categories until the category engine (V2-M3) arrives: where spending went by kind.
+        String[][] coarse = {{"TRANSFER_OUT", "TRANSFERS", "Transfers"},
+                {"LOAN_REPAYMENT", "LOAN_REPAYMENTS", "Loan repayments"}, {"BILL_PAYMENT", "BILLS", "Bills"}};
         TopCategory top = null;
-        BigDecimal transfers = now.byKind().getOrDefault("TRANSFER_OUT", BigDecimal.ZERO);
-        BigDecimal loans = now.byKind().getOrDefault("LOAN_REPAYMENT", BigDecimal.ZERO);
-        if (transfers.signum() > 0 || loans.signum() > 0) {
-            top = transfers.compareTo(loans) >= 0
-                    ? new TopCategory("TRANSFERS", "Transfers", money(transfers))
-                    : new TopCategory("LOAN_REPAYMENTS", "Loan repayments", money(loans));
+        BigDecimal topAmount = BigDecimal.ZERO;
+        for (String[] c : coarse) {
+            BigDecimal amount = now.byKind().getOrDefault(c[0], BigDecimal.ZERO);
+            if (amount.compareTo(topAmount) > 0) {
+                topAmount = amount;
+                top = new TopCategory(c[1], c[2], money(amount));
+            }
         }
         List<LargestSpend> largest = jdbc.query("WITH " + LedgerKinds.cl(true) + """
                 SELECT line_id, amt, description, day FROM cl
@@ -127,9 +128,8 @@ public class PersonalAnalyticsService {
         List<CashflowPoint> points = new ArrayList<>();
         for (YearMonth m = first; !m.isAfter(last); m = m.plusMonths(1)) {
             Map<String, BigDecimal> k = byMonth.getOrDefault(m.toString(), Map.of());
-            BigDecimal income = k.getOrDefault("DEPOSIT", BigDecimal.ZERO).add(k.getOrDefault("TRANSFER_IN", BigDecimal.ZERO));
-            BigDecimal spending = k.getOrDefault("TRANSFER_OUT", BigDecimal.ZERO)
-                    .add(k.getOrDefault("LOAN_REPAYMENT", BigDecimal.ZERO));
+            BigDecimal income = LedgerKinds.sum(k, LedgerKinds.INCOME_KINDS);
+            BigDecimal spending = LedgerKinds.sum(k, LedgerKinds.SPENDING_KINDS);
             points.add(new CashflowPoint(m.toString(), money(income), money(spending), money(income.subtract(spending)),
                     money(k.getOrDefault("INVESTED", BigDecimal.ZERO)), money(k.getOrDefault("BORROWED", BigDecimal.ZERO))));
         }

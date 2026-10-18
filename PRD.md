@@ -991,6 +991,19 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
   fell inside the pause (never paid late). `DELETE` is idempotent (`204` again); a `COMPLETED` instruction → `409`.
   `GET` lists all of yours, newest first, including completed and cancelled ones. Transfers made by a run have
   `source: "SCHEDULED"`. An occurrence is paid at most once even if job runs overlap.
+- **Bills (part 3):** 12 *fictional* billers (the sandbox never names a real company) with fixed ids
+  `b1000000-0000-4000-8000-0000000000NN`; `category` filter must be a valid enum (`400` otherwise). **Fetch:** the
+  consumer number must match the biller's `consumerNumberPattern` (`400` field `consumerNumber`); 30 fetches per
+  minute per user (`429`). There is one bill per (you, biller, consumer number, month): fetching again returns the
+  same `billId` and amount and renews its 24-hour payment window. The amount is simulated (₹200.00–₹4,999.99,
+  stable within a month), `dueDate` is the 20th, `customerNameMasked` is your own masked name. A bill already paid
+  this month → `409 INVALID_STATE`. **Pay:** someone else's bill → `404`; already paid → `409`; past its 24-hour
+  window → `409` (fetch again). It posts one `BILL_PAYMENT` entry, your account → system account
+  `BILLER_CLEARING`, which shows in history as `type: "BILL_PAYMENT"` with the biller's name as `counterparty`;
+  `transactionId` is that line's `TransactionDto.id`. No step-up, and bill payments don't count toward the transfer
+  limits (the money stays in the bank's clearing account). Saved billers have no endpoint in §12.4 and are not built.
+- **Analytics after part 3:** bill payments count as spending (`topCategory` can be `BILLS`); top-ups count as
+  income and as deposits (`NET_INFLOW`, the funnel's "funded" step, `FUNDING_SOURCE` row `RAZORPAY`).
 
 ### 12.5 Savings and insights
 | Method | Path | Body / Query | Response |

@@ -104,7 +104,7 @@ public class AdminAnalyticsService {
                 yield pct == null ? BigDecimal.ZERO : pct;
             }
             case CUSTOMER_DEPOSITS -> depositsBefore(r.hi());
-            case NET_INFLOW -> flow(r, memo, "DEPOSIT")[0];
+            case NET_INFLOW -> flow(r, memo, "DEPOSIT")[0].add(flow(r, memo, "TOPUP")[0]);
             case TRANSFER_VOLUME -> flow(r, memo, "TRANSFER_OUT")[0];
             case TRANSFER_COUNT -> flow(r, memo, "TRANSFER_OUT")[1];
             case TRADE_VOLUME -> flow(r, memo, "INVESTED")[0].add(flow(r, memo, "DIVESTED")[0]);
@@ -163,7 +163,7 @@ public class AdminAnalyticsService {
                     + " b, SUM(CASE l.direction WHEN 'CREDIT' THEN l.amount ELSE -l.amount END) v "
                     + "FROM ledger_lines l JOIN accounts a ON a.id = l.ledger_account_id "
                     + "WHERE l.created_at >= :lo AND l.created_at < :hi GROUP BY 1", r), r, g);
-            case NET_INFLOW -> flowSeries(bucket, "SUM(amt)", "'DEPOSIT'", r);
+            case NET_INFLOW -> flowSeries(bucket, "SUM(amt)", LedgerKinds.DEPOSITS, r);
             case TRANSFER_VOLUME -> flowSeries(bucket, "SUM(amt)", "'TRANSFER_OUT'", r);
             case TRANSFER_COUNT -> flowSeries(bucket, "SUM(sgn)", "'TRANSFER_OUT'", r);
             case TRADE_VOLUME -> flowSeries(bucket, "SUM(amt)", "'INVESTED','DIVESTED'", r);
@@ -305,12 +305,14 @@ public class AdminAnalyticsService {
                       FROM loans WHERE created_at >= :lo AND created_at < :hi GROUP BY lower(btrim(purpose))
                     """, r);
             case FUNDING_SOURCE -> cells("""
-                    SELECT 'DEMO_DEPOSIT' AS k, 'Demo deposit' AS label, COUNT(DISTINCT l.id) AS cnt,
-                           COALESCE(SUM(l.amount), 0) AS val, COUNT(DISTINCT a.user_id) AS users
+                    SELECT CASE e.type WHEN 'TOPUP' THEN 'RAZORPAY' ELSE 'DEMO_DEPOSIT' END AS k,
+                           CASE e.type WHEN 'TOPUP' THEN 'Razorpay top-up' ELSE 'Demo deposit' END AS label,
+                           COUNT(DISTINCT l.id) AS cnt, COALESCE(SUM(l.amount), 0) AS val,
+                           COUNT(DISTINCT a.user_id) AS users
                       FROM ledger_lines l JOIN accounts a ON a.id = l.ledger_account_id
                       JOIN journal_entries e ON e.id = l.journal_entry_id
-                     WHERE e.type = 'DEPOSIT' AND l.direction = 'CREDIT'
-                       AND l.created_at >= :lo AND l.created_at < :hi HAVING COUNT(*) > 0
+                     WHERE e.type IN ('DEPOSIT', 'TOPUP') AND l.direction = 'CREDIT'
+                       AND l.created_at >= :lo AND l.created_at < :hi GROUP BY e.type
                     """, r);
             case ERROR_CODE -> cells("""
                     SELECT code AS k, code AS label, COUNT(*) AS cnt, COUNT(*) AS val,
@@ -360,7 +362,7 @@ public class AdminAnalyticsService {
                 funded AS (SELECT DISTINCT a.user_id AS id FROM ledger_lines l
                              JOIN accounts a ON a.id = l.ledger_account_id
                              JOIN journal_entries e ON e.id = l.journal_entry_id
-                            WHERE e.type = 'DEPOSIT' AND l.direction = 'CREDIT' AND a.user_id IN (SELECT id FROM u)),
+                            WHERE e.type IN ('DEPOSIT', 'TOPUP') AND l.direction = 'CREDIT' AND a.user_id IN (SELECT id FROM u)),
                 xfer AS (SELECT DISTINCT user_id AS id FROM transfers
                           WHERE internal = false AND status = 'COMPLETED' AND user_id IN (SELECT id FROM u)),
                 trade AS (SELECT DISTINCT user_id AS id FROM orders
@@ -567,7 +569,7 @@ public class AdminAnalyticsService {
                 SELECT count(DISTINCT a.user_id) FROM ledger_lines l
                   JOIN accounts a ON a.id = l.ledger_account_id
                   JOIN journal_entries e ON e.id = l.journal_entry_id
-                 WHERE e.type = 'DEPOSIT' AND l.direction = 'CREDIT' AND l.created_at < :hi
+                 WHERE e.type IN ('DEPOSIT', 'TOPUP') AND l.direction = 'CREDIT' AND l.created_at < :hi
                 """, hi);
     }
 

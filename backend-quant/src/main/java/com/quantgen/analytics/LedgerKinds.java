@@ -1,12 +1,16 @@
 package com.quantgen.analytics;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
 /**
  * The one definition of income, spending, invested and borrowed (PRD 11.4.14), shared by the admin and customer
  * analytics so their numbers agree. It classifies every ledger line on a CUSTOMER account:
  *
  * <ul>
- *   <li>income: DEPOSIT credits, and TRANSFER credits from another user;</li>
- *   <li>spending: TRANSFER debits to another user, and LOAN_REPAYMENT debits;</li>
+ *   <li>income: DEPOSIT and TOPUP credits, and TRANSFER credits from another user;</li>
+ *   <li>spending: TRANSFER debits to another user, LOAN_REPAYMENT and BILL_PAYMENT debits;</li>
  *   <li>moves between a user's own accounts: {@code OTHER}, excluded from both;</li>
  *   <li>TRADE debits are INVESTED and TRADE credits DIVESTED; LOAN_DISBURSAL credits are BORROWED.</li>
  * </ul>
@@ -16,10 +20,28 @@ package com.quantgen.analytics;
  */
 final class LedgerKinds {
 
-    static final String INCOME = "'DEPOSIT','TRANSFER_IN'";
-    static final String SPENDING = "'TRANSFER_OUT','LOAN_REPAYMENT'";
+    static final List<String> INCOME_KINDS = List.of("DEPOSIT", "TOPUP", "TRANSFER_IN");
+    static final List<String> SPENDING_KINDS = List.of("TRANSFER_OUT", "LOAN_REPAYMENT", "BILL_PAYMENT");
+    /** Money arriving from outside the bank: demo deposits and gateway top-ups. */
+    static final List<String> DEPOSIT_KINDS = List.of("DEPOSIT", "TOPUP");
+    static final String INCOME = sqlList(INCOME_KINDS);
+    static final String SPENDING = sqlList(SPENDING_KINDS);
+    static final String DEPOSITS = sqlList(DEPOSIT_KINDS);
 
     private LedgerKinds() {
+    }
+
+    /** Sum of the given kinds in a per-kind map (missing kinds count as zero). */
+    static BigDecimal sum(Map<String, BigDecimal> byKind, List<String> kinds) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (String k : kinds) {
+            total = total.add(byKind.getOrDefault(k, BigDecimal.ZERO));
+        }
+        return total;
+    }
+
+    private static String sqlList(List<String> kinds) {
+        return String.join(",", kinds.stream().map(k -> "'" + k + "'").toList());
     }
 
     /**
@@ -33,6 +55,8 @@ final class LedgerKinds {
                   SELECT x.*,
                          CASE
                            WHEN x.base_type = 'DEPOSIT' AND x.odir = 'CREDIT' THEN 'DEPOSIT'
+                           WHEN x.base_type = 'TOPUP' AND x.odir = 'CREDIT' THEN 'TOPUP'
+                           WHEN x.base_type = 'BILL_PAYMENT' AND x.odir = 'DEBIT' THEN 'BILL_PAYMENT'
                            WHEN x.base_type = 'TRANSFER' AND x.odir = 'CREDIT' AND x.other_user THEN 'TRANSFER_IN'
                            WHEN x.base_type = 'TRANSFER' AND x.odir = 'DEBIT' AND x.other_user THEN 'TRANSFER_OUT'
                            WHEN x.base_type = 'LOAN_REPAYMENT' AND x.odir = 'DEBIT' THEN 'LOAN_REPAYMENT'
