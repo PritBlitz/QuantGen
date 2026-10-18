@@ -873,8 +873,17 @@ unknown values gracefully from V2-M1 on.
 | PUT 🛡️ | `/users/me/pin` | `{pin}` | `204` |
 | GET | `/users/me/sessions` | | `200 SessionDto[]` |
 | DELETE | `/users/me/sessions/{id}` · `/users/me/sessions?others=true` | | `204` |
+| GET | `/users/me/limits` | | `200 LimitsDto` |
 | PUT 🛡️ | `/users/me/limits` | `{perTransfer?, daily?}` | `200 LimitsDto` |
+| GET | `/users/me/kyc` | | `200 KycDto` |
 | PUT | `/users/me/kyc` | `{pan, dateOfBirth, address}` | `200 KycDto` (PAN returned masked) |
+
+Auth notes (2026-10-18): `/auth/step-up/*` and passkey management (`/auth/passkeys`,
+`/register*`, `DELETE`) require the bearer token; only `/auth/login`, `/register`, `/refresh`,
+`/logout` and `/auth/passkeys/login*` are public. A wrong PIN or a failed passkey assertion on
+`/auth/step-up/verify` returns `400 VALIDATION_FAILED` (field `pin` or `credential`), never `401`,
+so clients don't mistake it for an expired session. A user with no PIN and no passkey gets
+`stepUp.methods: []` and must set one up first.
 
 `PasskeyDto = {id, name, createdAt, lastUsedAt}` · `SessionDto = {id, device, browser, ipCity, current, createdAt, lastUsedAt}` ·
 `LimitsDto = {perTransfer, daily, perTransferMax, dailyMax, usedToday}`
