@@ -30,7 +30,8 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/admin/analytics', milestone: 'V2-MA' },
   { prefix: '/api/v1/analytics/', milestone: 'V2-MA' },
   // Backend 807e831 9bc5dba a5101f5 f3cd38c (announced 2026-10-18): Payments 2.0 parts 1–4.
-  // Handles ride on /users/me; transfers by handle on /transfers.  { prefix: '/api/v1/payees/', milestone: 'V2-M2' },
+  // Handles ride on /users/me; transfers by handle on /transfers.
+  { prefix: '/api/v1/payees/', milestone: 'V2-M2' },
   { prefix: '/api/v1/payment-requests', milestone: 'V2-M2' },
   { prefix: '/api/v1/scheduled-transfers', milestone: 'V2-M2' },
   { prefix: '/api/v1/billers', milestone: 'V2-M2' },

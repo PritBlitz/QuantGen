@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { BriefcaseBusiness, History } from 'lucide-react'
+import { BriefcaseBusiness, FileText, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
@@ -127,11 +127,18 @@ export function PortfolioPage() {
         title="Portfolio"
         description="Valued at live market prices. Realized P&L includes positions you’ve sold."
         actions={
-          <Button variant="secondary" asChild>
-            <Link to="/orders">
-              <History aria-hidden="true" /> Order history
-            </Link>
-          </Button>
+          <>
+            <Button variant="ghost" asChild>
+              <Link to="/portfolio/tax">
+                <FileText aria-hidden="true" /> Capital gains
+              </Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link to="/orders">
+                <History aria-hidden="true" /> Order history
+              </Link>
+            </Button>
+          </>
         }
       />
 

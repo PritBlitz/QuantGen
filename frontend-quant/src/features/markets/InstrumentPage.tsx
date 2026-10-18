@@ -17,7 +17,9 @@ import { formatINR } from '@/lib/money'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { FeedBadge } from './components/FeedBadge'
 import { OrderTicket } from './components/OrderTicket'
+import { PriceAlertsCard } from './components/PriceAlerts'
 import { PriceChart } from './components/PriceChart'
+import { WatchButton } from './components/Watchlists'
 import { ChangePct } from './components/PriceBits'
 import { useInstrument, usePriceHistory } from './hooks'
 
@@ -97,6 +99,7 @@ export function InstrumentPage() {
           <>
             {i && <Badge>{i.sector}</Badge>}
             <FeedBadge />
+            {i && <WatchButton symbol={symbol} />}
           </>
         }
       />
@@ -189,6 +192,8 @@ export function InstrumentPage() {
               </dl>
             </Card>
           )}
+
+          {i && <PriceAlertsCard symbol={symbol} price={i.price} />}
         </div>
 
         {/* Desktop: ticket pinned on the right. */}

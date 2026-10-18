@@ -13,3 +13,11 @@ export function validateQuantity(raw: string, side: OrderSide, held: number): st
     return held ? `You hold ${held} share${held === 1 ? '' : 's'}` : 'You don’t hold any shares'
   return undefined
 }
+
+/** F-TRD-7: a limit or trigger price in rupees, up to 2 decimals, above 0. String in, no floats. */
+export function validateOrderPrice(raw: string): string | undefined {
+  if (!raw) return 'Enter a price'
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(raw)) return 'Use rupees and up to 2 decimals'
+  if (/^0+(\.0{0,2})?$/.test(raw)) return 'Must be more than ₹0'
+  return undefined
+}

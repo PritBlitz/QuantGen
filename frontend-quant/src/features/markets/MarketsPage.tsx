@@ -1,5 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, Search, Settings2, Star } from 'lucide-react'
 import { ToggleGroup } from 'radix-ui'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -7,6 +7,7 @@ import { marketApi } from '@/api/endpoints'
 import { queryKeys, useInstruments } from '@/api/queries'
 import type { InstrumentDto } from '@/api/types'
 import { EmptyState, PageHeader } from '@/components/PageHeader'
+import { Segmented } from '@/components/Segmented'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,9 @@ import { CardError } from '@/features/dashboard/components/CardShell'
 import { toDecimal } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import { FeedBadge } from './components/FeedBadge'
+import { AllAlertsList } from './components/PriceAlerts'
+import { ALL_INSTRUMENTS, ManageWatchlistsDialog } from './components/Watchlists'
+import { useWatchlists } from './tradingHooks'
 import { ChangePct, PriceCell, Sparkline } from './components/PriceBits'
 
 type SortKey = 'symbol' | 'price' | 'change'
@@ -70,6 +74,10 @@ export function MarketsPage() {
   const { data, isPending, isError, refetch } = useInstruments()
   const [q, setQ] = useState('')
   const [sector, setSector] = useState(ALL)
+  const watchlists = useWatchlists()
+  const [list, setList] = useState(ALL_INSTRUMENTS)
+  const [managing, setManaging] = useState(false)
+  const activeList = watchlists.data?.find((w) => w.id === list)
   const [sort, setSort] = useState<SortState>({
     key: 'change',
     dir: 'desc',
@@ -82,6 +90,7 @@ export function MarketsPage() {
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return (data ?? [])
+      .filter((i) => !activeList || activeList.symbols.includes(i.symbol))
       .filter((i) => sector === ALL || i.sector === sector)
       .filter(
         (i) =>
@@ -90,7 +99,7 @@ export function MarketsPage() {
           i.name.toLowerCase().includes(needle),
       )
       .sort((a, b) => compare(a, b, sort.key) * (sort.dir === 'asc' ? 1 : -1))
-  }, [data, q, sector, sort])
+  }, [data, q, sector, sort, activeList])
 
   // 1D sparklines (cached; they don't need to tick).
   const history = useQueries({
@@ -109,6 +118,38 @@ export function MarketsPage() {
         title="Markets"
         description="Simulated prices that move every 3 seconds. Market orders fill instantly."
         actions={<FeedBadge />}
+      />
+
+      {watchlists.data && (
+        <div className="mb-4 flex items-center gap-2">
+          <Segmented<string>
+            label="Watchlist"
+            value={activeList ? list : ALL_INSTRUMENTS}
+            onValueChange={setList}
+            options={[
+              { value: ALL_INSTRUMENTS, label: 'All instruments' },
+              ...watchlists.data.map((w) => ({
+                value: w.id,
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Star aria-hidden="true" className="size-3" />
+                    {w.name}
+                  </span>
+                ),
+              })),
+            ]}
+          />
+          <Button variant="ghost" size="sm" onClick={() => setManaging(true)}>
+            <Settings2 aria-hidden="true" /> Lists
+          </Button>
+        </div>
+      )}
+      <ManageWatchlistsDialog
+        open={managing}
+        onOpenChange={(o) => {
+          setManaging(o)
+          if (!o) setList(ALL_INSTRUMENTS)
+        }}
       />
 
       <Card>
@@ -156,9 +197,15 @@ export function MarketsPage() {
           ) : isError ? (
             <CardError what="prices" onRetry={() => void refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState icon={<Search />} title="No instruments match">
-              Try another name or sector.
-            </EmptyState>
+            activeList && activeList.symbols.length === 0 ? (
+              <EmptyState icon={<Star />} title={`“${activeList.name}” is empty`}>
+                Open an instrument and tap Watch to add it here.
+              </EmptyState>
+            ) : (
+              <EmptyState icon={<Search />} title="No instruments match">
+                Try another name or sector.
+              </EmptyState>
+            )
           ) : (
             <>
               <table className="hidden w-full text-sm md:table">
@@ -253,6 +300,7 @@ export function MarketsPage() {
           )}
         </div>
       </Card>
+      <AllAlertsList />
     </div>
   )
 }

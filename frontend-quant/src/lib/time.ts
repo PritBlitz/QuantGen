@@ -56,3 +56,10 @@ export function daysAgoIST(days: number, now: Date = new Date()): string {
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 }
+
+/** Indian financial year (April–March) containing a yyyy-MM-dd date, as "2026-27". */
+export function financialYear(isoDate: string): string {
+  const y = Number.parseInt(isoDate.slice(0, 4), 10)
+  const start = Number.parseInt(isoDate.slice(5, 7), 10) >= 4 ? y : y - 1
+  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`
+}

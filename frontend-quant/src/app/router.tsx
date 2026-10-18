@@ -257,9 +257,21 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'portfolio/tax',
+                lazy: async () => ({
+                  Component: (await import('@/features/portfolio/TaxReportPage')).TaxReportPage,
+                }),
+              },
+              {
                 path: 'orders',
                 lazy: async () => ({
                   Component: (await import('@/features/portfolio/OrdersPage')).OrdersPage,
+                }),
+              },
+              {
+                path: 'lab',
+                lazy: async () => ({
+                  Component: (await import('@/features/lab/LabPage')).LabPage,
                 }),
               },
               {
