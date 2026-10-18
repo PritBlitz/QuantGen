@@ -30,13 +30,15 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/admin/analytics', milestone: 'V2-MA' },
   { prefix: '/api/v1/analytics/', milestone: 'V2-MA' },
   // Backend 807e831 9bc5dba a5101f5 f3cd38c (announced 2026-10-18): Payments 2.0 parts 1–4.
-  // Handles ride on /users/me; transfers by handle on /transfers. Razorpay top-ups still mocked.
-  { prefix: '/api/v1/payees/', milestone: 'V2-M2' },
+  // Handles ride on /users/me; transfers by handle on /transfers.  { prefix: '/api/v1/payees/', milestone: 'V2-M2' },
   { prefix: '/api/v1/payment-requests', milestone: 'V2-M2' },
   { prefix: '/api/v1/scheduled-transfers', milestone: 'V2-M2' },
   { prefix: '/api/v1/billers', milestone: 'V2-M2' },
   { prefix: '/api/v1/bill-payments', milestone: 'V2-M2' },
   { prefix: '/api/v1/split-groups', milestone: 'V2-M2' },
+  // Backend 81487e2: Razorpay top-ups (§7.9). Without keys on :8080, create returns 503
+  // GATEWAY_UNAVAILABLE; the live `razorpay` flag is off, so the UI hides the option anyway.
+  { prefix: '/api/v1/topups', milestone: 'V2-M2' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -46,7 +48,7 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/users\/me\/tokens/,
-  /^\/api\/v1\/accounts\/[^/]+\/(topups|round-up|cards)/,
+  /^\/api\/v1\/accounts\/[^/]+\/(round-up|cards)/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/orders\/[^/]+\/cancel/,
   /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
