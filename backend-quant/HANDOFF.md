@@ -6,6 +6,18 @@ integration, all green (`./mvnw verify`, JDK 25). Migrations V8–V12 were smoke
 dev DB on :5433 is now at **V12**. :8080 runs the current build from a jar copy in this session's scratchpad (dev
 profile); restart it from `target/` after the next build.
 
+## Resume here (paused 2026-10-18 by the owner)
+1. Read `CLAUDE.md`, then this file, then PRD §11.4.4 + §12.5 (V2-M3) and §12.14 (DTOs). The frontend's state is in
+   `frontend-quant/HANDOFF.md`.
+2. Start the stack: `docker compose -f docker-compose.dev.yml up -d` (Postgres on :5433), then
+   `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` in `backend-quant/` (JDK 25). The dev DB is at V12; the
+   :8080 process from the last session ran from a scratchpad jar and won't survive a reboot.
+3. Check: `./mvnw verify` should show 30 unit + 158 IT green.
+4. Build V2-M3 in the agreed order (already told to the frontend): (1) GOAL accounts + round-ups, (2) fixed deposits +
+   interest, (3) categories / overrides / budgets (`/insights/*`, then real `/analytics/goals` and `SPENDING_CATEGORY`),
+   (4) net worth + forecast. Per group: PRD notes first, migration V13+, tests, smoke-run on a pg_dump clone, restart
+   :8080, message the frontend session (find it with `ListAgents`; if none, write a dated note here and tell the owner).
+
 ## Done
 - **V2-M0 (backend part):** `/actuator/prometheus` (loopback/private only) with `qg.*` metrics.
 - **V2-M1:** outbox + poller, holds + `availableBalance`, STOMP `/user/queue/notifications`, feature flags,
