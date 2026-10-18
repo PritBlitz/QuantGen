@@ -5,10 +5,21 @@ import { EASE_OUT_EXPO } from '@/lib/motion'
 const R = 42
 const C = 2 * Math.PI * R
 
-export function ProgressRing({ value, label }: { value: number; label: string }) {
+/** `size` in px (default 128). */
+export function ProgressRing({
+  value,
+  label,
+  size = 128,
+  caption = 'repaid',
+}: {
+  value: number
+  label: string
+  size?: number
+  caption?: string
+}) {
   const reduce = useReducedMotion()
   return (
-    <div className="relative size-32 shrink-0">
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label={label}>
         <circle cx="50" cy="50" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="8" />
         <motion.circle
@@ -27,8 +38,8 @@ export function ProgressRing({ value, label }: { value: number; label: string })
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center" aria-hidden="true">
         <div>
-          <p className="num text-xl font-semibold">{Math.round(value * 100)}%</p>
-          <p className="text-[0.6875rem] text-muted">repaid</p>
+          <p className={size < 100 ? 'num text-base font-semibold' : 'num text-xl font-semibold'}>{Math.round(value * 100)}%</p>
+          <p className="text-[0.6875rem] text-muted">{caption}</p>
         </div>
       </div>
     </div>
