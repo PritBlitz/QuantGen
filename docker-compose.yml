@@ -53,6 +53,10 @@ services:
       # Same-origin through nginx; only needed if the SPA is served from elsewhere.
       QG_CORS_ORIGINS: ${QG_CORS_ORIGINS:-http://localhost:8088}
       TZ: UTC
+    volumes:
+      # Loan documents (PRD §12.8). The image creates this dir owned by uid 10001, and a fresh
+      # named volume copies that ownership, so uploads survive a redeploy.
+      - loandocs:/app/data/loan-documents
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -89,3 +93,4 @@ networks:
 
 volumes:
   pgdata:
+  loandocs:
