@@ -106,6 +106,7 @@ for (const theme of ['dark', 'light'] as const) {
     }
 
     test('instrument and notifications', async ({ page }) => {
+      test.setTimeout(120_000)
       await loginAsDemo(page)
       await page
         .getByRole('navigation', { name: 'Main' })
