@@ -92,6 +92,16 @@ public class Transfer {
         this.status = TransferStatus.COMPLETED;
     }
 
+    /** A transfer to another person held for fraud review: no ledger entry until an admin releases it. */
+    public static Transfer pendingReview(UUID userId, UUID fromAccountId, UUID toAccountId, String fromAccountNumber,
+                                         String toAccountNumber, String toName, BigDecimal amount, String note,
+                                         TransferSource source) {
+        Transfer t = new Transfer(userId, fromAccountId, toAccountId, fromAccountNumber, toAccountNumber, toName,
+                amount, note, false, null, source);
+        t.status = TransferStatus.PENDING_REVIEW;
+        return t;
+    }
+
     public UUID getJournalEntryId() {
         return journalEntryId;
     }

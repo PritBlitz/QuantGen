@@ -19,6 +19,8 @@ RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -ntp -q package -DskipTests \
 FROM eclipse-temurin:25-jre-alpine AS runtime
 # Unprivileged user with a fixed uid so volume and security policies can refer to it.
 RUN addgroup -S -g 10001 quantgen && adduser -S -u 10001 -G quantgen -h /app quantgen
+# Loan documents (V2-M6) live here; mount a volume on it so uploads survive a new container.
+RUN mkdir -p /app/data/loan-documents && chown -R quantgen:quantgen /app/data
 WORKDIR /app
 
 # Least- to most-frequently changing layers.

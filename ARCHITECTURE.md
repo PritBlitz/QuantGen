@@ -608,6 +608,10 @@ and the total isn't smaller than the sum of the parts". Not proving: that reserv
   place a hold, create `transfers(status=PENDING_REVIEW)` and a `fraud_cases` row, publish
   `TRANSFER_REVIEW_OPENED`. Admin release → `TransferService.completeReviewed()` captures the
   hold and posts. Reject → release the hold.
+  As built (V2-M6, `com.quantgen.risk`): scoring also runs for sandbox card authorizations (a held score declines
+  them); rule weights and thresholds are in PRD §12.8 "Backend notes"; `qg.risk.enabled` switches scoring off (the
+  test profile does, because rules read the wall clock). The case row is locked for a decision; release goes
+  through `TransferService.completeReviewed`. The event is in the outbox as `TRANSFER_REVIEW_OPENED` (no consumer yet).
 - The Fraud Investigator consumes `TRANSFER_REVIEW_OPENED` from Redpanda, reads the case
   through 🤖 back-office endpoints, and writes a memo. If it fails or is slow, the case is still in the queue.
 - Loan documents are stored on a volume (later object storage) under random names, type-sniffed

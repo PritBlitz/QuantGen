@@ -48,8 +48,10 @@ import com.quantgen.payment.domain.BeneficiaryRepository;
 import com.quantgen.payment.domain.Transfer;
 import com.quantgen.payment.domain.TransferRepository;
 import com.quantgen.payment.domain.TransferSource;
+import com.quantgen.payment.domain.TransferStatus;
+import com.quantgen.risk.RiskService;
 
-/** F-PAY-1..3: transfers to own accounts or to any account number, idempotent, with limits. */
+/** F-PAY-1..3: transfers to own accounts or to any account number, idempotent, with limits and fraud review. */
 @Service
 public class TransferService {
 
@@ -60,6 +62,8 @@ public class TransferService {
     public static final BigDecimal NEW_PAYEE_CAP = new BigDecimal("25000.00");
     static final Duration NEW_PAYEE_WINDOW = Duration.ofHours(24);
     static final BigDecimal LARGE_TRANSFER_AUDIT_THRESHOLD = new BigDecimal("100000.00");
+    /** Holds of transfers waiting for fraud review never expire on their own (ARCHITECTURE 12.3). */
+    public static final String FRAUD_HOLD_REASON = "FRAUD_REVIEW";
 
     private final TransferRepository transfers;
     private final AccountService accounts;
@@ -76,13 +80,14 @@ public class TransferService {
     private final BeneficiaryRepository beneficiaries;
     private final HandleService handles;
     private final TransactionCategorizer categorizer;
+    private final RiskService risk;
 
     public TransferService(TransferRepository transfers, AccountService accounts, UserService users,
                            LedgerService ledger, IdempotencyService idempotency, AdvisoryLocks locks,
                            NotificationService notifications, AuditService audit, Clock clock,
                            QgMetrics metrics, LimitsService limits, StepUpService stepUp,
                            BeneficiaryRepository beneficiaries, HandleService handles,
-                           TransactionCategorizer categorizer) {
+                           TransactionCategorizer categorizer, RiskService risk) {
         this.transfers = transfers;
         this.accounts = accounts;
         this.users = users;
@@ -98,6 +103,7 @@ public class TransferService {
         this.beneficiaries = beneficiaries;
         this.handles = handles;
         this.categorizer = categorizer;
+        this.risk = risk;
     }
 
     @Transactional
@@ -215,19 +221,28 @@ public class TransferService {
         String note = blankToNull(rawNote);
         String description = note != null ? note : (internal ? "Transfer between own accounts" : "Fund transfer");
 
-        PostedEntry entry = ledger.post(JournalRequest.builder(JournalType.TRANSFER, description, userId)
-                .debit(from.id(), amount, "To " + toName + " " + AccountNumbers.mask(to.accountNumber()))
-                .credit(to.id(), amount, "From " + fromName + " " + AccountNumbers.mask(from.accountNumber()))
-                .build());
+        // F-RISK-1: a risky payment to someone else waits for an admin, with the money held (D-030).
+        RiskService.Assessment risk = internal ? null : this.risk.scoreTransfer(userId, to.id(), amount);
+        if (risk != null && this.risk.needsReview(risk)) {
+            Transfer pending = transfers.saveAndFlush(Transfer.pendingReview(userId, from.id(), to.id(),
+                    from.accountNumber(), to.accountNumber(), toName, amount, note, source));
+            UUID holdId = ledger.placeHold(from.id(), amount, FRAUD_HOLD_REASON, "transfer:" + pending.getId(), null);
+            this.risk.openCase(pending.getId(), userId, holdId, risk);
+            notifications.notify(userId, NotificationType.TRANSFER_UNDER_REVIEW, "Transfer under review",
+                    "Your transfer of " + Money.toJson(amount) + " INR to " + toName + " is being checked. The money "
+                            + "is held in your account until then; we'll tell you when it's sent or stopped.");
+            return toDto(pending, null);
+        }
+
+        PostedEntry entry = postTransfer(userId, from.id(), to.id(), from.accountNumber(), to.accountNumber(),
+                fromName, toName, amount, description, null);
 
         Transfer transfer = transfers.saveAndFlush(new Transfer(userId, from.id(), to.id(), from.accountNumber(),
                 to.accountNumber(), toName, amount, note, internal, entry.journalEntryId(), source));
 
         metrics.transferCompleted(internal);
         if (!internal) {
-            notifications.notify(to.userId(), NotificationType.MONEY_RECEIVED, "Money received",
-                    "You received " + Money.toJson(amount) + " INR from " + fromName + " in account "
-                            + AccountNumbers.mask(to.accountNumber()) + ".");
+            notifyReceived(to.userId(), fromName, amount, to.accountNumber());
         }
         if (amount.compareTo(LARGE_TRANSFER_AUDIT_THRESHOLD) >= 0) {
             audit.record(userId, "LARGE_TRANSFER", "TRANSFER", transfer.getId().toString(),
@@ -236,6 +251,54 @@ public class TransferService {
         }
         return toDto(transfer, categorizer.categoriesOfEntries(userId, List.of(transfer.getJournalEntryId()))
                 .get(transfer.getJournalEntryId()));
+    }
+
+    /**
+     * F-RISK-2 release: posts a transfer that was held for review, settling its fraud hold, and marks it
+     * COMPLETED. The caller (the admin case service) holds the case row lock, so this runs at most once.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TransferDto completeReviewed(UUID transferId, UUID holdId) {
+        Transfer t = transfers.findById(transferId).orElseThrow(() -> ApiException.notFound("Transfer"));
+        if (t.getStatus() != TransferStatus.PENDING_REVIEW) {
+            throw new ApiException(ErrorCode.INVALID_STATE, "This transfer is not waiting for review");
+        }
+        AccountRef from = accounts.findById(t.getFromAccountId()).orElseThrow();
+        AccountRef to = accounts.findById(t.getToAccountId()).orElseThrow();
+        String fromName = users.getUser(from.userId()).fullName();
+        String description = t.getNote() != null ? t.getNote() : "Fund transfer";
+        PostedEntry entry = postTransfer(t.getUserId(), from.id(), to.id(), from.accountNumber(), to.accountNumber(),
+                fromName, t.getToName(), t.getAmount(), description, holdId);
+        transfers.markCompleted(transferId, entry.journalEntryId());
+        metrics.transferCompleted(false);
+        notifyReceived(to.userId(), fromName, t.getAmount(), to.accountNumber());
+        return toDto(transfers.findById(transferId).orElseThrow(), null);
+    }
+
+    /** F-RISK-2 reject: the transfer never happens; the caller releases the hold. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void rejectReviewed(UUID transferId) {
+        if (transfers.markRejected(transferId) != 1) {
+            throw new ApiException(ErrorCode.INVALID_STATE, "This transfer is not waiting for review");
+        }
+    }
+
+    private PostedEntry postTransfer(UUID userId, UUID fromId, UUID toId, String fromNumber, String toNumber,
+                                     String fromName, String toName, BigDecimal amount, String description,
+                                     UUID captureHoldId) {
+        JournalRequest.Builder b = JournalRequest.builder(JournalType.TRANSFER, description, userId)
+                .debit(fromId, amount, "To " + toName + " " + AccountNumbers.mask(toNumber))
+                .credit(toId, amount, "From " + fromName + " " + AccountNumbers.mask(fromNumber));
+        if (captureHoldId != null) {
+            b.captureHold(captureHoldId);
+        }
+        return ledger.post(b.build());
+    }
+
+    private void notifyReceived(UUID toUserId, String fromName, BigDecimal amount, String toNumber) {
+        notifications.notify(toUserId, NotificationType.MONEY_RECEIVED, "Money received",
+                "You received " + Money.toJson(amount) + " INR from " + fromName + " in account "
+                        + AccountNumbers.mask(toNumber) + ".");
     }
 
     @Transactional(readOnly = true)

@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -90,6 +91,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingRequestHeaderException.class)
     ResponseEntity<ApiError> handleMissingHeader(MissingRequestHeaderException ex, HttpServletRequest req) {
         return validation(req, List.of(new ApiError.FieldError(ex.getHeaderName(), "header is required")));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiError> handleTooLarge(MaxUploadSizeExceededException ex,
+                                            HttpServletRequest req) {
+        return validation(req, List.of(new ApiError.FieldError("file", "must be 5 MB or smaller")));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)

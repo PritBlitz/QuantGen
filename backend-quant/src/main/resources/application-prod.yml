@@ -26,6 +26,9 @@ qg:
     # No defaults: startup fails if either is missing or not 32 bytes (FieldCrypto).
     field-key: ${QG_FIELD_KEY}
     index-key: ${QG_INDEX_KEY}
+  storage:
+    # Uploaded loan documents (V2-M6). The image creates this directory; mount a volume on it.
+    loan-documents-dir: ${QG_LOAN_DOCS_DIR:/app/data/loan-documents}
 
 logging:
   level:

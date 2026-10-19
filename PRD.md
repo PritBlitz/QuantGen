@@ -1204,12 +1204,46 @@ model's own text and is labelled as such in the UI. The raw `payload` is not ech
 |---|---|---|---|
 | GET | `/admin/fraud-cases` | `?status=OPEN&page&size` | `200 Page<FraudCaseDto>` |
 | GET | `/admin/fraud-cases/{id}` | | `200 FraudCaseDto + {memo, signals, customerBaseline}` |
-| POST | `/admin/fraud-cases/{id}/release` · `/reject` | `{reason}` | `200 FraudCaseDto` |
+| POST 🔒💰 | `/admin/fraud-cases/{id}/release` · `/reject` | `{reason}` | `200 FraudCaseDto` |
 | POST (customer) | `/loans/{id}/documents` | multipart `file`, `consent=true` | `201 LoanDocumentDto` |
-| GET | `/admin/loans/{id}/underwriting` | | `200 {memo, extracted: [{field, value, page}], flags, recommendation}` |
+| GET (owner or admin) | `/loans/{id}/documents` | | `200 LoanDocumentDto[]` (added 2026-10-19) |
+| GET | `/admin/loans/{id}/underwriting` | | `200 {status, memo, extracted: [{field, value, page}], flags, recommendation, generatedAt}` |
 | GET | `/admin/ai/usage` | `?from&to` | `200 {tokens, costUsd, byAgent, byDay}` |
 | GET | `/admin/ai/runs/{runId}` | | `200 TraceDto` (full) |
 | PUT | `/admin/feature-flags/{name}` | `{enabled}` | `200` (audited) |
+
+Backend notes (V2-M6 rules-based core, implemented 2026-10-19; the agents, `/admin/ai/*` and memos come with V2-M4).
+**Contract changes (agreed with the frontend 2026-10-19):** release/reject are 🔒💰 (`Idempotency-Key` required:
+they post or free held money); `GET /loans/{id}/documents` added; the underwriting response carries `status`
+(`PENDING|READY|FAILED`) and `generatedAt`.
+- **Scoring (F-RISK-1, D-030):** every transfer to another person (manual, scheduled, request, handle) and every
+  sandbox card authorization, inside its transaction, after limits/cooling/step-up. Score = Σ weights (cap 100);
+  **≥ 60 → review** (`qg.risk.review-threshold`). Transfer rules: `VELOCITY` 25 (≥ 5 transfers in 10 min),
+  `NEW_PAYEE_LARGE` 35 (≥ ₹20,000 to an account never paid before), `DEVICE_CHANGE` 20 (first transfer within 24 h
+  after a new-device sign-in, PIN set, passkey added/removed or other sessions revoked), `ODD_HOUR` 20 (00:00–05:00
+  IST and ≥ ₹10,000), `ROUND_AMOUNTS` 15 (≥ 3 multiples of ₹1,000 within an hour), `UNUSUAL_AMOUNT` 25 (≥ ₹10,000
+  and ≥ 5× the 90-day average, with ≥ 3 past transfers). Card rules: `VELOCITY` 30 (≥ 5 attempts in 10 min),
+  `FIRST_USE_LARGE` 35 (≥ ₹20,000 as the first payment), `ODD_HOUR` 20, `UNUSUAL_AMOUNT` 25. Bill payments are not
+  scored (simulated bills are ≤ ₹4,999.99).
+- **Held transfer:** `POST /transfers` answers `201` with `status: PENDING_REVIEW` (no ledger entry yet); the money
+  is held (`FRAUD_REVIEW`, no expiry), so `availableBalance` drops and `balance` doesn't; the sender gets
+  `TRANSFER_UNDER_REVIEW`. Held transfers count toward the daily limit and new-payee cooling. A card authorization
+  at/above the threshold is `DECLINED` with reason `Suspected fraud` (no case).
+- **Cases:** `status` filter `OPEN|RELEASED|REJECTED` (else `400`); newest first; `topSignal` = label of the heaviest
+  signal; `signals: [{code, label, weight}]`; `customerBaseline` over the customer's other completed transfers to
+  others: `avgTransfer` (90 days), `transfers30d`, `usualHoursIst` (`"09:00–21:00"`, 10th–90th percentile hour, or
+  `"Not enough history"` under 3 transfers), `accountAgeDays`. `memo` is `null` until the agent writes one.
+- **Decisions:** `reason` 5–500 chars; the case row is locked; already decided → `409`. Release posts the transfer
+  (capturing the hold) → `COMPLETED`, the payee gets `MONEY_RECEIVED`, the sender `TRANSFER_UNDER_REVIEW` "Transfer
+  released". Reject → transfer `REJECTED`, hold released, sender told "Transfer stopped". Audited
+  `FRAUD_CASE_OPENED`, `FRAUD_RELEASED`, `FRAUD_REJECTED`. If posting fails at release (e.g. the account was
+  frozen since), the error is returned and the case stays `OPEN`.
+- **Loan documents (F-RISK-4):** your own loan only (`404`), `consent=true` (`400 consent`), only while the loan is
+  `PENDING` (`409`), ≤ 3 per loan (`422 LIMIT_EXCEEDED`), ≤ 5 MB (`400 file`), type by magic bytes only (PDF, PNG,
+  JPEG; else `400 file`). The file name is sanitized for display; bytes go to `QG_LOAN_DOCS_DIR` under a random name
+  with a SHA-256 in the DB and are never served back. `LoanDocumentDto = {id, fileName, contentType, sizeBytes, uploadedAt}`.
+- **Underwriting:** `PENDING` with `flags: ["No documents uploaded yet."]` or `["Waiting for the Underwriting
+  Analyst."]` until V2-M4 writes `underwriting_memos`.
 
 ### 12.9 Trading 2.0
 | Method | Path | Body / Query | Response |

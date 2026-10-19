@@ -292,3 +292,18 @@ Turn the `cards` flag on in `/admin/flags` first. Use a customer with ₹1,000 i
 
 Automated: `CardsIT` (auth → capture → refund leaves balance, holds and CARD_CLEARING exact; 6 concurrent
 authorizations never hold more than the balance; idempotent replays; owner-only capture; previous CVV window).
+
+## 17. V2-M6 risk, rules-based core (demo script)
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | As a customer with ₹50,000, pay a friend ₹1,000 three times, then pay a new person ₹30,000 | The last transfer shows "Under review"; balance unchanged, available ₹30,000 lower; a "Transfer under review" notification |
+| 2 | As admin, open Fraud cases | The case is OPEN with score ≥ 60, top signal "Large amount to someone never paid before", signals and the customer's baseline (avg ₹1,000, 3 transfers in 30 days) |
+| 3 | Release it with a reason | The money moves (payee gets "Money received"), the transfer is COMPLETED, an audit row FRAUD_RELEASED; deciding again says it's already decided |
+| 4 | Repeat 1, then reject | The transfer is REJECTED, the hold is gone, nothing moved; the sender sees "Transfer stopped" |
+| 5 | Make 4 failed card attempts, then a ₹20,000 first card payment | Declined: "Suspected fraud"; money untouched |
+| 6 | Apply for a loan, attach a PDF (with consent), a renamed .exe, then 3 more files | The PDF is accepted; the .exe is refused (type is checked by content); the 4th file is refused (max 3) |
+| 7 | As admin, open the loan's underwriting | PENDING ("Waiting for the Underwriting Analyst.") until the agent ships in V2-M4 |
+
+Automated: `RiskIT` (held → released / rejected end to end with exact balances and holds, idempotent decisions,
+card fraud decline, document sniffing, caps and ownership).

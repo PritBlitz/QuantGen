@@ -22,6 +22,11 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      # Loan documents are capped at 5 MB in LoanDocumentService; this only stops absurd bodies early.
+      max-file-size: 6MB
+      max-request-size: 7MB
 
 server:
   port: 8080

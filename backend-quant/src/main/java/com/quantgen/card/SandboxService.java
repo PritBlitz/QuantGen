@@ -28,6 +28,7 @@ import com.quantgen.ledger.service.JournalRequest;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.ledger.service.PostedEntry;
 import com.quantgen.ledger.service.SystemAccount;
+import com.quantgen.risk.RiskService;
 
 /**
  * F-CARD-3 merchant sandbox ("QuantGen Store"). Authorize = card checks + controls + a hold on the available
@@ -69,10 +70,11 @@ public class SandboxService {
     private final UserRateLimiter rateLimiter;
     private final TransactionTemplate tx;
     private final Clock clock;
+    private final RiskService risk;
 
     SandboxService(JdbcTemplate jdbc, CardService cards, AccountService accounts, LedgerService ledger,
                    IdempotencyService idempotency, NotificationService notifications, UserRateLimiter rateLimiter,
-                   PlatformTransactionManager txManager, Clock clock) {
+                   PlatformTransactionManager txManager, Clock clock, RiskService risk) {
         this.jdbc = jdbc;
         this.cards = cards;
         this.accounts = accounts;
@@ -82,6 +84,7 @@ public class SandboxService {
         this.rateLimiter = rateLimiter;
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
+        this.risk = risk;
     }
 
     // ------------------------------------------------------------------ authorize
@@ -135,6 +138,9 @@ public class SandboxService {
                 : account.status() == AccountStatus.CLOSED ? "Account is closed"
                 : available(account.id()).compareTo(amount) < 0 ? "Insufficient funds"
                 : null;
+        if (reason == null && risk.needsReview(risk.scoreCard(card.id(), amount))) {
+            reason = "Suspected fraud"; // F-RISK-1: rules only (D-030)
+        }
         if (reason != null) {
             return decline(merchantUserId, card, req, reason);
         }

@@ -19,3 +19,8 @@ qg:
     key-id: rzp_test_fake000000
     key-secret: test-key-secret
     webhook-secret: test-webhook-secret
+  risk:
+    # Fraud rules read the wall clock (00:00–05:00 IST) and history, so other tests would flake; RiskIT turns them on.
+    enabled: false
+  storage:
+    loan-documents-dir: target/test-loan-documents

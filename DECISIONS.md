@@ -59,7 +59,7 @@ you make a new one.
 | D-027 | Holds and "available balance" outside the ledger lines | Accepted |
 | D-028 | Transactional outbox; Redpanda only for cross-service consumers | Accepted |
 | D-029 | Step-up auth: passkeys first, transaction PIN as fallback | Accepted |
-| D-030 | Fraud: deterministic rules decide, the LLM only explains | Proposed |
+| D-030 | Fraud: deterministic rules decide, the LLM only explains | Accepted (rules built in V2-M6, 2026-10-19) |
 | D-031 | Underwriting agent recommends, the admin decides | Proposed |
 | D-032 | Field-level encryption (AES-256-GCM) + blind index for KYC and card data | Accepted |
 | D-033 | GitHub Actions only; drop Jenkins from the roadmap | Proposed |
