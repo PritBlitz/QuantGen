@@ -22,6 +22,8 @@ import com.quantgen.common.error.ApiErrorWriter;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.security.AccessTokenVerifier;
 import com.quantgen.common.security.JwtAuthenticationFilter;
+import com.quantgen.common.security.PatAuthenticationFilter;
+import com.quantgen.common.security.PersonalTokenAuthenticator;
 
 /**
  * Stateless, deny-by-default security (ARCHITECTURE §3 request pipeline).
@@ -37,9 +39,12 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errorWriter,
-                                           AccessTokenVerifier tokenVerifier) throws Exception {
+                                           AccessTokenVerifier tokenVerifier, PersonalTokenAuthenticator personalTokens)
+            throws Exception {
         http
                 .addFilterBefore(new JwtAuthenticationFilter(tokenVerifier), UsernamePasswordAuthenticationFilter.class)
+                // Personal access tokens (qg_pat_…) are checked after JWTs and confined to their read routes.
+                .addFilterAfter(new PatAuthenticationFilter(personalTokens, errorWriter), JwtAuthenticationFilter.class)
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {
                 })

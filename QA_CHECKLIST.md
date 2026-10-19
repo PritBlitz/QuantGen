@@ -307,3 +307,15 @@ authorizations never hold more than the balance; idempotent replays; owner-only 
 
 Automated: `RiskIT` (held → released / rejected end to end with exact balances and holds, idempotent decisions,
 card fraud decline, document sniffing, caps and ownership).
+
+## 18. V2-M10 personal access tokens (demo script)
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | Settings → Developer access → create a `read` token for 30 days | Asks for step-up; shows `qg_pat_…` once; the list never shows it again |
+| 2 | `curl -H "Authorization: Bearer qg_pat_…" :8080/api/v1/accounts` | Your accounts; the token's "last used" updates; an audit row TOKEN_USED |
+| 3 | Same token: `POST /api/v1/transfers`, `GET /api/v1/users/me/tokens`, `GET /api/v1/admin/users` | 403 each (audited TOKEN_DENIED); no money moves |
+| 4 | Revoke it, call again | 401 |
+
+Automated: `PersonalAccessTokenIT` (step-up, hashing, scope allowlist, audit on every use, revocation, expiry,
+10-token cap, no admin tokens) and `PatScopeTest`.

@@ -1382,6 +1382,21 @@ with `Idempotent-Replayed: true`), because they place, settle or return money. T
 | GET | `/users/me/tokens` | | `200 [{id, name, scope, lastUsedAt, expiresAt}]` |
 | DELETE | `/users/me/tokens/{id}` | | `204` |
 
+Backend notes (V2-M10 core side, implemented 2026-10-19; the MCP server lives in `agent-quant`, not built yet):
+- **Create:** customers only (admins `403`); always needs `X-Step-Up-Token` for `TOKEN_CREATE`; `name` 1–40 chars;
+  `scope` `read|read+propose`, `expiresInDays` 1–90 (`400` with the field); at most 10 active tokens (`422
+  LIMIT_EXCEEDED`). The token is `qg_pat_` + 43 base64url chars, returned once with `Cache-Control: no-store`; only
+  its SHA-256 is stored. Audited `TOKEN_CREATED`; `DELETE` → `TOKEN_REVOKED`, someone else's or already revoked `404`.
+  `GET` lists unrevoked tokens (expired ones included until revoked), never the value.
+- **Use:** `Authorization: Bearer qg_pat_…`. Unknown, expired or revoked → `401`. Deny by default: a `read` token
+  reaches only `GET` on `/users/me`, `/accounts`, `/accounts/{id}`, `/accounts/{id}/transactions`, `/transfers`,
+  `/scheduled-transfers`, `/payment-requests`, `/fixed-deposits[/{id}]`, `/loans[/{id}[/schedule]]`, `/portfolio`,
+  `/orders`, `/watchlists`, `/market/instruments/**`, `/insights/**`, `/analytics/**`, `/budgets`,
+  `/payees/resolve`; `read+propose` adds `POST /intents` (V2-M4). Everything else is `403` (writes, statements,
+  cards, sessions, token management, admin). Ownership checks are unchanged (another user's account stays `404`).
+  60 requests/min per token (`429`). Every use is audited (`TOKEN_USED` / `TOKEN_DENIED`, method + path only) and
+  updates `lastUsedAt`.
+
 ### 12.13 Analytics
 Common rules: read-only (no idempotency key); `from`/`to` are inclusive IST dates
 (`YYYY-MM-DD`), default the last 30 days, max span 366 days (admin: 3 years); `400

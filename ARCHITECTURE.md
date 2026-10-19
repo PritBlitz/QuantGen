@@ -634,6 +634,7 @@ they can be partial and repeated. Capture settles the whole hold even when parti
 | Authentication | Passkeys; step-up for risky actions; PIN fallback with lockout; session list + remote revoke |
 | Service-to-service | core ↔ `agent-quant` on a private network only, mutual auth with a shared secret header (mTLS at V2-M11) |
 | Agent authority | Delegated tokens, 🤖 allowlist, intents only (§12.7) |
+| Developer tokens | Personal access tokens (`qg_pat_…`, SHA-256 at rest, ≤ 90 days, step-up to create) confined by `PatAuthenticationFilter` to a read allowlist (+ `POST /intents` for `read+propose`); every use audited (PRD §12.12) |
 | Webhooks | HMAC on raw body, event-id dedupe, endpoint rate-limited, no JWT |
 | Data at rest | AES-256-GCM field encryption + blind index for PAN/KYC/card numbers; key version in each ciphertext |
 | Files | Type sniffing, size caps, random names, stored outside the web root |
