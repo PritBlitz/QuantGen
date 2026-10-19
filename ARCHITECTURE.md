@@ -618,6 +618,11 @@ and the total isn't smaller than the sum of the parts". Not proving: that reserv
 Authorization = risk score + controls + hold on available balance. Capture = ledger entry
 customer → `CARD_CLEARING` capturing the hold. Refund = reversal entry. PAN encrypted (D-032),
 CVV computed on reveal as `HMAC(cardKey, pan ‖ 30-s window)` and never stored.
+As built (V2-M9, `com.quantgen.card`): the card key is `QG_INDEX_KEY` under its own HMAC context (no extra secret);
+the PAN is found by its blind index. Every authorization attempt is a `card_authorizations` row (declines too).
+A hold that loses a race inside `placeHold` rolls its transaction back, and the decline is then recorded in a new
+transaction under the same idempotency key. Refunds are `REFUND` entries (`card_refunds`), not `REVERSAL`s, because
+they can be partial and repeated. Capture settles the whole hold even when partial.
 
 ### 12.13 Security additions (extends §9)
 | Layer | v2 control |

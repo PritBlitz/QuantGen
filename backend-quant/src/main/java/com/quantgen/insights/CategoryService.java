@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.account.service.TransactionCategorizer;
 import com.quantgen.analytics.LedgerKinds;
+import com.quantgen.card.MerchantCategory;
 import com.quantgen.common.error.ApiException;
 
 /**
@@ -59,15 +60,28 @@ public class CategoryService implements TransactionCategorizer {
         KEYWORDS.forEach((cat, re) -> notes.append(" WHEN cl.description ~* '").append(re).append("' THEN '")
                 .append(cat).append("'"));
         notes.append(" ELSE 'TRANSFERS' END");
+        // Card payments (and their refunds) take the category of the merchant they were authorized for.
+        StringBuilder merchant = new StringBuilder("CASE ca.category");
+        for (MerchantCategory m : MerchantCategory.values()) {
+            merchant.append(" WHEN '").append(m.name()).append("' THEN '").append(m.spendingCategory()).append("'");
+        }
+        merchant.append(" END");
+        String card = """
+                COALESCE((SELECT %s FROM card_authorizations ca
+                           WHERE ca.capture_entry_id = cl.journal_entry_id
+                              OR ca.id = (SELECT r.authorization_id FROM card_refunds r
+                                           WHERE r.journal_entry_id = cl.journal_entry_id)
+                           LIMIT 1), 'SHOPPING')""".formatted(merchant);
         return """
                 CASE
                   WHEN cl.kind IN ('DEPOSIT', 'TOPUP', 'INTEREST', 'TRANSFER_IN') THEN 'INCOME'
                   WHEN cl.kind = 'BILL_PAYMENT' THEN 'BILLS'
                   WHEN cl.kind IN ('LOAN_REPAYMENT', 'BORROWED') THEN 'LOANS'
                   WHEN cl.kind IN ('INVESTED', 'DIVESTED') THEN 'INVESTMENTS'
+                  WHEN cl.kind = 'CARD' THEN %s
                   WHEN cl.kind = 'TRANSFER_OUT' THEN %s
                   ELSE 'TRANSFERS'
-                END""".formatted(notes);
+                END""".formatted(card, notes);
     }
 
     /**

@@ -247,7 +247,7 @@ public class InsightsService implements EventConsumer {
         JsonNode p = event.payload();
         String type = p.path("type").asString("");
         if (!List.of(JournalType.TRANSFER.name(), JournalType.BILL_PAYMENT.name(), JournalType.LOAN_REPAYMENT.name(),
-                JournalType.REVERSAL.name()).contains(type)) {
+                JournalType.REVERSAL.name(), JournalType.CARD.name()).contains(type)) {
             return;
         }
         List<UUID> debited = new ArrayList<>();

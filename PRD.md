@@ -1302,11 +1302,44 @@ Backend notes (V2-M8, implemented 2026-10-19; agreed with the frontend session t
 | GET | `/cards` | | `200 CardDto[]` |
 | POST 🛡️ | `/cards/{id}/reveal` | | `200 {pan, cvv, expiry, hideAfterSeconds: 30}` |
 | PATCH | `/cards/{id}/controls` | `{frozen?, online?, perTxnLimit?, blockedCategories?}` | `200 CardDto` |
-| POST | `/sandbox/merchant/authorize` | `{cardNumber, expiry, cvv, amount, merchant, category}` | `200 {authId, status: "APPROVED"\|"DECLINED", reason?}` |
-| POST | `/sandbox/merchant/{authId}/capture` · `/refund` | `{amount?}` | `200` |
+| POST 🔒💰 | `/sandbox/merchant/authorize` | `{cardNumber, expiry, cvv, amount, merchant, category}` | `200 {authId, status: "APPROVED"\|"DECLINED", reason?}` |
+| POST 🔒💰 | `/sandbox/merchant/{authId}/capture` · `/refund` | `{amount?}` | `200 {authId, status, amount, capturedAmount, refundedAmount}` |
 
 `CardDto = {id, accountId, last4, expiry, status: "ACTIVE"|"FROZEN", controls}`. Sandbox
 endpoints exist only when the `cards` flag is on, and are rate-limited.
+
+Backend notes (V2-M9, implemented 2026-10-19). **Contract change (agreed with the frontend 2026-10-19):** the three
+sandbox endpoints are 🔒💰 and need an `Idempotency-Key` (`400` without one; a replay answers the stored result
+with `Idempotent-Replayed: true`), because they place, settle or return money. The capture/refund body was `200` (empty).
+- **Cards:** `POST /accounts/{id}/cards` only for your own SAVINGS/CHECKING account (else `404`), one per account
+  (`409 INVALID_STATE`), closed account `409`. `cards` flag off → `503 FEATURE_DISABLED` (create and sandbox;
+  `GET /cards`, reveal and controls keep working). New card: PAN `9100…` (16 digits, Luhn-valid, non-issuer range),
+  expiry = this month + 4 years (`MM/YY`, valid through month end IST), `online: true`, `perTxnLimit: "25000.00"`,
+  `blockedCategories: ["GAMBLING"]`. `controls.perTxnLimit` is a normal 2-dp money string.
+- **Reveal:** always needs `X-Step-Up-Token` for `CARD_REVEAL`; `pan` grouped `"9100 1234 5678 9012"`;
+  `Cache-Control: no-store`; audited `CARD_REVEALED` (last 4 only). The CVV is `HMAC(key, PAN | ⌊epoch/30⌋)` mod
+  1000, never stored; authorize accepts the current **and the previous** 30-s window.
+- **Controls:** any subset; `perTxnLimit` ₹1–₹2,00,000; `blockedCategories` ⊆ `GROCERY, DINING, TRAVEL, ELECTRONICS,
+  GAMBLING, FUEL, ENTERTAINMENT, OTHER` (unknown → `400`); `frozen` drives `status`. Audited (`CARD_FROZEN`,
+  `CARD_UNFROZEN`, `CARD_CONTROLS_CHANGED`).
+- **Authorize:** any signed-in user can run the checkout ("merchant"); 20/min per user. Validation `400`:
+  `cardNumber` 12–23 digits/spaces, `expiry` `MM/YY`, `cvv` 3 digits, `amount` ₹1–₹2,00,000, `merchant` 1–40 chars,
+  `category` from the list. Business outcomes are `200 DECLINED` with one of: `Card details don't match` (unknown
+  PAN, wrong expiry or CVV; never says which), `Card has expired`, `Card is frozen`, `Online payments are off`,
+  `Merchant category is blocked`, `Over the per-transaction limit`, `Account is frozen`, `Account is closed`,
+  `Insufficient funds` (against `availableBalance`, re-checked under the row lock). Approval places a 7-day hold
+  (`CARD_AUTH`). Every decline on a real card sends the cardholder `CARD_DECLINED` (amount, merchant, last 4, reason).
+  The `fraud` decline reason arrives with V2-M6.
+- **Capture / refund:** only by the user who ran the authorize (`404` otherwise; also for declined auths). Capture:
+  `AUTHORIZED` only (`409` otherwise or when the hold expired), `amount` ≤ authorized (`400`), default all; posts a
+  `CARD` entry customer → `CARD_CLEARING` that settles the whole hold, so a partial capture frees the rest. Refund:
+  `CAPTURED` only, `amount` ≤ captured − refunded (`400`), default what's left; posts a `REFUND` entry back; status
+  becomes `REFUNDED` when fully refunded. Transactions show `type: CARD` / `REFUND`, counterparty = merchant.
+- **Insights/analytics:** `CARD` debits are spending (category from the merchant: GROCERY→GROCERIES, DINING→FOOD,
+  TRAVEL→TRAVEL, ELECTRONICS→SHOPPING, GAMBLING→ENTERTAINMENT, FUEL→TRANSPORT, ENTERTAINMENT→ENTERTAINMENT,
+  OTHER→SHOPPING); refunds net out of that spending like reversals. Card payments count toward budgets.
+- **Not done:** F-CARD-4 disputes (P2, no endpoints in this table); no auto-capture job (the store captures);
+  card spends don't count toward the transfer limits.
 
 ### 12.12 Developer access
 | Method | Path | Body | Response |

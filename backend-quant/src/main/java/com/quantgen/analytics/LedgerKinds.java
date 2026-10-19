@@ -10,18 +10,19 @@ import java.util.Map;
  *
  * <ul>
  *   <li>income: DEPOSIT, TOPUP and INTEREST credits, and TRANSFER credits from another user;</li>
- *   <li>spending: TRANSFER debits to another user, LOAN_REPAYMENT and BILL_PAYMENT debits;</li>
+ *   <li>spending: TRANSFER debits to another user, LOAN_REPAYMENT, BILL_PAYMENT and CARD debits;</li>
  *   <li>moves between a user's own accounts: {@code OTHER}, excluded from both;</li>
  *   <li>TRADE debits are INVESTED and TRADE credits DIVESTED; LOAN_DISBURSAL credits are BORROWED.</li>
  * </ul>
  *
  * A REVERSAL line is classified as the original entry's line it undoes, with a negative sign, so a reversed
- * transfer cancels out of spending instead of showing up as income.
+ * transfer cancels out of spending instead of showing up as income. A card REFUND credit is treated the same way,
+ * as a (partial) undo of a CARD debit.
  */
 public final class LedgerKinds {
 
     public static final List<String> INCOME_KINDS = List.of("DEPOSIT", "TOPUP", "INTEREST", "TRANSFER_IN");
-    public static final List<String> SPENDING_KINDS = List.of("TRANSFER_OUT", "LOAN_REPAYMENT", "BILL_PAYMENT");
+    public static final List<String> SPENDING_KINDS = List.of("TRANSFER_OUT", "LOAN_REPAYMENT", "BILL_PAYMENT", "CARD");
     /** Money arriving from outside the bank: demo deposits and gateway top-ups. */
     static final List<String> DEPOSIT_KINDS = List.of("DEPOSIT", "TOPUP");
     static final String INCOME = sqlList(INCOME_KINDS);
@@ -64,6 +65,7 @@ public final class LedgerKinds {
                            WHEN x.base_type = 'TOPUP' AND x.odir = 'CREDIT' THEN 'TOPUP'
                            WHEN x.base_type = 'INTEREST' AND x.odir = 'CREDIT' THEN 'INTEREST'
                            WHEN x.base_type = 'BILL_PAYMENT' AND x.odir = 'DEBIT' THEN 'BILL_PAYMENT'
+                           WHEN x.base_type = 'CARD' AND x.odir = 'DEBIT' THEN 'CARD'
                            WHEN x.base_type = 'TRANSFER' AND x.odir = 'CREDIT' AND x.other_user THEN 'TRANSFER_IN'
                            WHEN x.base_type = 'TRANSFER' AND x.odir = 'DEBIT' AND x.other_user THEN 'TRANSFER_OUT'
                            WHEN x.base_type = 'LOAN_REPAYMENT' AND x.odir = 'DEBIT' THEN 'LOAN_REPAYMENT'
@@ -81,10 +83,10 @@ public final class LedgerKinds {
                                WHERE ol.journal_entry_id = l.journal_entry_id
                                  AND ol.ledger_account_id <> l.ledger_account_id
                                ORDER BY ol.ledger_account_id LIMIT 1) AS other_account,
-                             CASE WHEN e.type = 'REVERSAL' THEN -1 ELSE 1 END AS sgn,
-                             l.amount * CASE WHEN e.type = 'REVERSAL' THEN -1 ELSE 1 END AS amt,
-                             COALESCE(oe.type, e.type) AS base_type,
-                             CASE WHEN e.type = 'REVERSAL'
+                             CASE WHEN e.type IN ('REVERSAL', 'REFUND') THEN -1 ELSE 1 END AS sgn,
+                             l.amount * CASE WHEN e.type IN ('REVERSAL', 'REFUND') THEN -1 ELSE 1 END AS amt,
+                             COALESCE(oe.type, CASE WHEN e.type = 'REFUND' THEN 'CARD' ELSE e.type END) AS base_type,
+                             CASE WHEN e.type IN ('REVERSAL', 'REFUND')
                                   THEN CASE l.direction WHEN 'DEBIT' THEN 'CREDIT' ELSE 'DEBIT' END
                                   ELSE l.direction END AS odir,
                              EXISTS (SELECT 1 FROM ledger_lines ol JOIN accounts oa ON oa.id = ol.ledger_account_id

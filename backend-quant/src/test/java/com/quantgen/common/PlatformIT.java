@@ -27,7 +27,7 @@ class PlatformIT extends IntegrationTest {
     @Test
     void flywaySeedsSystemAccountsAndInstruments() {
         assertThat(jdbc.queryForList("SELECT code FROM ledger_accounts WHERE kind = 'SYSTEM' ORDER BY code", String.class))
-                .containsExactly("BANK_CASH", "BILLER_CLEARING", "BROKERAGE_CLEARING", "GATEWAY_CLEARING", "INTEREST_EXPENSE",
+                .containsExactly("BANK_CASH", "BILLER_CLEARING", "BROKERAGE_CLEARING", "CARD_CLEARING", "GATEWAY_CLEARING", "INTEREST_EXPENSE",
                         "INTEREST_INCOME", "LOAN_RECEIVABLE");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM instruments", Integer.class)).isEqualTo(15);
     }

@@ -276,3 +276,19 @@ on the daily closing balance, credited on the 1st).
 Automated: `ProofOfBalanceIT` (gap-free chain under concurrent sealers, tamper detection of a line and of a seal,
 admin alert, every proof recomputed to the published root) and `ProofHashingTest` (vectors from `sha256sum`).
 Live proofs were also checked with the frontend's own `src/lib/merkle.ts` against a clone of the dev DB.
+
+## 16. V2-M9 cards and the merchant sandbox (demo script)
+
+Turn the `cards` flag on in `/admin/flags` first. Use a customer with ₹1,000 in savings.
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | Issue a card for savings, then try again | A card `•••• 1234`, expiry 4 years out, GAMBLING blocked, limit ₹25,000; the second try says the account already has one |
+| 2 | Reveal it | Asks for step-up (PIN); shows the full number and a CVV, hidden again after 30 s; an audit row `CARD_REVEALED` |
+| 3 | In the QuantGen Store, pay ₹300 (DINING) with the revealed details | Approved; balance ₹1,000, available ₹700 (a hold) |
+| 4 | Let it capture, then refund ₹100, then the rest | Balance ₹700 → ₹800 → ₹1,000; holds ₹0; transactions show CARD and REFUND; Insights shows FOOD spending net of the refund |
+| 5 | Pay with a wrong CVV, a GAMBLING merchant, ₹30,000, or after freezing the card | Declined with the matching reason, money untouched, and a CARD_DECLINED notification for the cardholder |
+| 6 | Double-click Pay (or retry after a network error) | One hold, one authorization (same Idempotency-Key) |
+
+Automated: `CardsIT` (auth → capture → refund leaves balance, holds and CARD_CLEARING exact; 6 concurrent
+authorizations never hold more than the balance; idempotent replays; owner-only capture; previous CVV window).

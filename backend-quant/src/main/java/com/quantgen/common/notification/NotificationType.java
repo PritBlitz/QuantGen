@@ -17,6 +17,7 @@ public enum NotificationType {
     FD_MATURED,
     BUDGET_ALERT,
     PRICE_ALERT,
+    CARD_DECLINED,
     /** Sent to admins when the nightly seal-chain check finds a break (PRD F-POB-4). */
     LEDGER_INTEGRITY
 }

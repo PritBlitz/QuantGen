@@ -13,7 +13,9 @@ public enum SystemAccount {
     /** Money collected by the payment gateway for top-ups (V10). */
     GATEWAY_CLEARING("00000000-0000-0000-0000-000000000006"),
     /** Interest paid to customers on FDs and savings (V14). */
-    INTEREST_EXPENSE("00000000-0000-0000-0000-000000000007");
+    INTEREST_EXPENSE("00000000-0000-0000-0000-000000000007"),
+    /** Captured card payments owed onwards to merchants (V18). */
+    CARD_CLEARING("00000000-0000-0000-0000-000000000008");
 
     private final UUID id;
 
