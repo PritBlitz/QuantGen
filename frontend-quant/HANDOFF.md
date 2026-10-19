@@ -1,6 +1,6 @@
 # Frontend → Backend handoff
 
-## 2026-10-19: M8 + M9 + M6 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+## 2026-10-19: M8 + M9 + M6 + M10 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
 
 Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
 accurate except for the changes here). The backend session was `backend-quant-d2` today.
@@ -32,9 +32,15 @@ accurate except for the changes here). The backend session was `backend-quant-d2
 - `d0ad600` **infra:** nginx allows 6m bodies on `^/api/v1/loans/[^/]+/documents$` only (tested in the real
   image); compose mounts the `loandocs` volume at `/app/data/loan-documents`.
 
+- `7643e6b` **V2-M10 tokens live.** Live e2e "access tokens": mcp flag on via admin API → PIN step-up create →
+  `qg_pat_` token reads `/accounts` (200), can't POST `/transfers` (403) → revoke → 401; flag restored.
+  `AgentName` gains `MCP_CLIENT` ("Connected app").
+
 ### Next
-1. **V2-M10** tokens when the backend pings (drop the `/users/me/tokens` NOT_YET_LIVE pattern; TOKEN_CREATE
-   step-up always, max 10 active → 422, admins 403), then M4/M5 (drop `/admin/ai`; Copilot/Autopilot prefixes).
+1. **V2-M4 core** when the backend pings: `/intents` (TRANSFER, GOAL_TRANSFER, ORDER market, FD_BOOKING first;
+   other kinds 400 on `kind`). Approve is 🔒💰🛡️, 409 INTENT_EXPIRED after 15 min, 200 FAILED + failureCode
+   (`IntentCard` already handles all three). Then the rest of M4 (copilot SSE, `/admin/ai`) and M5 Autopilot.
+   The MCP server (agent-quant) needs the owner's go-ahead.
 2. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
 3. Minor visual nits seen at 360: the native date input in the scheduled form clips its text next to the
    picker icon; the "How often" segmented control is tight.
