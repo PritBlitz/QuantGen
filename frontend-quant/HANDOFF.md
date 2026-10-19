@@ -1,6 +1,6 @@
 # Frontend → Backend handoff
 
-## 2026-10-19: M8 + M9 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+## 2026-10-19: M8 + M9 + M6 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
 
 Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
 accurate except for the changes here). The backend session was `backend-quant-d2` today.
@@ -27,11 +27,14 @@ accurate except for the changes here). The backend session was `backend-quant-d2
   remaining hit is the decorative glow on /pay, which is clipped by `overflow-hidden` (a false positive).
 - `77d8caa` **V2-M6 prep:** fraud release/reject send an Idempotency-Key (one per case+decision+reason).
 
+- `ec59ec2` **V2-M6 live** (fraud cases, loan documents, underwriting; `/admin/ai` stays mocked until M4).
+  New live e2e "fraud" (held ₹30,000 → admin release → payee credited). The full live suite passes 5/5 on :8080.
+- `d0ad600` **infra:** nginx allows 6m bodies on `^/api/v1/loans/[^/]+/documents$` only (tested in the real
+  image); compose mounts the `loandocs` volume at `/app/data/loan-documents`.
+
 ### Next
-1. **V2-M6** when the backend pings: flip `/admin/fraud-cases` (drop its `NOT_YET_LIVE` pattern) and
-   `/loans/{id}/documents`, add `V2-M6`. `POST /transfers` can return 201 `PENDING_REVIEW` with a
-   `TRANSFER_UNDER_REVIEW` notification; `TransferFlow.tsx` already handles that; re-check it live.
-   Uploads only on PENDING loans (the UI already gates on that). Then M10 tokens, then M4/M5.
+1. **V2-M10** tokens when the backend pings (drop the `/users/me/tokens` NOT_YET_LIVE pattern; TOKEN_CREATE
+   step-up always, max 10 active → 422, admins 403), then M4/M5 (drop `/admin/ai`; Copilot/Autopilot prefixes).
 2. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
 3. Minor visual nits seen at 360: the native date input in the scheduled form clips its text next to the
    picker icon; the "How often" segmented control is tight.
