@@ -1,6 +1,6 @@
 # Frontend → Backend handoff
 
-## 2026-10-19: M8 + M9 + M6 + M10 + M4-core live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+## 2026-10-19: M8 + M9 + M6 + M10 + M4-core + M5-core live, mocked e2e green, 360 px pass  ← READ THIS FIRST
 
 Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
 accurate except for the changes here). The backend session was `backend-quant-d2` today.
@@ -46,10 +46,17 @@ accurate except for the changes here). The backend session was `backend-quant-d2
   Run the backend with `QG_RATE_LIMIT_ENABLED=false` for a full run, or run tests one at a time. Each test
   passed on its own on 2026-10-19.
 
+- `1bb8ff0` **V2-M5 Autopilot core** flipped (`/autopilot/`; `/autopilot/compile` stays mocked). The form hides
+  BUDGET_THRESHOLD / PAY_BILL / ROUND_UP_SWEEP unless fully mocked (`backendHas('V2-M5-extended')`). Templates come
+  with `rule: null` live, so they compile when AI is on and otherwise open the form; a 503 compile falls back
+  to the form; `outcome: null` reads "Running". **Not yet verified live:** :8080 was stopped for low memory
+  right after M5 was announced (backend 5ac903a, DB V22). Restart from backend-quant with
+  `QG_RATE_LIMIT_ENABLED=false ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` (owner's call).
+
 ### Next
-1. **V2-M5 Autopilot core** when the backend pings (rules CRUD, validate/render, replay, runs, templates,
-   AUTOPILOT_RULE intents; `/autopilot/compile` needs the Planner, so it stays mocked). Flip `/autopilot/`
-   except compile.
+1. **Verify M5 live** once :8080 is back: spot-check validate/simulate/rules/templates/runs, then add a live e2e
+   (salary-style MONEY_RECEIVED → TRANSFER rule with PIN step-up, a transfer in → one SUCCEEDED run) and run the
+   whole live file (the rate limiter is off now).
 2. **Needs the owner:** agent-quant (copilot SSE, agents, traces, `/admin/ai`, memos, MCP server). After it
    exists: flip `/copilot/`, `/intents`, `/admin/ai`, `/autopilot/compile`.
 3. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
