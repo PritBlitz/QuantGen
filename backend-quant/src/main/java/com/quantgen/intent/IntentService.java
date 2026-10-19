@@ -50,7 +50,8 @@ public class IntentService {
     /** Codes that mean "the bank said no" at execution; anything else is a real error. */
     static final List<ErrorCode> BUSINESS_FAILURES = List.of(ErrorCode.INSUFFICIENT_FUNDS, ErrorCode.INSUFFICIENT_HOLDINGS,
             ErrorCode.LIMIT_EXCEEDED, ErrorCode.ACCOUNT_FROZEN, ErrorCode.COOLING_PERIOD, ErrorCode.INVALID_STATE,
-            ErrorCode.NOT_FOUND, ErrorCode.VALIDATION_FAILED, ErrorCode.KYC_REQUIRED, ErrorCode.FEATURE_DISABLED);
+            ErrorCode.NOT_FOUND, ErrorCode.VALIDATION_FAILED, ErrorCode.KYC_REQUIRED, ErrorCode.FEATURE_DISABLED,
+            ErrorCode.RULE_INVALID);
 
     public record Line(String label, String value) {
     }

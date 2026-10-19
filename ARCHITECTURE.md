@@ -570,6 +570,11 @@ flowchart LR
   fake balance tracker; it never calls a posting service.
 - **DSL versioning:** `dslVersion` in every rule; the engine supports N and N−1; migrations
   rewrite stored rules forward.
+- **As built (V2-M5, `com.quantgen.autopilot`):** `AutopilotEngine` is an outbox consumer named `autopilot`; the
+  claim happens in the consumer transaction and actions start after it commits (virtual threads), with a sweeper
+  resuming runs unfinished after 2 minutes. Price ticks reach it as a Spring `PricesUpdatedEvent`, so `trading` does
+  not depend on `autopilot`. Each action's result row commits with the action; a failed action is recorded in a
+  new transaction. `RuleSimulator` reads ledger lines, daily balances and stored price ticks.
 
 ### 12.10 Proof of Balance (D-025, D-026)
 **Sealing (continuous)**

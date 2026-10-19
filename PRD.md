@@ -1226,6 +1226,40 @@ agent tokens and traces need `agent-quant`, not built yet):
 `SimulationDto = {firings: [{date, triggerSummary, actions: [{summary, amount, wouldSucceed, reason?}]}], totalMoved, failures}` ·
 `RuleRunDto = {id, ruleVersion, triggerEventId, startedAt, outcome: "SUCCEEDED"|"PARTIAL"|"FAILED"|"SKIPPED_CAP", actions: [{type, amount, transferId?, orderId?, error?}]}`
 
+Backend notes (V2-M5 core, implemented 2026-10-19; `/autopilot/compile` needs the Planner in `agent-quant`):
+- **Kill switch:** the `autopilot` flag off → validate, simulate, compile, create, edit and resume answer `503
+  FEATURE_DISABLED`, and the engine runs nothing; list, get, runs, pause and delete keep working. `compile` with the
+  flag on answers `503` too (no Planner yet; `400 text` first if the text isn't 8–500 chars).
+- **Supported now:** triggers `MONEY_RECEIVED`, `SCHEDULE`, `BALANCE_ABOVE`, `PRICE_CROSSES`; actions `TRANSFER`, `BUY`,
+  `NOTIFY`; condition `BALANCE_AT_LEAST` (≤ 3). `BUDGET_THRESHOLD`, `PAY_BILL` and `ROUND_UP_SWEEP` are `RULE_INVALID`
+  "not supported yet" (round-ups already sweep nightly; there are no saved billers). `RuleRunDto` also carries
+  `triggerSummary`; `outcome` is `null` while a run is in progress.
+- **Validation (`422 RULE_INVALID`, paths like `rule.actions[0].toAccountId`):** accounts must be yours and active;
+  `TRANSFER.fromAccountId` defaults to the trigger's account, never an FD; exactly one of `toAccountId` (yours, not the
+  source, not an FD) or `toBeneficiaryId` (saved > 24 h ago; source must be savings/checking); `BUY` from
+  savings/checking, known symbol; `PERCENT_OF_TRIGGER` only with `MONEY_RECEIVED` (0 < v ≤ 100); `FIXED` ₹1–₹1,00,000;
+  `NOTIFY.message` 1–140 chars; caps both required, `perRun` ≤ ₹1,00,000 and ≤ `perMonth`; `dayOfMonth` 1–28; `name`
+  1–40. At most 10 ACTIVE rules (`422 LIMIT_EXCEEDED`). Create, edit and resume need `X-Step-Up-Token` for
+  `RULE_ACTIVATE`; edits make a new `version`; delete is a soft delete (history kept).
+- **Engine:** `MONEY_RECEIVED` fires from outbox `MONEY_MOVED` credits to the account (filters: `minAmount`,
+  `transactionType`, `counterpartyContains`, case-insensitive), never for Autopilot's own transfers or reversals;
+  `SCHEDULE` and `BALANCE_ABOVE` at 08:00 IST; `PRICE_CROSSES` after a tick when the price is past the line, at most once
+  per IST day. A run is claimed once per `(rule, version, triggerEventId)`; conditions false → no run; planned total
+  over `perRun`, the month's moved + planned over `perMonth`, or the user's Autopilot day total over ₹1,00,000 →
+  `SKIPPED_CAP` (+ `RULE_RUN` notification). Actions run in order, each in its own transaction through the normal
+  service (`TransferSource.AUTOPILOT`, fraud rules apply), idempotent per `auto:<runId>:<index>`; amounts are computed
+  at execution (`EXCESS_ABOVE` from the live balance; `< ₹1` → skipped); `BUY` = rupees ÷ price rounded down (fails if
+  < 1 share). The first failed action stops the run (`PARTIAL` if something succeeded, else `FAILED`) and sends
+  `RULE_RUN`; 3 `FAILED` runs in a row pause the rule (`pausedReason`, `RULE_PAUSED`). Unfinished runs are resumed after
+  2 minutes without repeating finished actions.
+- **Simulate:** `days` 1–180 (default 90). Replays real history (credits, daily balances at 08:00 IST, daily price
+  ranges from stored ticks) with a fake balance tracker and the engine's caps; buys priced at today's price; newest
+  first, at most 200 firings; `failures` counts failed actions.
+- **Intents:** `AUTOPILOT_RULE {name, rule}` is now supported: validated at proposal and again at approval; the card's
+  line is the server rendering; always `requiresStepUp`; `resultRef.type = AUTOPILOT_RULE`.
+- **Templates:** five starting points (salary splitter, SIP, keep checking lean, rent, buy the dip); `rule` is `null`
+  (the accounts are the user's to pick); `prompt` is for the Planner.
+
 ### 12.8 Risk and back office (role `ADMIN` unless noted)
 | Method | Path | Body | Response |
 |---|---|---|---|

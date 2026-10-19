@@ -334,3 +334,20 @@ Turn the `mcp` flag on, create a `read+propose` token for a customer with ₹10,
 | 6 | Turn `mcp` off and call the API with the token | 503 FEATURE_DISABLED |
 
 Automated: `IntentsIT` (6) and `PersonalAccessTokenIT` (kill switch).
+
+## 20. V2-M5 Autopilot core (demo script)
+
+Turn the `autopilot` flag on. Use a customer with a goal "Goa trip".
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | Build "when ≥ ₹40,000 lands in savings, move 20% to Goa trip" in the form; review | A server-written sentence; Replay shows every past salary-sized credit and what would have moved |
+| 2 | Activate it | Asks for step-up; status ACTIVE, version 1 |
+| 3 | Have another user send you ₹50,000 | Within a second: ₹10,000 moves to Goa trip (transfer source AUTOPILOT); one SUCCEEDED run in the history |
+| 4 | Add a rule on the goal itself ("when money lands in Goa trip, notify me") | Autopilot's own transfers never fire it |
+| 5 | A weekly rule moving more than you have | The run is PARTIAL/FAILED with the reason; after 3 failed runs in a row it pauses and you're notified |
+| 6 | A rule with a per-run cap below its amount | The run is SKIPPED_CAP; nothing moves |
+| 7 | Turn the flag off | Nothing can be activated and nothing runs; pause/delete still work |
+
+Automated: `AutopilotIT` (10): exactly-once under duplicate events, crash-resume without repeats, no loops, caps,
+3-failure pause, excess sweep, price-crossing buy, replay, versions, AUTOPILOT_RULE intents.

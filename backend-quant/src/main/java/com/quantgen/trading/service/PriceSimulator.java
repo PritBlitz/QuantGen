@@ -8,10 +8,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -43,12 +45,13 @@ public class PriceSimulator {
     private final boolean enabled;
     private final OrderBook orderBook;
     private final WatchlistService watchlists;
+    private final ApplicationEventPublisher events;
     private final Random random = new Random();
 
     public PriceSimulator(JdbcTemplate jdbc, MarketService market, SimpMessagingTemplate messaging, AdvisoryLocks locks,
                           PlatformTransactionManager txManager, Clock clock,
                           @Value("${qg.market.simulator-enabled:true}") boolean enabled, OrderBook orderBook,
-                          WatchlistService watchlists) {
+                          WatchlistService watchlists, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.market = market;
         this.messaging = messaging;
@@ -58,6 +61,7 @@ public class PriceSimulator {
         this.enabled = enabled;
         this.orderBook = orderBook;
         this.watchlists = watchlists;
+        this.events = events;
     }
 
     @Scheduled(fixedRateString = "${qg.market.tick-millis:3000}", initialDelayString = "${qg.market.tick-millis:3000}")
@@ -94,6 +98,9 @@ public class PriceSimulator {
             // F-TRD-7/8: open orders and price alerts react to the new prices, each in its own transaction.
             orderBook.matchAll();
             watchlists.fireAlerts();
+            // Listeners outside trading (Autopilot PRICE_CROSSES) see the committed prices.
+            events.publishEvent(new PricesUpdatedEvent(prices.stream()
+                    .collect(Collectors.toMap(InstrumentDto::symbol, InstrumentDto::price, (a, b) -> b))));
         }
         return prices == null ? List.of() : prices;
     }

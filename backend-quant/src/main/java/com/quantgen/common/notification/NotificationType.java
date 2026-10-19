@@ -18,6 +18,10 @@ public enum NotificationType {
     BUDGET_ALERT,
     PRICE_ALERT,
     CARD_DECLINED,
+    /** An Autopilot run failed, partly failed or was skipped over a cap; or a NOTIFY action (V2-M5). */
+    RULE_RUN,
+    /** An Autopilot rule was paused after repeated failures (V2-M5). */
+    RULE_PAUSED,
     /** Sent to admins when the nightly seal-chain check finds a break (PRD F-POB-4). */
     LEDGER_INTEGRITY
 }

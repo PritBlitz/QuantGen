@@ -16,9 +16,12 @@ import org.springframework.stereotype.Component;
 import com.quantgen.account.domain.AccountType;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
+import com.quantgen.autopilot.AutopilotService;
+import com.quantgen.autopilot.RuleDsl;
 import com.quantgen.auth.service.UserService;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.money.AccountNumbers;
+import com.quantgen.common.money.Inr;
 import com.quantgen.common.web.TextRules;
 import com.quantgen.intent.IntentService.Line;
 import com.quantgen.intent.IntentService.ResultRef;
@@ -33,6 +36,7 @@ import com.quantgen.trading.domain.OrderSide;
 import com.quantgen.trading.service.OrderService;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Per-kind validation, server-side rendering (D-023) and execution of intents. The stored payload is the
@@ -42,7 +46,7 @@ import tools.jackson.databind.JsonNode;
 @Component
 class IntentKinds {
 
-    static final List<String> SUPPORTED = List.of("TRANSFER", "GOAL_TRANSFER", "ORDER", "FD_BOOKING");
+    static final List<String> SUPPORTED = List.of("TRANSFER", "GOAL_TRANSFER", "ORDER", "FD_BOOKING", "AUTOPILOT_RULE");
     static final BigDecimal MAX_AMOUNT = new BigDecimal("1000000.00");
     static final BigDecimal STEP_UP_INTERNAL = new BigDecimal("50000.00");
     static final BigDecimal MEDIUM = new BigDecimal("10000.00");
@@ -57,15 +61,19 @@ class IntentKinds {
     private final TransferService transfers;
     private final OrderService orders;
     private final FixedDepositService deposits;
+    private final AutopilotService autopilot;
+    private final JsonMapper json;
 
     IntentKinds(JdbcTemplate jdbc, AccountService accounts, UserService users, TransferService transfers,
-                OrderService orders, FixedDepositService deposits) {
+                OrderService orders, FixedDepositService deposits, AutopilotService autopilot, JsonMapper json) {
         this.jdbc = jdbc;
         this.accounts = accounts;
         this.users = users;
         this.transfers = transfers;
         this.orders = orders;
         this.deposits = deposits;
+        this.autopilot = autopilot;
+        this.json = json;
     }
 
     Prepared prepare(UUID userId, String kind, JsonNode p) {
@@ -74,7 +82,8 @@ class IntentKinds {
             case "GOAL_TRANSFER" -> goalTransfer(userId, p);
             case "ORDER" -> order(userId, p);
             case "FD_BOOKING" -> fdBooking(userId, p);
-            case "BILL_PAYMENT", "SCHEDULED_TRANSFER", "PAYMENT_REQUEST", "LOAN_APPLICATION", "AUTOPILOT_RULE" ->
+            case "AUTOPILOT_RULE" -> autopilotRule(userId, p);
+            case "BILL_PAYMENT", "SCHEDULED_TRANSFER", "PAYMENT_REQUEST", "LOAN_APPLICATION" ->
                     throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "kind", "not supported yet; supported: "
                             + String.join(", ", SUPPORTED));
             default -> throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "kind", "unknown intent kind");
@@ -98,6 +107,11 @@ class IntentKinds {
                         p.get("symbol").asString(), OrderSide.valueOf(p.get("side").asString()), p.get("quantity").asLong()))
                         .body();
                 yield new ResultRef("ORDER", dto.id());
+            }
+            case "AUTOPILOT_RULE" -> {
+                // Re-validated now: accounts, payees and symbols may have changed since the proposal.
+                RuleDsl dsl = autopilot.requireValid(userId, p.get("rule"));
+                yield new ResultRef("AUTOPILOT_RULE", autopilot.createApproved(userId, p.get("name").asString(), dsl).id());
             }
             case "FD_BOOKING" -> {
                 var dto = deposits.book(userId, key, fingerprint, uuid(p, "fromAccountId"),
@@ -208,6 +222,20 @@ class IntentKinds {
                 estimate.compareTo(MEDIUM) > 0);
     }
 
+    private Prepared autopilotRule(UUID userId, JsonNode p) {
+        String name = text(p, "name", true);
+        if (name.length() > 40) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.name", "must be 1–40 characters");
+        }
+        RuleDsl dsl = autopilot.requireValid(userId, p.get("rule"));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("name", name);
+        payload.put("rule", json.valueToTree(dsl));
+        // Activating a rule always needs the human present (F-AUTO-4).
+        return new Prepared(payload, new Summary("Turn on Autopilot: " + name,
+                List.of(new Line("Rule", autopilot.render(dsl)))), "MEDIUM", true);
+    }
+
     private Prepared fdBooking(UUID userId, JsonNode p) {
         AccountRef from = ownEveryday(userId, p, "fromAccountId");
         BigDecimal amount = amount(p, "amount", new BigDecimal("1000.00"), MAX_AMOUNT);
@@ -311,22 +339,6 @@ class IntentKinds {
 
     /** ₹1,23,456.78 (Indian digit grouping). */
     static String inr(BigDecimal amount) {
-        String plain = amount.setScale(2, RoundingMode.HALF_EVEN).abs().toPlainString();
-        String whole = plain.substring(0, plain.indexOf('.'));
-        String frac = plain.substring(plain.indexOf('.'));
-        StringBuilder out = new StringBuilder();
-        if (whole.length() > 3) {
-            String head = whole.substring(0, whole.length() - 3);
-            for (int i = 0; i < head.length(); i++) {
-                if (i > 0 && (head.length() - i) % 2 == 0) {
-                    out.append(',');
-                }
-                out.append(head.charAt(i));
-            }
-            out.append(',').append(whole.substring(whole.length() - 3));
-        } else {
-            out.append(whole);
-        }
-        return (amount.signum() < 0 ? "−₹" : "₹") + out + frac;
+        return Inr.format(amount);
     }
 }

@@ -45,6 +45,12 @@ public class ApiException extends RuntimeException {
                 List.of(new ApiError.FieldError(field, message)), null, null);
     }
 
+    /** 422 RULE_INVALID with field errors pointing into the Autopilot DSL (PRD 12.1). */
+    public static ApiException ruleInvalid(List<ApiError.FieldError> fieldErrors) {
+        return new ApiException(ErrorCode.RULE_INVALID, ErrorCode.RULE_INVALID.status(),
+                ErrorCode.RULE_INVALID.defaultMessage(), fieldErrors, null, null);
+    }
+
     public static ApiException rateLimited(String message, long retryAfterSeconds) {
         return new ApiException(ErrorCode.RATE_LIMITED, ErrorCode.RATE_LIMITED.status(), message, List.of(),
                 Math.max(1, retryAfterSeconds), null);
