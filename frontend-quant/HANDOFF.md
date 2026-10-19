@@ -1,5 +1,41 @@
 # Frontend → Backend handoff
 
+## 2026-10-19: M8 + M9 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+
+Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
+accurate except for the changes here). The backend session was `backend-quant-d2` today.
+
+### Done this session (all committed)
+- `e1ddd35` + `3952199` **Mocked e2e green** (50 passed, 6 live-only skipped) against `vite --mode mock --port 5199`.
+  The failures were the tax table scroll region (needed `tabIndex`/`role=region`), the palette option
+  off-screen (type first; on mobile go via "Search everything…"), and timeouts. The a11y "signed-in" test
+  is now chunked 6 screens per test. The expect timeout is 20 s: a trace showed the first post-login
+  dashboard landing after 10 s on a loaded dev server. That's not an app bug.
+- `825267e` **V2-M8 Proof live** (`/public/proofs/`, `/proofs/`; verify-chain/solvency ride on `/admin/`).
+  Verified in a real browser against :8080: the proof verifies, and the totals match the backend's.
+  The encoding was agreed point by point with the backend (PRD §12.10 "Backend notes (V2-M8)"). The proof mock
+  now includes closed accounts, in ASCII id order. Added the `LEDGER_INTEGRITY` notification (→ `/admin/reconcile`).
+- `825267e` + `5118fae` **V2-M9 Cards live** (`/cards`, `/sandbox/merchant/`). Authorize/capture/refund
+  are 🔒💰 now: checkout uses one Idempotency-Key per attempt (reused on retry, new after an edit or an
+  answer); capture/refund use one key per authId. The mock enforces keys and owner-only capture/refund, and
+  uses 2-dp `perTxnLimit` and the exact decline strings. **New live e2e "cards"** (flag on via admin
+  API → issue → PIN reveal → pay → hold → capture → refund → flag restored) passes on :8080.
+- `72346e6` Lab checks the server's backtest bounds (≥ 2021-01-01, 30 days to 5 years, cash ≥ ₹1,000).
+- `294d764` **360 px visual pass** (scripted overflow scan of 17 v2 pages at 360/768/1440 × both
+  themes, plus screenshots). Fixed: /lab scrolled sideways (grid items need `min-w-0`), PIN boxes too wide,
+  session rows pushed "Sign out" off-screen, scheduled rows crushed the text. Clean at 768/1440. The only
+  remaining hit is the decorative glow on /pay, which is clipped by `overflow-hidden` (a false positive).
+- `77d8caa` **V2-M6 prep:** fraud release/reject send an Idempotency-Key (one per case+decision+reason).
+
+### Next
+1. **V2-M6** when the backend pings: flip `/admin/fraud-cases` (drop its `NOT_YET_LIVE` pattern) and
+   `/loans/{id}/documents`, add `V2-M6`. `POST /transfers` can return 201 `PENDING_REVIEW` with a
+   `TRANSFER_UNDER_REVIEW` notification; `TransferFlow.tsx` already handles that; re-check it live.
+   Uploads only on PENDING loans (the UI already gates on that). Then M10 tokens, then M4/M5.
+2. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
+3. Minor visual nits seen at 360: the native date input in the scheduled form clips its text next to the
+   picker icon; the "How often" segmented control is tight.
+
 ## 2026-10-18 (late): v2 frontend state, for a cold restart  ← READ THIS FIRST
 
 **Read first:** this section, PRD §11–§13 (the "Backend notes" blocks in §12.3, §12.4, §12.5, §12.9,
