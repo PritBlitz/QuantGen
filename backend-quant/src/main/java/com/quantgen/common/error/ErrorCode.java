@@ -19,6 +19,8 @@ public enum ErrorCode {
     STEP_UP_REQUIRED(HttpStatus.UNAUTHORIZED, "Extra verification is required for this action"),
     PIN_LOCKED(HttpStatus.LOCKED, "Transaction PIN is locked"),
     COOLING_PERIOD(HttpStatus.UNPROCESSABLE_CONTENT, "This payee was added recently; the limit for new payees applies"),
+    INTENT_EXPIRED(HttpStatus.CONFLICT, "This intent has expired"),
+    RULE_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "The rule is not valid"),
     KYC_REQUIRED(HttpStatus.FORBIDDEN, "KYC details are required for this action"),
     FEATURE_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "This feature is currently switched off"),
     PAYMENT_VERIFICATION_FAILED(HttpStatus.BAD_REQUEST, "The payment could not be verified"),

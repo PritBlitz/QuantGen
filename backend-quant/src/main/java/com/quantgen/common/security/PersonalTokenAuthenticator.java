@@ -21,6 +21,9 @@ public interface PersonalTokenAuthenticator {
     /** Audits one use (F-MCP-2: every use) and bumps last_used_at; {@code allowed} false for a refused route. */
     void recordUse(TokenPrincipal principal, String method, String path, boolean allowed);
 
+    /** False when developer access is switched off (the `mcp` flag): every token is refused with 503. */
+    boolean enabled();
+
     /** Throws 429 when one token is used too fast. */
     void rateLimit(TokenPrincipal principal);
 }

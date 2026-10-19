@@ -319,3 +319,18 @@ card fraud decline, document sniffing, caps and ownership).
 
 Automated: `PersonalAccessTokenIT` (step-up, hashing, scope allowlist, audit on every use, revocation, expiry,
 10-token cap, no admin tokens) and `PatScopeTest`.
+
+## 19. V2-M4 core: intents (demo script; the copilot itself needs `agent-quant`)
+
+Turn the `mcp` flag on, create a `read+propose` token for a customer with ₹10,000.
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | `POST /api/v1/intents` with the token: TRANSFER ₹2,500 to a friend's account number | 201 PROPOSED, `proposedBy.agent = MCP_CLIENT`, a server-written card "Send ₹2,500.00 to …", HIGH risk, step-up required; no money moved |
+| 2 | Try to approve it with the token | 403 (only the signed-in user approves) |
+| 3 | In the app, approve it (PIN step-up) | EXECUTED; the transfer shows `source: INTENT`; retrying the same approval replays |
+| 4 | Propose another, spend the money elsewhere, then approve | 200 FAILED, `failureCode: INSUFFICIENT_FUNDS`; nothing moved |
+| 5 | Wait 15 minutes (or edit `expires_at` in dev) and approve | 409 INTENT_EXPIRED; listed as EXPIRED |
+| 6 | Turn `mcp` off and call the API with the token | 503 FEATURE_DISABLED |
+
+Automated: `IntentsIT` (6) and `PersonalAccessTokenIT` (kill switch).

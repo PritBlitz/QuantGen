@@ -17,6 +17,16 @@ import tools.jackson.databind.JsonNode;
 /** V2-M10 personal access tokens (PRD 12.12, F-MCP-2). */
 class PersonalAccessTokenIT extends IntegrationTest {
 
+    @org.junit.jupiter.api.BeforeEach
+    void developerAccessOn() {
+        jdbc.update("UPDATE feature_flags SET enabled = TRUE WHERE name = 'mcp'");
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void developerAccessOff() {
+        jdbc.update("UPDATE feature_flags SET enabled = FALSE WHERE name = 'mcp'");
+    }
+
     private Response create(TestUsers.Session s, String name, String scope, int days) {
         Map<String, String> h = new HashMap<>(Bank.auth(s));
         h.put("X-Step-Up-Token", Bank.stepUpToken(this, s, "TOKEN_CREATE"));
@@ -114,6 +124,20 @@ class PersonalAccessTokenIT extends IntegrationTest {
                 + "expires_at = now() - interval '1 day' WHERE user_id = ? AND name = 'Soon'", s.userId());
         assertThat(get("/api/v1/accounts", expiring).status()).isEqualTo(401);
         assertThat(get("/api/v1/accounts", "qg_pat_" + "x".repeat(43)).status()).isEqualTo(401);
+    }
+
+    @Test
+    void theMcpFlagIsAKillSwitchForCreatingAndUsingTokens() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        String pat = create(s, "Live", "read", 7).jsonBody().get("token").asString();
+        developerAccessOff();
+        Response use = get("/api/v1/accounts", pat);
+        assertThat(use.status()).isEqualTo(503);
+        assertThat(use.jsonBody().get("code").asString()).isEqualTo("FEATURE_DISABLED");
+        assertThat(create(s, "New", "read", 7).status()).isEqualTo(503);
+        assertThat(get("/api/v1/users/me/tokens", s.accessToken()).status()).isEqualTo(200); // still listable and revocable
+        developerAccessOn();
+        assertThat(get("/api/v1/accounts", pat).status()).isEqualTo(200);
     }
 
     @Test

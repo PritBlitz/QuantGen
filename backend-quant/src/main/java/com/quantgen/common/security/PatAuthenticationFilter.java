@@ -33,6 +33,8 @@ import com.quantgen.common.security.PersonalTokenAuthenticator.TokenPrincipal;
  */
 public class PatAuthenticationFilter extends OncePerRequestFilter {
 
+    /** Request attribute holding the id of the personal access token that authenticated the request. */
+    public static final String TOKEN_ID_ATTRIBUTE = "qg.patTokenId";
     private static final String BEARER = "Bearer ";
     private static final AntPathMatcher PATHS = new AntPathMatcher();
 
@@ -78,6 +80,10 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
+        if (!tokens.enabled()) {
+            errors.write(request, response, ErrorCode.FEATURE_DISABLED);
+            return;
+        }
         Optional<TokenPrincipal> found = raw.length() > 100 ? Optional.empty() : tokens.authenticate(raw);
         if (found.isEmpty()) {
             errors.write(request, response, ErrorCode.UNAUTHORIZED);
@@ -98,6 +104,7 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         tokens.recordUse(pat, request.getMethod(), path, true);
+        request.setAttribute(TOKEN_ID_ATTRIBUTE, pat.tokenId()); // so an intent can record which token proposed it
         AuthUser user = new AuthUser(pat.userId(), AuthUser.ROLE_CUSTOMER);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(user, null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + AuthUser.ROLE_CUSTOMER))));

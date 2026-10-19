@@ -497,6 +497,10 @@ flowchart TB
 4. A specialist that wants to act calls `propose_intent(kind, payload, rationale)`. The core
    validates the payload (ownership, limits, balance, cooling period), renders the summary and
    returns an `IntentDto`, which is streamed to the UI as an `intent` event.
+   As built (V2-M4 core, `com.quantgen.intent`): proposal validates ownership and shape and stores a normalized payload
+   (handles resolved to account ids); limits, balance, cooling and fraud rules are checked again at approval through
+   the normal services, and a refusal there is recorded as a FAILED intent. MCP clients reach the same endpoint with a
+   `read+propose` personal access token today; delegated agent tokens (D-022) arrive with `agent-quant`.
 5. The Concierge writes the final answer; tokens stream back through the core to the SPA.
 6. Every model call and tool call is written to `agent_runs` / `agent_steps` (redacted).
 

@@ -1172,6 +1172,33 @@ riskLevel: "LOW"|"MEDIUM"|"HIGH", requiresStepUp, proposedBy: {agent}, conversat
 `summary` is rendered by the core from the validated payload (D-023); `rationale` is the
 model's own text and is labelled as such in the UI. The raw `payload` is not echoed back.
 
+Backend notes (V2-M4 core side: intents only, implemented 2026-10-19; the copilot routes, SSE proxy, delegated
+agent tokens and traces need `agent-quant`, not built yet):
+- **Who proposes:** a signed-in user's own JWT (the future agent service) or a `read+propose` personal access token
+  (§12.12; `proposedBy.agent` is then always `MCP_CLIENT`, a new `AgentName`). Optional body field `agent` (one of
+  `CONCIERGE, LEDGER_ANALYST, PAYMENTS, MARKETS, PLANNER, LOAN_ADVISOR`, default `CONCIERGE`) for JWT callers.
+  `conversationId` is optional. `rationale` 1–1000 chars; line breaks become spaces, other control characters `400`.
+  30 proposals/min per user. Approve and reject need a JWT (a token gets `403`).
+- **Kinds now:** `TRANSFER {fromAccountId, toAccountNumber | toHandle, amount, note?}`, `GOAL_TRANSFER {fromAccountId,
+  toAccountId, amount}`, `ORDER {accountId, symbol, side, quantity}` (market only), `FD_BOOKING {fromAccountId, amount,
+  tenureDays, onMaturity}`. Others → `400` on `kind` until their milestone (`AUTOPILOT_RULE` with V2-M5). Amounts are
+  strings (2 dp); errors name `payload.<field>`; an account that isn't yours is `400 payload.<field> "unknown account"`.
+  The stored payload is normalized: a handle is resolved to the account id at proposal, so approval pays exactly the
+  account the card showed.
+- **Rendering:** title + lines in plain language (`"Send ₹2,500.00 to Aarav S."`, masked account numbers, Indian digit
+  grouping, "You haven't paid this account before"). `riskLevel`: transfers HIGH when > ₹50,000 or a first payment to that
+  account, MEDIUM > ₹10,000; orders by estimated total; FDs MEDIUM > ₹50,000. `requiresStepUp`: every transfer to
+  someone else, own-account moves > ₹50,000, orders > ₹10,000 estimated, every FD booking.
+- **Approve:** 🔒💰; `X-Step-Up-Token` for `INTENT_APPROVE` when `requiresStepUp` (`401 STEP_UP_REQUIRED` otherwise).
+  Past 15 min → `409 INTENT_EXPIRED` (and it reads as `EXPIRED` everywhere, swept every minute); already decided →
+  `409 INVALID_STATE`; not yours → `404`. Execution re-validates through the normal service (limits, cooling, holds,
+  frozen, fraud review: a held transfer still gives `EXECUTED` with `resultRef` to the `PENDING_REVIEW` transfer).
+  Business refusals → `200` with `status: FAILED`, `failureCode` = the error code (`INSUFFICIENT_FUNDS`,
+  `LIMIT_EXCEEDED`, `ACCOUNT_FROZEN`, `COOLING_PERIOD`, `INSUFFICIENT_HOLDINGS`, `INVALID_STATE`, …); replays return
+  it. `resultRef.type`: `TRANSFER`, `ORDER`, `FIXED_DEPOSIT`. Transfers made this way have `source: INTENT`.
+- **Audit:** `INTENT_PROPOSED` (with the token id), `INTENT_EXECUTED`, `INTENT_FAILED`, `INTENT_REJECTED`.
+- `GET /intents?status=` (unknown status `400`): newest first, at most 100.
+
 ### 12.7 Autopilot
 | Method | Path | Body | Response |
 |---|---|---|---|
@@ -1396,6 +1423,8 @@ Backend notes (V2-M10 core side, implemented 2026-10-19; the MCP server lives in
   cards, sessions, token management, admin). Ownership checks are unchanged (another user's account stays `404`).
   60 requests/min per token (`429`). Every use is audited (`TOKEN_USED` / `TOKEN_DENIED`, method + path only) and
   updates `lastUsedAt`.
+- **Kill switch (added with V2-M4 core, 2026-10-19):** the `mcp` flag off → creating a token and every token use
+  answer `503 FEATURE_DISABLED`; listing and revoking keep working.
 
 ### 12.13 Analytics
 Common rules: read-only (no idempotency key); `from`/`to` are inclusive IST dates

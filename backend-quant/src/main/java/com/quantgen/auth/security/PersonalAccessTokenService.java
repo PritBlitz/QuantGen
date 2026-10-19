@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
+import com.quantgen.common.flags.FeatureFlagService;
 import com.quantgen.common.security.AuthUser;
 import com.quantgen.common.security.PersonalTokenAuthenticator;
 import com.quantgen.common.security.UserRateLimiter;
@@ -37,6 +38,7 @@ public class PersonalAccessTokenService implements PersonalTokenAuthenticator {
     static final int MAX_ACTIVE = 10;
     static final UserRateLimiter.Limit USE_LIMIT = new UserRateLimiter.Limit("pat-use", 60, Duration.ofMinutes(1));
     static final List<String> SCOPES = List.of("read", "read+propose");
+    static final String FLAG = "mcp";
 
     public record TokenDto(UUID id, String name, String scope, Instant lastUsedAt, Instant expiresAt) {
     }
@@ -49,15 +51,17 @@ public class PersonalAccessTokenService implements PersonalTokenAuthenticator {
     private final AuditService audit;
     private final UserRateLimiter rateLimiter;
     private final Clock clock;
+    private final FeatureFlagService flags;
     private final SecureRandom random = new SecureRandom();
 
     PersonalAccessTokenService(JdbcTemplate jdbc, StepUpService stepUp, AuditService audit, UserRateLimiter rateLimiter,
-                               Clock clock) {
+                               Clock clock, FeatureFlagService flags) {
         this.jdbc = jdbc;
         this.stepUp = stepUp;
         this.audit = audit;
         this.rateLimiter = rateLimiter;
         this.clock = clock;
+        this.flags = flags;
     }
 
     /** Always stepped up (TOKEN_CREATE). Customers only: an admin's authority never leaves the console. */
@@ -65,6 +69,9 @@ public class PersonalAccessTokenService implements PersonalTokenAuthenticator {
     public CreatedTokenDto create(AuthUser user, String name, String scope, int expiresInDays, String stepUpToken) {
         if (user.isAdmin()) {
             throw new ApiException(ErrorCode.FORBIDDEN, "Admins can't create personal access tokens");
+        }
+        if (!enabled()) {
+            throw new ApiException(ErrorCode.FEATURE_DISABLED, "Developer access is switched off");
         }
         if (!SCOPES.contains(scope)) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "scope", "must be read or read+propose");
@@ -138,6 +145,11 @@ public class PersonalAccessTokenService implements PersonalTokenAuthenticator {
         // Method and path only: query strings can carry search terms and are not needed to trace a use.
         audit.record(pat.userId(), allowed ? "TOKEN_USED" : "TOKEN_DENIED", "TOKEN", pat.tokenId().toString(),
                 method + " " + (path.length() > 200 ? path.substring(0, 200) : path));
+    }
+
+    @Override
+    public boolean enabled() {
+        return flags.isEnabled(FLAG);
     }
 
     @Override
