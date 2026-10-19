@@ -60,6 +60,10 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/sandbox/merchant/', milestone: 'V2-M9' },
   // Backend b2ade2e (announced 2026-10-19): V2-M10 personal access tokens ride on /users/me.
   { prefix: '/api/v1/users/me/tokens', milestone: 'V2-M10' },
+  // /intents went live with backend 660de61 (V2-M4 core) but stays MOCKED here on purpose: the
+  // scripted Copilot mock proposes intents in the in-browser db with mock account ids, so a live
+  // /intents would 404 every card it shows. Flip /intents together with /copilot/ once agent-quant
+  // exists. The real /intents is covered by e2e/live.spec.ts ("intents", real-API mode).
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 

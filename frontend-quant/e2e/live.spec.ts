@@ -426,3 +426,45 @@ test('access tokens: create with step-up, read-only reach, revoke kills it', asy
     await Promise.all([admin.dispose(), client.dispose()])
   }
 })
+
+// V2-M4 core side: an intent proposed through the API (as the agent service will) is approved in the
+// "Waiting for you" panel with PIN step-up, and the money moves exactly once.
+test('intents: proposed via API, approved in the UI with step-up, executed', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(150_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).ai as boolean
+  await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: true } })
+  const me = await apiCustomer(playwright, baseURL, 'intent')
+  const friend = await apiCustomer(playwright, baseURL, 'payee')
+  try {
+    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '2000.00' } })).ok()).toBe(true)
+    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
+    const proposed = await me.ctx.post('/api/v1/intents', {
+      headers: me.headers,
+      data: { kind: 'TRANSFER', payload: { fromAccountId: me.account.id, toAccountNumber: friend.account.accountNumber, amount: '750.00' }, rationale: 'You asked to pay your friend back for dinner.', agent: 'PAYMENTS' },
+    })
+    expect(proposed.status()).toBe(201)
+    const intent = await proposed.json()
+    expect(intent).toMatchObject({ status: 'PROPOSED', requiresStepUp: true })
+
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/copilot')
+    const waiting = page.getByRole('region', { name: 'Waiting for you' }).or(page.locator('section', { hasText: 'Waiting for you' })).first()
+    const card = waiting.getByRole('article', { name: /Proposed action: Send ₹750\.00/ })
+    await expect(card).toBeVisible()
+    await card.getByRole('button', { name: 'Approve' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await expect(card.getByText('Approved and carried out.')).toBeVisible()
+
+    const list = await (await me.ctx.get('/api/v1/intents', { headers: me.headers })).json()
+    expect(list.find((i: { id: string }) => i.id === intent.id)).toMatchObject({ status: 'EXECUTED', resultRef: { type: 'TRANSFER' } })
+    const paid = await (await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })).json()
+    expect(paid[0].balance).toMatch(/^750(\.0+)?$/)
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: wasOn } })
+    await Promise.all([admin.dispose(), me.ctx.dispose(), friend.ctx.dispose()])
+  }
+})

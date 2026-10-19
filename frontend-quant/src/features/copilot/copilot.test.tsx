@@ -107,6 +107,23 @@ describe('Copilot', () => {
     expect(calls[1]?.key).toBe(calls[0]?.key)
   })
 
+  it('keeps an approved card in "Waiting for you" with its confirmation, though it is no longer proposed', async () => {
+    signInAs('CUSTOMER')
+    await ask('Pay Meera 500 for dinner')
+    await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Pay ₹500.00/ }, { timeout: 8000 })
+    // Leave and come back so the panel loads the proposal from GET /intents?status=PROPOSED.
+    const user = userEvent.setup()
+    renderApp('/copilot')
+    const panel = (await screen.findByText('Waiting for you')).closest('section') as HTMLElement
+    const card = await within(panel).findByRole('article', { name: /Proposed action: Pay ₹500.00/ })
+    await user.click(within(card).getByRole('button', { name: 'Approve' }))
+    expect(await within(card).findByText('Approved and carried out.')).toBeInTheDocument()
+    // The PROPOSED list refetched without it, but the card (and its result) stays until the user leaves.
+    await waitFor(() => expect(db.v2.intents[0]?.status).toBe('EXECUTED'))
+    await new Promise((r) => setTimeout(r, 300))
+    expect(within(panel).getByText('Approved and carried out.')).toBeInTheDocument()
+  })
+
   it('rejecting a proposal leaves balances alone', async () => {
     signInAs('CUSTOMER')
     const before = balance(DEMO_SAVINGS)
