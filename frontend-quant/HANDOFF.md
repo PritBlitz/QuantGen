@@ -1,6 +1,6 @@
 # Frontend → Backend handoff
 
-## 2026-10-19: M8 + M9 + M6 + M10 live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+## 2026-10-19: M8 + M9 + M6 + M10 + M4-core live, mocked e2e green, 360 px pass  ← READ THIS FIRST
 
 Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
 accurate except for the changes here). The backend session was `backend-quant-d2` today.
@@ -36,13 +36,24 @@ accurate except for the changes here). The backend session was `backend-quant-d2
   `qg_pat_` token reads `/accounts` (200), can't POST `/transfers` (403) → revoke → 401; flag restored.
   `AgentName` gains `MCP_CLIENT` ("Connected app").
 
+- `c96eead` + `8853c43` **V2-M4 core (intents) verified live**, but **kept mocked in hybrid on purpose**: the
+  scripted Copilot mock proposes intents with mock account ids, so flip `/intents` together with `/copilot/`
+  once agent-quant exists (comment in `live.ts`). Live e2e "intents" (API proposal → approve with PIN → EXECUTED)
+  and "connected app" (read+propose token proposes, `ai` off → approve on Settings → Developer) pass.
+  Bug fixed: approved cards vanished from "Waiting for you" on refetch, taking the confirmation with them.
+  `WaitingApprovals` is now shared by `/copilot` and the Developer tab (`MCP_CLIENT` only).
+- **Live e2e and the rate limiter:** the full live file trips :8080's per-IP auth limit (429 on register).
+  Run the backend with `QG_RATE_LIMIT_ENABLED=false` for a full run, or run tests one at a time. Each test
+  passed on its own on 2026-10-19.
+
 ### Next
-1. **V2-M4 core** when the backend pings: `/intents` (TRANSFER, GOAL_TRANSFER, ORDER market, FD_BOOKING first;
-   other kinds 400 on `kind`). Approve is 🔒💰🛡️, 409 INTENT_EXPIRED after 15 min, 200 FAILED + failureCode
-   (`IntentCard` already handles all three). Then the rest of M4 (copilot SSE, `/admin/ai`) and M5 Autopilot.
-   The MCP server (agent-quant) needs the owner's go-ahead.
-2. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
-3. Minor visual nits seen at 360: the native date input in the scheduled form clips its text next to the
+1. **V2-M5 Autopilot core** when the backend pings (rules CRUD, validate/render, replay, runs, templates,
+   AUTOPILOT_RULE intents; `/autopilot/compile` needs the Planner, so it stays mocked). Flip `/autopilot/`
+   except compile.
+2. **Needs the owner:** agent-quant (copilot SSE, agents, traces, `/admin/ai`, memos, MCP server). After it
+   exists: flip `/copilot/`, `/intents`, `/admin/ai`, `/autopilot/compile`.
+3. Still not built (P2 or no contract): F-CARD-4 disputes, F-UX-5 Hindi, F-TRD-12 crypto, F-TRD-9 SIP.
+4. Minor visual nits seen at 360: the native date input in the scheduled form clips its text next to the
    picker icon; the "How often" segmented control is tight.
 
 ## 2026-10-18 (late): v2 frontend state, for a cold restart  ← READ THIS FIRST
