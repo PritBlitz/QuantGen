@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { DEMO_USER_ID } from '@/mocks/db'
@@ -160,6 +160,24 @@ describe('strategy lab and tax report', () => {
     await user.type(slow, '5')
     await user.click(screen.getByRole('button', { name: 'Run backtest' }))
     expect(screen.getByText('Slow must be longer than fast')).toBeInTheDocument()
+    expect(db.v2.backtests).toHaveLength(0)
+
+    // Period bounds match the server's (PRD §12.9): from ≥ 2021-01-01, 30 days to 5 years.
+    const from = screen.getByLabelText('From')
+    const to = screen.getByLabelText('To')
+    const period = async (f: string, t: string) => {
+      fireEvent.change(from, { target: { value: f } })
+      fireEvent.change(to, { target: { value: t } })
+      await user.click(screen.getByRole('button', { name: 'Run backtest' }))
+    }
+    await period('2020-12-31', '2022-01-01')
+    expect(screen.getByText('Price history starts on 1 Jan 2021')).toBeInTheDocument()
+    await period('2024-01-01', '2024-01-30')
+    expect(screen.getByText('Pick a period of at least 30 days')).toBeInTheDocument()
+    await period('2021-01-01', '2026-01-02')
+    expect(screen.getByText('Pick a period of at most 5 years')).toBeInTheDocument()
+    await period('2021-01-02', '2026-01-02')
+    expect(screen.queryByText(/Pick a period|Price history starts/)).not.toBeInTheDocument()
     expect(db.v2.backtests).toHaveLength(0)
 
     await user.clear(slow)

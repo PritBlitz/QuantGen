@@ -29,6 +29,16 @@ const KINDS: Array<{ value: Kind; label: string; about: string }> = [
   { value: 'REBALANCE', label: 'Rebalance', about: 'Hold the picked symbols in equal weights, rebalancing on a fixed schedule.' },
 ]
 const MAX_SYMBOLS = 5
+/** Earliest price history the server backtests over. */
+const MIN_FROM = '2021-01-01'
+const isoUtc = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10))
+const isoDaysBetween = (a: string, b: string) => Math.round((isoUtc(b) - isoUtc(a)) / 86_400_000)
+/** `to` minus whole years, as a calendar date (29 Feb falls back to 28 Feb, like Java's minusYears). */
+function isoMinusYears(d: string, years: number): string {
+  const y = String(+d.slice(0, 4) - years).padStart(4, '0')
+  const md = d.slice(5) === '02-29' ? '02-28' : d.slice(5)
+  return `${y}-${md}`
+}
 const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.value, k.label])) as Record<Kind, string>
 
 /** Whole number in [min, max], or an error message. Counts, not money. */
@@ -90,9 +100,13 @@ export function LabPage() {
       e.everyDays = intIn(params.everyDays, 1, 365, 'Every')
     }
     if (symbols.length === 0) e.symbols = 'Pick at least one instrument'
+    // Same bounds as the server (PRD §12.9 Backtests): from ≥ 2021-01-01, 30 days to 5 years.
     if (!from || !to || from >= to) e.dates = 'The start must be before the end'
     else if (to > todayIST()) e.dates = 'The end can’t be in the future'
-    if (!/^\d{1,8}(\.\d{1,2})?$/.test(cash) || toDecimal(cash).lt(10000) || toDecimal(cash).gt(10000000)) e.cash = 'Between ₹10,000 and ₹1,00,00,000'
+    else if (from < MIN_FROM) e.dates = 'Price history starts on 1 Jan 2021'
+    else if (isoDaysBetween(from, to) < 30) e.dates = 'Pick a period of at least 30 days'
+    else if (from < isoMinusYears(to, 5)) e.dates = 'Pick a period of at most 5 years'
+    if (!/^\d{1,8}(\.\d{1,2})?$/.test(cash) || toDecimal(cash).lt(1000) || toDecimal(cash).gt(10000000)) e.cash = 'Between ₹1,000 and ₹1,00,00,000'
     return e
   }, [kind, params, symbols, from, to, cash])
   const invalid = Object.values(errors).some(Boolean)
@@ -237,7 +251,7 @@ export function LabPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-from`}>From</Label>
-                <Input id={`${uid}-from`} type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+                <Input id={`${uid}-from`} type="date" value={from} min={MIN_FROM} max={to} onChange={(e) => setFrom(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-to`}>To</Label>
