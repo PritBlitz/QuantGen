@@ -393,6 +393,8 @@ export type AgentName =
   | 'LOAN_ADVISOR'
   | 'FRAUD_INVESTIGATOR'
   | 'UNDERWRITING_ANALYST'
+  /** An intent proposed through a read+propose personal access token (V2-M10). */
+  | 'MCP_CLIENT'
 export type IntentKind =
   | 'TRANSFER'
   | 'BILL_PAYMENT'

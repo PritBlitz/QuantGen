@@ -9,6 +9,7 @@ export const AGENT_LABEL: Record<AgentName, string> = {
   LOAN_ADVISOR: 'Loan advisor',
   FRAUD_INVESTIGATOR: 'Fraud investigator',
   UNDERWRITING_ANALYST: 'Underwriting analyst',
+  MCP_CLIENT: 'Connected app',
 }
 
 /** `get_quote` → "Get quote"; the server sends tool names, never arguments. */

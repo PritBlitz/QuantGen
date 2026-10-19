@@ -366,3 +366,63 @@ test('fraud: an unusual transfer is held for review, then an admin releases it',
     await Promise.all([sender.ctx.dispose(), friend.ctx.dispose(), stranger.ctx.dispose()])
   }
 })
+
+/** Registers through the UI and sets the transaction PIN 246810 (first time asks for the password). */
+async function registerWithPin(page: Page, tag: string) {
+  const n = Date.now().toString().slice(-9)
+  await page.goto('/register')
+  await page.getByLabel('Full name').fill(`${tag} Tester`)
+  await page.getByLabel('Email').fill(`${tag.toLowerCase()}${n}@example.com`)
+  await page.getByLabel('Phone').fill(`+91${n}3`)
+  await page.getByLabel('Password', { exact: true }).fill('Live@12345')
+  await page.getByLabel('Confirm password').fill('Live@12345')
+  await page.getByRole('button', { name: /create account/i }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await page.goto('/settings/security')
+  await page.getByRole('group', { name: 'Choose a PIN' }).locator('input').first().click()
+  await page.keyboard.type('246810')
+  await page.getByRole('group', { name: 'Confirm PIN' }).locator('input').first().click()
+  await page.keyboard.type('246810')
+  const pw = page.getByLabel('Account password')
+  if (await pw.isVisible()) await pw.fill('Live@12345')
+  await page.getByRole('button', { name: 'Set PIN' }).click()
+  await expect(page.getByText('Set', { exact: true }).first()).toBeVisible()
+}
+
+test('access tokens: create with step-up, read-only reach, revoke kills it', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(120_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).mcp as boolean
+  await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: true } })
+  const client = await playwright.request.newContext({ baseURL })
+  try {
+    await registerWithPin(page, 'Token')
+    await page.goto('/settings/developer')
+    await page.getByLabel('Token name').fill('Live e2e')
+    await page.getByRole('button', { name: 'Create token' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    const shown = page.getByRole('dialog', { name: 'Copy your token now' })
+    const token = (await shown.locator('.num').innerText()).trim()
+    expect(token).toMatch(/^qg_pat_[A-Za-z0-9_-]{43}$/)
+    await shown.getByRole('button', { name: 'Done' }).click()
+    await expect(page.getByText('Live e2e')).toBeVisible()
+
+    const bearer = { Authorization: `Bearer ${token}` }
+    expect((await client.get('/api/v1/accounts', { headers: bearer })).status()).toBe(200)
+    const write = await client.post('/api/v1/transfers', {
+      headers: { ...bearer, 'Idempotency-Key': crypto.randomUUID() },
+      data: { fromAccountId: crypto.randomUUID(), toAccountNumber: '000000000000', amount: '1.00' },
+    })
+    expect(write.status()).toBe(403)
+
+    await page.getByRole('button', { name: 'Revoke' }).click()
+    await expect(page.getByText('No tokens')).toBeVisible()
+    expect((await client.get('/api/v1/accounts', { headers: bearer })).status()).toBe(401)
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: wasOn } })
+    await Promise.all([admin.dispose(), client.dispose()])
+  }
+})

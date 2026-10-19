@@ -58,6 +58,8 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   // /accounts/{id}/cards; authorize/capture/refund need an Idempotency-Key.
   { prefix: '/api/v1/cards', milestone: 'V2-M9' },
   { prefix: '/api/v1/sandbox/merchant/', milestone: 'V2-M9' },
+  // Backend b2ade2e (announced 2026-10-19): V2-M10 personal access tokens ride on /users/me.
+  { prefix: '/api/v1/users/me/tokens', milestone: 'V2-M10' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -66,7 +68,6 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  * mocked in hybrid mode. Remove a pattern when the backend announces the route.
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
-  /^\/api\/v1\/users\/me\/tokens/,
   // /admin/ai stays mocked until V2-M4. (V2-M6, backend 82ee419, made fraud cases, loan
   // documents and underwriting live on 2026-10-19; they ride on the /admin/ and /loans prefixes.)
   /^\/api\/v1\/admin\/ai(\/|$)/,
