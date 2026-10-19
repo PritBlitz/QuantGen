@@ -76,7 +76,8 @@ export function PinInput({
             set(value.slice(0, i) + d)
           }}
           className={cn(
-            'num size-12 rounded-[12px] bg-surface-2 text-center text-xl hairline outline-none transition-colors',
+            // Shrinks below 48 px on narrow cards (6 boxes + gaps don't fit at 360 px) but never grows past it.
+            'num h-12 w-12 min-w-0 shrink rounded-[12px] bg-surface-2 text-center text-xl hairline outline-none transition-colors',
             'focus:border-accent',
             invalid && 'border-loss',
           )}

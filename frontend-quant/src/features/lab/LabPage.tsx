@@ -176,8 +176,8 @@ export function LabPage() {
         </span>
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <form onSubmit={submit} noValidate className="space-y-4 lg:col-span-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <form onSubmit={submit} noValidate className="min-w-0 space-y-4 lg:col-span-5">
           <Panel title="Strategy" eyebrow="1">
             <Segmented<Kind>
               label="Strategy"
@@ -279,7 +279,7 @@ export function LabPage() {
           </Button>
         </form>
 
-        <div className="space-y-4 lg:col-span-7">
+        <div className="min-w-0 space-y-4 lg:col-span-7">
           {run.isPending ? (
             <Skeleton className="h-96" />
           ) : shown ? (

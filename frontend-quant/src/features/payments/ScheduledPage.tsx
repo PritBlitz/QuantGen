@@ -87,8 +87,9 @@ function ScheduleRow({ s, busy, onAction }: { s: ScheduledTransferDto; busy: boo
   return (
     <li className={`flex flex-wrap items-center gap-3 rounded-2xl bg-surface-2/50 p-4 hairline ${done ? 'opacity-60' : ''}`}>
       <Avatar name={s.toName} />
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-medium">
+      {/* min width: on a phone the amount and actions wrap below instead of crushing the text */}
+      <div className="min-w-[11rem] flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
           {s.note ?? `To ${s.toName}`}
           <Badge tone={s.status === 'ACTIVE' ? 'gain' : s.status === 'PAUSED' ? 'warn' : 'neutral'} dot>
             {s.status.toLowerCase()}

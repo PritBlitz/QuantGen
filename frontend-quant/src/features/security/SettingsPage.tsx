@@ -301,7 +301,7 @@ function SessionsPanel() {
       ) : !sessions.data ? (
         <Skeleton className="h-32 w-full" />
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {sessions.data.map((s) => {
             const mobile = /iphone|android|ipad|mobile/i.test(s.device)
             const Icon = mobile ? Smartphone : LaptopMinimal
@@ -311,9 +311,15 @@ function SessionsPanel() {
                   <Icon aria-hidden="true" className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-2 truncate text-sm font-medium">
-                    {s.device} · {s.browser}
-                    {s.current && <Badge tone="gain">This device</Badge>}
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    <span className="truncate">
+                      {s.device} · {s.browser}
+                    </span>
+                    {s.current && (
+                      <Badge tone="gain" className="shrink-0">
+                        This device
+                      </Badge>
+                    )}
                   </p>
                   <p className="truncate text-xs text-muted" title={formatAbsolute(s.lastUsedAt)}>
                     {s.ipCity ? `${s.ipCity} · ` : ''}active {formatRelative(s.lastUsedAt)}
