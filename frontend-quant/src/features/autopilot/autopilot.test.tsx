@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { db } from '@/mocks/handlers'
 import { server } from '@/mocks/node'
@@ -110,6 +111,44 @@ describe('Autopilot', () => {
     signInAs('ADMIN')
     renderApp(`/autopilot/${SALARY_RULE}`)
     expect(await screen.findByText(/doesn’t exist/)).toBeInTheDocument()
+  })
+
+  it('falls back to the form when writing rules from a sentence is unavailable (503)', async () => {
+    signInAs('CUSTOMER')
+    server.use(
+      http.post('/api/v1/autopilot/compile', () =>
+        HttpResponse.json({ status: 503, code: 'FEATURE_DISABLED', message: 'Use the form', fieldErrors: [] }, { status: 503 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderApp('/autopilot/new')
+    await user.type(await screen.findByLabelText('Describe your rule'), 'Every month on the 5th buy ₹8000 of TCS')
+    await user.click(screen.getByRole('button', { name: 'Turn into a rule' }))
+    expect(await screen.findByLabelText('Rule name', {}, { timeout: 8000 })).toBeInTheDocument()
+  })
+
+  it('a template without a rule starts the form with its name when AI is off', async () => {
+    signInAs('CUSTOMER')
+    db.v2.flags.ai.enabled = false
+    const user = userEvent.setup()
+    renderApp('/autopilot/new')
+    await user.click(await screen.findByRole('button', { name: /Monthly SIP/ }))
+    expect(await screen.findByLabelText('Rule name')).toHaveValue('Monthly SIP')
+  })
+
+  it('shows a run that is still in progress as running', async () => {
+    signInAs('CUSTOMER')
+    server.use(
+      http.get('/api/v1/autopilot/rules/:id/runs', () =>
+        HttpResponse.json({
+          content: [{ id: 'r1', ruleVersion: 1, triggerEventId: 'e1', triggerSummary: '₹85,000 arrived in Checking', startedAt: new Date().toISOString(), outcome: null, actions: [] }],
+          page: 0, size: 20, totalElements: 1, totalPages: 1,
+        }),
+      ),
+    )
+    renderApp(`/autopilot/${SALARY_RULE}`)
+    const row = (await screen.findByText('₹85,000 arrived in Checking')).closest('li') as HTMLElement
+    expect(within(row).getByText('Running')).toBeInTheDocument()
   })
 
   it('shows a friendly page when the autopilot flag is off', async () => {

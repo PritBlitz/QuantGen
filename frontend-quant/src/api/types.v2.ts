@@ -552,7 +552,8 @@ export interface RuleRunDto {
   triggerEventId: string
   triggerSummary: string
   startedAt: IsoDateTime
-  outcome: RuleRunOutcome
+  /** null while the run is still in progress. */
+  outcome: RuleRunOutcome | null
   actions: Array<{
     type: RuleAction['type']
     amount: MoneyString | null

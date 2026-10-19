@@ -12,12 +12,14 @@ import { BUDGETABLE, categoryOf } from '@/lib/categories'
 import { maskShort } from '@/lib/mask'
 import {
   ACTION_LABEL,
+  ACTION_OPTIONS,
   amountModes,
   defaultAction,
   defaultTrigger,
   goals,
   spendable,
   TRIGGER_LABEL,
+  TRIGGER_OPTIONS,
   WEEKDAYS,
   type FieldErrorIndex,
 } from '../rules'
@@ -105,7 +107,7 @@ export function RuleForm({
                 <Select aria-label="Action type"
                   value={a.type}
                   onValueChange={(t) => setAction(i, defaultAction(t as RuleAction['type'], accounts))}
-                  options={Object.entries(ACTION_LABEL).map(([value, text]) => ({ value, label: text, text }))}
+                  options={ACTION_OPTIONS.map((value) => ({ value, label: ACTION_LABEL[value], text: ACTION_LABEL[value] }))}
                   className="h-9"
                 />
                 {rule.actions.length > 1 && (
@@ -158,7 +160,7 @@ function TriggerEditor({
             id={id}
             value={t.type}
             onValueChange={(type) => onChange(defaultTrigger(type as RuleTrigger['type'], accounts))}
-            options={Object.entries(TRIGGER_LABEL).map(([value, text]) => ({ value, label: text, text }))}
+            options={TRIGGER_OPTIONS.map((value) => ({ value, label: TRIGGER_LABEL[value], text: TRIGGER_LABEL[value] }))}
           />
         )}
       </Field>

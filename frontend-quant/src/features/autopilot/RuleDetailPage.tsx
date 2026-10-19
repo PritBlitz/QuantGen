@@ -171,7 +171,7 @@ function Runs({ ruleId, ruleName, className }: { ruleId: string; ruleName: strin
 }
 
 function RunRow({ run, onExplain }: { run: RuleRunDto; onExplain?: () => void }) {
-  const o = OUTCOME[run.outcome] ?? { label: run.outcome, tone: 'neutral' as const }
+  const o = run.outcome ? (OUTCOME[run.outcome] ?? { label: run.outcome, tone: 'neutral' as const }) : { label: 'Running', tone: 'neutral' as const }
   return (
     <li className="rounded-[var(--radius-control)] bg-surface-2/50 p-3 hairline">
       <div className="flex flex-wrap items-start justify-between gap-2">

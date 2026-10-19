@@ -60,6 +60,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/sandbox/merchant/', milestone: 'V2-M9' },
   // Backend b2ade2e (announced 2026-10-19): V2-M10 personal access tokens ride on /users/me.
   { prefix: '/api/v1/users/me/tokens', milestone: 'V2-M10' },
+  // Backend 5ac903a (announced 2026-10-19): V2-M5 Autopilot core. /autopilot/compile stays mocked
+  // (it needs the Planner in agent-quant; live it answers 503 and the builder falls back to the form).
+  { prefix: '/api/v1/autopilot/', milestone: 'V2-M5' },
   // /intents went live with backend 660de61 (V2-M4 core) but stays MOCKED here on purpose: the
   // scripted Copilot mock proposes intents in the in-browser db with mock account ids, so a live
   // /intents would 404 every card it shows. Flip /intents together with /copilot/ once agent-quant
@@ -75,6 +78,7 @@ export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   // /admin/ai stays mocked until V2-M4. (V2-M6, backend 82ee419, made fraud cases, loan
   // documents and underwriting live on 2026-10-19; they ride on the /admin/ and /loans prefixes.)
   /^\/api\/v1\/admin\/ai(\/|$)/,
+  /^\/api\/v1\/autopilot\/compile$/,
 ]
 
 export const isLive = (pathname: string) =>

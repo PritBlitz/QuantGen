@@ -1,4 +1,5 @@
 import type { AccountDto, FieldError, RuleAction, RuleAmount, RuleDsl, RuleRunOutcome, RuleTrigger, Weekday } from '@/api/types'
+import { backendHas } from '@/api/capabilities'
 import type { BadgeTone } from '@/components/ui/badge'
 import { AMOUNT_INPUT_RE, toDecimal } from '@/lib/money'
 
@@ -17,6 +18,16 @@ export const ACTION_LABEL: Record<RuleAction['type'], string> = {
   ROUND_UP_SWEEP: 'Sweep round-ups',
   NOTIFY: 'Notify me',
 }
+
+/**
+ * What the live engine runs today (backend V2-M5 core): BUDGET_THRESHOLD, PAY_BILL and ROUND_UP_SWEEP
+ * get 422 RULE_INVALID there, so the form offers them only when every request is mocked.
+ */
+const EXTENDED = backendHas('V2-M5-extended')
+export const TRIGGER_OPTIONS = (Object.keys(TRIGGER_LABEL) as Array<RuleTrigger['type']>).filter((t) => EXTENDED || t !== 'BUDGET_THRESHOLD')
+export const ACTION_OPTIONS = (Object.keys(ACTION_LABEL) as Array<RuleAction['type']>).filter(
+  (a) => EXTENDED || (a !== 'PAY_BILL' && a !== 'ROUND_UP_SWEEP'),
+)
 
 export const WEEKDAYS: Array<{ value: Weekday; label: string }> = [
   { value: 'MON', label: 'Monday' },

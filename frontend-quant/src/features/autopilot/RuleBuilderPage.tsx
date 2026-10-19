@@ -91,6 +91,13 @@ function Builder({
       setWarnings(res.warnings)
       if (!name) setName(text.trim().slice(0, 40))
     },
+    // No Planner yet (503 FEATURE_DISABLED): fall back to the form, keeping the idea in the text box.
+    onError: (err) => {
+      if (toApiError(err).code === 'FEATURE_DISABLED') {
+        setDraft(blank)
+        toast.info('Writing rules from a sentence isn’t available yet. Fill in the form instead.')
+      }
+    },
   })
 
   // The server checks the draft and renders the sentence the user approves (D-023). Debounced
@@ -192,14 +199,15 @@ function Builder({
                 <li key={t.id}>
                   <button
                     type="button"
-                    disabled={compile.isPending || (!t.rule && !aiOn)}
+                    disabled={compile.isPending}
                     onClick={() => {
                       setName(t.name)
+                      setText(t.prompt)
                       if (t.rule) setDraft(t.rule)
-                      else {
-                        setText(t.prompt)
-                        compile.mutate(t.prompt)
-                      }
+                      // The server's templates carry no rule (accounts are the user's): compile the
+                      // idea when AI is on, else start the form with the idea as the name and prompt.
+                      else if (aiOn) compile.mutate(t.prompt)
+                      else setDraft(blank)
                     }}
                     className="w-full rounded-[var(--radius-control)] bg-surface-2/50 p-3 text-left hairline transition-colors hover:border-violet/50 hover:bg-violet/10 disabled:opacity-50"
                   >

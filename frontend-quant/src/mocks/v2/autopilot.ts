@@ -270,7 +270,6 @@ export const autopilotHandlers = [
     if (fe.length) return error(422, 'RULE_INVALID', 'Rule is invalid', request, fe)
     if (db.v2.rules.filter((x) => x.userId === r.user.id && x.status === 'ACTIVE').length >= 10) return error(422, 'LIMIT_EXCEEDED', 'At most 10 active rules', request)
     const rule = b.rule as RuleDsl
-    if (rule.actions.some((a) => a.type === 'BUY') && db.v2.kyc.get(r.user.id)?.status !== 'VERIFIED') return error(403, 'KYC_REQUIRED', 'KYC required for investing rules', request)
     const gate = stepUpGate(request, r.user, 'RULE_ACTIVATE')
     if (gate) return gate
     const now = new Date().toISOString()

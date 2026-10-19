@@ -5,7 +5,7 @@
  * (fill at market). The UI offers such features only when the milestone is listed here, or when
  * every request is mocked. Add a milestone when the backend announces it.
  */
-export const SHIPPED_MILESTONES: ReadonlyArray<string> = ['V2-M0', 'V2-M1', 'V2-MA', 'V2-M2', 'V2-M3', 'V2-M7', 'V2-M8', 'V2-M9', 'V2-M6', 'V2-M10']
+export const SHIPPED_MILESTONES: ReadonlyArray<string> = ['V2-M0', 'V2-M1', 'V2-MA', 'V2-M2', 'V2-M3', 'V2-M7', 'V2-M8', 'V2-M9', 'V2-M6', 'V2-M10', 'V2-M5']
 
 const fullyMocked =
   import.meta.env.MODE === 'test' ||
