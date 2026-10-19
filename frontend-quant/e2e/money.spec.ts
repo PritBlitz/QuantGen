@@ -28,6 +28,8 @@ async function go(page: Page, name: string) {
 
 // CLAUDE.md: Playwright end-to-end for login → transfer → buy.
 test('login → transfer → buy', async ({ page, isMobile }) => {
+  // The longest mocked flow (three journeys + palette); 30 s is tight with a cold dev server.
+  test.setTimeout(60_000)
   await login(page)
 
   // Transfer ₹1,500 from savings to the checking account by number.
@@ -70,7 +72,11 @@ test('login → transfer → buy', async ({ page, isMobile }) => {
     .or(page.getByRole('button', { name: 'Quick actions' }))
     .filter({ visible: true })
     .click()
-  await page.getByRole('option', { name: 'Orders' }).click()
+  // On mobile, Quick actions is a sheet; the palette sits behind "Search everything…".
+  if (isMobile) await page.getByRole('button', { name: 'Search everything…' }).click()
+  // v2 grew the palette, so filter first: the option can start off-screen.
+  await page.getByRole('combobox').filter({ visible: true }).fill('Orders')
+  await page.getByRole('option', { name: 'Orders', exact: true }).click()
   await expect(page).toHaveURL(/\/orders$/)
   await expect(page.getByText(/2 ×/).filter({ visible: true }).first()).toBeVisible()
 })

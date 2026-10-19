@@ -4,8 +4,9 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
-  // Dev server compiles lazy chunks on first hit; allow for cold starts.
-  expect: { timeout: 10_000 },
+  // Dev server compiles lazy chunks on first hit; allow for cold starts. 10 s wasn't enough for
+  // the first post-login dashboard with 8 workers on one dev server (the trace showed it landing late).
+  expect: { timeout: 20_000 },
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',

@@ -80,21 +80,33 @@ for (const theme of ['dark', 'light'] as const) {
       })
     }
 
-    test('signed-in screens', async ({ page }) => {
-      test.setTimeout(120_000)
+    async function loginAsDemo(page: Page) {
       await page.goto('/login')
       await page.getByLabel('Email').fill('demo@quantgen.dev')
       await page.getByLabel('Password', { exact: true }).fill('Demo@1234')
       await page.getByRole('button', { name: /^sign in/i }).click()
       await expect(page).toHaveURL(/\/dashboard$/)
-      const main = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
-      await expect(main).toBeVisible()
-      for (const path of APP) {
-        // Loaded by URL: the refresh cookie restores the session on each load.
-        await page.goto(path)
-        await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
-        await audit(page, `${theme} ${path}`)
-      }
+      await expect(page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })).toBeVisible()
+    }
+
+    // Chunked so one test never audits all 22 screens (that blew the timeout under parallel load).
+    const CHUNK = 6
+    for (let c = 0; c < APP.length; c += CHUNK) {
+      const paths = APP.slice(c, c + CHUNK)
+      test(`signed-in screens ${paths[0]}…`, async ({ page }) => {
+        test.setTimeout(120_000)
+        await loginAsDemo(page)
+        for (const path of paths) {
+          // Loaded by URL: the refresh cookie restores the session on each load.
+          await page.goto(path)
+          await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+          await audit(page, `${theme} ${path}`)
+        }
+      })
+    }
+
+    test('instrument and notifications', async ({ page }) => {
+      await loginAsDemo(page)
       await page
         .getByRole('navigation', { name: 'Main' })
         .getByRole('link', { name: 'Markets', exact: true })

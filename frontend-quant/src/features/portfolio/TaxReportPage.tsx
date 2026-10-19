@@ -82,7 +82,12 @@ export function TaxReportPage() {
             {report.data.rows.length === 0 ? (
               <p className="text-sm text-muted">You didn’t sell any shares in this financial year.</p>
             ) : (
-              <div className="-mx-1 overflow-x-auto px-1">
+              <div
+                className="scroll-thin -mx-1 overflow-x-auto rounded-md px-1 focus-visible:outline-2 focus-visible:outline-accent"
+                tabIndex={0}
+                role="region"
+                aria-label="Realized gains by sale"
+              >
                 <table className="w-full min-w-[40rem] text-sm">
                   <caption className="sr-only">Realized gains by sale</caption>
                   <thead>

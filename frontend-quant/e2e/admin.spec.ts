@@ -8,7 +8,6 @@ async function loginAsAdmin(page: Page) {
   await expect(page).toHaveURL(/\/admin$/)
 }
 
-/** Client-side nav keeps the in-browser mock database (a reload would reset it). */
 /**
  * Navigate in-app (a reload would reset the in-browser mock state): the rail on desktop, the
  * dock or its "More" sheet on mobile.
@@ -25,6 +24,8 @@ async function go(page: Page, name: string) {
 
 // PRD M4/M5: apply → admin approve → disburse; freeze is audited.
 test('admin approves a loan, freezes an account, and both are audited', async ({ page }) => {
+  // Five screens via the mobile More sheet; 30 s ran out on the last step under parallel load.
+  test.setTimeout(60_000)
   await loginAsAdmin(page)
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   await expect(page.getByRole('heading', { name: /loan queue\s*2 pending/i })).toBeVisible()
