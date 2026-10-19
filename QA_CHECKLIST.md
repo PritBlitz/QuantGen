@@ -260,3 +260,19 @@ Use a fresh customer. Add ₹1,00,000 to the savings account first.
 
 Interest is checked to the paisa in `FixedDepositsAndInterestIT` (FDs: principal × rate × days / 36500; savings: 3%
 on the daily closing balance, credited on the 1st).
+
+## 15. V2-M8 Proof of Balance (demo script)
+
+| # | Do this | Expect |
+|---|---|---|
+| 1 | Signed out, open `GET /api/v1/public/proofs/roots` (or the landing page's live root) | Today's root, total liabilities (4 decimals), leaf count and chain head; no login needed |
+| 2 | Log in as `demo@quantgen.dev`, open Verify my balance for each account | ✅ for every account; the leaf balance equals the account balance at snapshot time |
+| 3 | Open an account created after today's snapshot | "Not in that snapshot" (404), never an error page |
+| 4 | Ask for another customer's account id | 404, exactly as for a made-up id |
+| 5 | As admin, run chain verification | `intact: true`, `checkedUpTo` = the chain head; an audit row `LEDGER_CHAIN_VERIFIED` |
+| 6 | Admin solvency view | Liabilities = sum of customer balances; ratio = assets / liabilities |
+| 7 | (Dev DB only, then restore) disable `ledger_lines_immutable`, edit one sealed line's counterparty, verify again | `intact: false` with that line's seal position; restore the value and re-enable the trigger → intact |
+
+Automated: `ProofOfBalanceIT` (gap-free chain under concurrent sealers, tamper detection of a line and of a seal,
+admin alert, every proof recomputed to the published root) and `ProofHashingTest` (vectors from `sha256sum`).
+Live proofs were also checked with the frontend's own `src/lib/merkle.ts` against a clone of the dev DB.

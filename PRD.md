@@ -870,7 +870,7 @@ the contract-change protocol. 🛡️ = may require step-up. 🤖 = accepts agen
   `status` adds `OPEN`, `CANCELLED`, `EXPIRED`.
 - `UserDto` + `{handle, kycStatus: "NONE"|"PENDING"|"VERIFIED", hasPasskey, hasPin}`.
 - `NotificationDto.type` adds `PAYMENT_REQUEST`, `SCHEDULED_FAILED`, `RULE_RUN`, `RULE_PAUSED`,
-  `BUDGET_ALERT`, `NEW_DEVICE_LOGIN`, `TRANSFER_UNDER_REVIEW`, `PRICE_ALERT`, `FD_MATURED`, `CARD_DECLINED`.
+  `BUDGET_ALERT`, `NEW_DEVICE_LOGIN`, `TRANSFER_UNDER_REVIEW`, `PRICE_ALERT`, `FD_MATURED`, `CARD_DECLINED`, `LEDGER_INTEGRITY` (admins only; added in V2-M8).
 
 New enum values can break a client that switches exhaustively, so the frontend must treat
 unknown values gracefully from V2-M1 on.
@@ -1270,6 +1270,30 @@ Backend notes (V2-M7, implemented 2026-10-18):
 - In `path`, each node is the **sibling** at that level, from the leaf upward; `side` says which side the sibling sits on (`LEFT` → parent = H(sibling, current)).
 - A verifier rejects any negative `sum` in the path, a root mismatch, or a total that differs from `/public/proofs/roots`.
 - Reference implementation: `frontend-quant/src/lib/merkle.ts` (with tests).
+
+Backend notes (V2-M8, implemented 2026-10-19; agreed with the frontend session the same day):
+- **Tree:** leaves sorted ascending by the lowercase canonical UUID string of `accountId`; pad leaves sit at the
+  global indexes `leafCount … size−1`; `size` = next power of two ≥ max(leafCount, 1). One leaf → root = that
+  leaf, `path: []`. Every **CUSTOMER** ledger account is a leaf, closed ones included (balance `0.0000`), so
+  `totalLiabilities` is all customer money. `leafCount` excludes padding. `salt` is 32 lowercase hex chars (opaque).
+- **Amounts** in all four responses are 4-decimal strings (`"1250.5000"`), the exact text hashed. This differs from
+  the usual 2-dp money JSON (§7.1). `ratio` is also 4 dp, `"0.0000"` when liabilities are 0.
+- **Snapshot semantics:** one per IST date D, taken at the first check on/after 00:00 IST of D (a job checks every
+  minute, so a missed midnight or a fresh database catches up). Each balance = Σ lines of the entries sealed up to
+  `chainHead.position`, so the snapshot is reproducible from the ledger. Snapshots are immutable.
+- **Roots:** newest first, at most the last 30; `permitAll`; `Cache-Control: public, max-age=60`.
+- **Proof:** no `date` → the latest snapshot. Someone else's account, an unknown date, or an account not in that
+  snapshot (opened later) → `404 NOT_FOUND`; a malformed date → `400 VALIDATION_FAILED`.
+- **Seal chain (F-POB-1):** `hash = SHA256("<prevHash>|<canonical>")`, position 1 chains from 64 zeros. `canonical`
+  = a header line `<entryId>|<type>|<reversesEntryId or "">|<createdBy or "">|<createdAt UTC, yyyy-MM-ddTHH:mm:ss.SSSSSSZ>|<SHA256(description)>`,
+  then one line per ledger line sorted by line id: `<lineId>|<ledgerAccountId>|<DEBIT|CREDIT>|<amount 4dp>|<balanceAfter 4dp>|<SHA256(counterparty or "")>`,
+  joined by `\n`. The sealer runs every 2 s (`qg.proofs.seal-millis`), one at a time (advisory lock).
+- **verify-chain:** `checkedUpTo` = the head position examined (0 when empty); `firstBrokenPosition` = the first
+  position whose position, `prev_hash` or recomputed hash doesn't match (null when intact). Every call is audited
+  (`LEDGER_CHAIN_VERIFIED` / `LEDGER_CHAIN_BROKEN`). The nightly run (00:30 IST) also sends `LEDGER_INTEGRITY` to
+  every admin on a break.
+- **Solvency:** live; liabilities = Σ customer balances; assets = `BANK_CASH` + `LOAN_RECEIVABLE` + `GATEWAY_CLEARING` (simulated reserves).
+- **Not done:** F-POB-6 (external anchoring, P2). Verification always starts from genesis (no checkpoints yet).
 
 ### 12.11 Cards
 | Method | Path | Body | Response |

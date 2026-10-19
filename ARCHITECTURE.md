@@ -578,17 +578,23 @@ LedgerSealer (every 2 s, single instance):
      INSERT ledger_seals(position = last.position+1, entry_id = e.id, prev_hash = last.hash, hash = h)
      last = (position+1, h)
 ```
-`canonical()` is a fixed, documented serialization (sorted keys, amounts as plain strings with
-4 decimals, UTC timestamps), so anyone can recompute it. `ledger_seals` has the same
+`canonical()` is a fixed, documented serialization (one header line plus one line per ledger line sorted
+by id, amounts as plain strings with 4 decimals, UTC timestamps with microseconds, free text hashed; exact
+format in PRD §12.10 "Backend notes"), so anyone can recompute it. `ledger_seals` has the same
 immutability triggers as the ledger. `entry_id` is unique, so an entry can't be sealed twice.
+As built (`com.quantgen.ledger.proof`): the sealer takes an advisory lock, the first pass after startup scans all
+history and later passes look back one hour (covering any transaction still open on an earlier pass).
 
-**Snapshot (nightly 00:00 IST)**
-- Read every customer ledger account balance as of the snapshot cutoff (one consistent
-  `REPEATABLE READ` read).
+**Snapshot (daily, first check on/after 00:00 IST)**
+- Every customer ledger account's balance **as of the chain head**: Σ lines of the entries sealed up to
+  `chainHead.position`, read in one `REPEATABLE READ` transaction. Reproducible from the ledger alone.
 - Leaf: `hash = SHA256(accountId ‖ balance ‖ salt)`, `sum = balance`; salt =
-  `HMAC(snapshotSecret, accountId ‖ date)`.
+  `HMAC(QG_INDEX_KEY, "qg-proof-salt-v1" ‖ accountId ‖ date)`, truncated to 32 hex chars (no extra secret).
 - Node: `hash = SHA256(left.hash ‖ left.sum ‖ right.hash ‖ right.sum)`, `sum = left.sum + right.sum`.
-  Leaves are shuffled by salt order and padded with zero-sum leaves to a power of two.
+  Leaves are ordered by account id (PRD §12.10, which supersedes an earlier "shuffled by salt" draft) and
+  padded with zero-sum leaves to a power of two. All nodes are stored in `balance_snapshot_nodes`.
+- A job checks every minute and takes today's snapshot if it's missing (covers midnight, downtime and a fresh DB).
+  The chain verifier runs nightly at 00:30 IST; a break is audited and notifies every admin (`LEDGER_INTEGRITY`).
 - Publish `{date, root, totalLiabilities, leafCount, chainHead}`.
 
 **Verification in the browser:** the SPA gets `{leaf, path, root}`, recomputes with

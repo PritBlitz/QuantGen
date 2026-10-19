@@ -54,8 +54,8 @@ you make a new one.
 | D-022 | Delegated, scoped agent tokens | Proposed |
 | D-023 | Intent summaries rendered by the server, never by the LLM | Proposed |
 | D-024 | Autopilot: LLM at authoring time, deterministic engine at run time | Proposed |
-| D-025 | Proof of Balance: hash-chained seals + daily Merkle sum tree | Proposed |
-| D-026 | Seal the ledger asynchronously in a separate table | Proposed |
+| D-025 | Proof of Balance: hash-chained seals + daily Merkle sum tree | Accepted (built in V2-M8, 2026-10-19) |
+| D-026 | Seal the ledger asynchronously in a separate table | Accepted (built in V2-M8, 2026-10-19) |
 | D-027 | Holds and "available balance" outside the ledger lines | Accepted |
 | D-028 | Transactional outbox; Redpanda only for cross-service consumers | Accepted |
 | D-029 | Step-up auth: passkeys first, transaction PIN as fallback | Accepted |

@@ -73,6 +73,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/razorpay").permitAll()
                         // The STOMP CONNECT frame carries the JWT and is validated by a ChannelInterceptor.
                         .requestMatchers("/ws", "/ws/**").permitAll()
+                        // Proof of Balance roots are published to everyone, signed in or not (PRD 12.10).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/proofs/roots").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated());
         return http.build();
