@@ -86,7 +86,7 @@ export interface V2State {
   alerts: Array<Owned<PriceAlertDto>>
   backtests: Array<Owned<BacktestDto>>
   cards: Array<Owned<CardDto> & { pan: string }>
-  cardAuths: Map<string, { cardId: string; amount: string; holdId: string; merchant: string; status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' }>
+  cardAuths: Map<string, { cardId: string; userId: string; amount: string; holdId: string; merchant: string; status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' }>
   tokens: Array<Owned<PersonalTokenDto> & { tokenHash: string }>
   aiCalls: number
   /** Mock fraud rule: transfers to others at or above this amount go to review. null = off (tests). */

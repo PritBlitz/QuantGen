@@ -111,4 +111,33 @@ describe('merchant sandbox', () => {
     expect(screen.getByText('Merchant category is blocked')).toBeInTheDocument()
     expect(db.v2.holds.filter((h) => h.reason === 'CARD_AUTH')).toHaveLength(1) // only the seeded one
   })
+
+  it('reuses the Idempotency-Key when a checkout is retried, and gets a new one after an edit', async () => {
+    signInAs('CUSTOMER')
+    const keys: Array<string | null> = []
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/sandbox/merchant/authorize'))
+        keys.push(request.headers.get('Idempotency-Key'))
+    })
+    const user = userEvent.setup()
+    renderApp('/cards/sandbox')
+    await user.click(await screen.findByRole('radio', { name: /Filter coffee beans/ }))
+    await fillCard(user)
+
+    server.use(http.post('/api/v1/sandbox/merchant/authorize', () => HttpResponse.error(), { once: true }))
+    await user.click(screen.getByRole('button', { name: /^Pay/ }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Pay/ })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: /^Pay/ }))
+    expect(await screen.findByText('Authorized · on hold')).toBeInTheDocument()
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(keys[1]).toBe(keys[0])
+
+    // The answer cleared the CVV; the next attempt is a new payment with a new key.
+    await user.type(screen.getByLabelText('CVV'), cvvFor(db.v2.cards[0]!.pan))
+    await user.click(screen.getByRole('button', { name: /^Pay/ }))
+    await waitFor(() => expect(keys).toHaveLength(3))
+    expect(keys[2]).not.toBe(keys[0])
+  }, 20_000)
 })

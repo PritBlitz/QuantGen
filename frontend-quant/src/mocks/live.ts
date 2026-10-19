@@ -51,6 +51,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/price-alerts', milestone: 'V2-M7' },
   { prefix: '/api/v1/backtests', milestone: 'V2-M7' },
   { prefix: '/api/v1/reports/', milestone: 'V2-M7' },
+  // Backend 15a114d (announced 2026-10-19): V2-M8 Proof of Balance. verify-chain/solvency ride on /admin/.
+  { prefix: '/api/v1/public/proofs/', milestone: 'V2-M8' },
+  { prefix: '/api/v1/proofs/', milestone: 'V2-M8' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -64,7 +67,6 @@ export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
   /^\/api\/v1\/admin\/loans\/[^/]+\/underwriting/,
-  /^\/api\/v1\/admin\/ledger\/(verify-chain|solvency)/,
 ]
 
 export const isLive = (pathname: string) =>

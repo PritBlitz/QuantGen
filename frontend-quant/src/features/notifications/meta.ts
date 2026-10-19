@@ -48,6 +48,7 @@ export const NOTIFICATION_META: Record<NotificationDto['type'], Meta> = {
   PRICE_ALERT: { icon: TrendingUp, tone: 'accent', to: '/markets', label: 'Markets' },
   FD_MATURED: { icon: HandCoins, tone: 'gain', to: '/savings', label: 'Savings' },
   CARD_DECLINED: { icon: CreditCard, tone: 'loss', to: '/cards', label: 'Cards' },
+  LEDGER_INTEGRITY: { icon: ShieldAlert, tone: 'loss', to: '/admin/reconcile', label: 'Ledger' },
 }
 
 export const TONE_CLASS: Record<Tone, string> = {

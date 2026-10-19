@@ -90,6 +90,7 @@ export type NotificationTypeV2 =
   | 'PRICE_ALERT'
   | 'FD_MATURED'
   | 'CARD_DECLINED'
+  | 'LEDGER_INTEGRITY'
 
 // Feature flags (§12.8) ─────────────────────────────────────────────────────────────
 export type FeatureFlag = 'ai' | 'autopilot' | 'razorpay' | 'cards' | 'mcp'

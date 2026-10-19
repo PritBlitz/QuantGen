@@ -386,15 +386,22 @@ export const cardsApi = {
   reveal: (id: string) => api.post<CardRevealDto>(`/cards/${seg(id)}/reveal`).then(data),
   controls: (id: string, body: Partial<CardControls>) =>
     api.patch<CardDto>(`/cards/${seg(id)}/controls`, body).then(data),
-  authorize: (body: MerchantAuthRequest) =>
-    api.post<MerchantAuthDto>('/sandbox/merchant/authorize', body).then(data),
-  capture: (authId: string, amount?: MoneyString) =>
+  // All three move money (a hold, its capture, a reversal), so each takes an Idempotency-Key (V2-M9).
+  authorize: (body: MerchantAuthRequest, idempotencyKey: string) =>
     api
-      .post(`/sandbox/merchant/${seg(authId)}/capture`, amount ? { amount } : {})
+      .post<MerchantAuthDto>('/sandbox/merchant/authorize', body, { headers: idempotencyHeader(idempotencyKey) })
+      .then(data),
+  capture: (authId: string, idempotencyKey: string, amount?: MoneyString) =>
+    api
+      .post(`/sandbox/merchant/${seg(authId)}/capture`, amount ? { amount } : {}, {
+        headers: idempotencyHeader(idempotencyKey),
+      })
       .then(() => undefined),
-  refund: (authId: string, amount?: MoneyString) =>
+  refund: (authId: string, idempotencyKey: string, amount?: MoneyString) =>
     api
-      .post(`/sandbox/merchant/${seg(authId)}/refund`, amount ? { amount } : {})
+      .post(`/sandbox/merchant/${seg(authId)}/refund`, amount ? { amount } : {}, {
+        headers: idempotencyHeader(idempotencyKey),
+      })
       .then(() => undefined),
 }
 

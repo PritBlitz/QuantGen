@@ -29,7 +29,8 @@ async function build(date: string): Promise<Snapshot> {
   const key = date
   const hit = cache.get(key)
   if (hit) return hit
-  const customer = [...db.accounts.values()].filter((a) => a.status !== 'CLOSED').sort((a, b) => a.id.localeCompare(b.id))
+  // Like the backend: every customer account incl. closed ones, in ASCII order of the lowercase id.
+  const customer = [...db.accounts.values()].sort((a, b) => (a.id.toLowerCase() < b.id.toLowerCase() ? -1 : 1))
   const index = new Map<string, { i: number; balance: string; salt: string }>()
   const leaves: HashedNode[] = []
   for (const [i, a] of customer.entries()) {

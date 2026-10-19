@@ -11,6 +11,7 @@ import { Panel } from '@/components/Panel'
 import { Badge, type BadgeTone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FieldMessage, Input, Label } from '@/components/ui/input'
+import { useIdempotencyKey } from '@/lib/idempotency'
 import { cn } from '@/lib/utils'
 import { CATEGORY_LABEL, formatPan } from './labels'
 
@@ -61,6 +62,19 @@ export function SandboxPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const timers = useRef<number[]>([])
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
+  // One Idempotency-Key per checkout attempt: a retry after a network error reuses it; any edit
+  // (or a server answer, which clears the CVV) starts a new one.
+  const checkoutKey = useIdempotencyKey()
+  const resetCheckoutKey = checkoutKey.reset
+  useEffect(() => resetCheckoutKey(), [productId, pan, expiry, cvv, resetCheckoutKey])
+  // Capture and refund are each done at most once per auth, so their keys are stable per auth.
+  const actionKeys = useRef(new Map<string, string>())
+  const keyFor = (action: 'capture' | 'refund', authId: string) => {
+    const id = `${action}:${authId}`
+    let k = actionKeys.current.get(id)
+    if (!k) actionKeys.current.set(id, (k = crypto.randomUUID()))
+    return k
+  }
 
   const product = PRODUCTS.find((p) => p.id === productId) ?? COFFEE
   const errors = {
@@ -75,7 +89,7 @@ export function SandboxPage() {
 
   async function capture(authId: string) {
     try {
-      await cardsApi.capture(authId)
+      await cardsApi.capture(authId, keyFor('capture', authId))
       update(authId, { status: 'CAPTURED' })
     } catch (e) {
       update(authId, { reason: errorMessage(e) })
@@ -85,7 +99,7 @@ export function SandboxPage() {
   }
   async function refund(authId: string) {
     try {
-      await cardsApi.refund(authId)
+      await cardsApi.refund(authId, keyFor('refund', authId))
       update(authId, { status: 'REFUNDED', reason: undefined })
     } catch (e) {
       update(authId, { reason: errorMessage(e) })
@@ -108,7 +122,7 @@ export function SandboxPage() {
         amount: product.price,
         merchant: product.merchant,
         category: product.category,
-      })
+      }, checkoutKey.ensure())
       const payment: Payment = { authId: res.authId, product: product.name, amount: product.price, status: res.status === 'APPROVED' ? 'AUTHORIZED' : 'DECLINED', reason: res.reason }
       setPayments((list) => [payment, ...list])
       if (res.status === 'APPROVED') {

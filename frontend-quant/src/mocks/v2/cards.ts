@@ -1,7 +1,7 @@
 /** MSW handlers: virtual cards + merchant sandbox (§12.11) and personal access tokens (§12.12). */
 import { delay, http } from 'msw'
 import type { CardControls, MerchantCategory } from '@/api/types'
-import { audit, BASE, db, error, inr, isMoney, notify } from '../handlers'
+import { audit, BASE, db, error, idempotent, inr, isMoney, notify } from '../handlers'
 import { available, Decimal, invalid, json, money, move, notFound, ownAccount, requireUser, stepUpGate } from './common'
 
 const CATS: MerchantCategory[] = ['GROCERY', 'DINING', 'TRAVEL', 'ELECTRONICS', 'GAMBLING', 'FUEL', 'ENTERTAINMENT', 'OTHER']
@@ -24,6 +24,31 @@ function newPan() {
   }
 }
 /** Time-based demo CVV (exported for tests). */
+/** Checks card details and controls; on approval places a hold (the auth). */
+async function authorize(userId: string, b: Record<string, unknown>, request: Request): Promise<Response> {
+  const pan = typeof b.cardNumber === 'string' ? b.cardNumber.replace(/\s/g, '') : ''
+  const card = db.v2.cards.find((c) => c.pan.replace(/\s/g, '') === pan)
+  const decline = (reason: string) => {
+    if (card) notify(card.userId, 'CARD_DECLINED', 'Card payment declined', `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`)
+    return json({ authId: crypto.randomUUID(), status: 'DECLINED', reason })
+  }
+  if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline('Card details don’t match')
+  if (!isMoney(b.amount) || new Decimal(b.amount).lt(1)) return invalid(request, 'amount', 'must be at least 1.00')
+  const amount = new Decimal(b.amount)
+  if (card.controls.frozen) return decline('Card is frozen')
+  if (!card.controls.online) return decline('Online payments are off')
+  if (card.controls.blockedCategories.includes(b.category as MerchantCategory)) return decline('Merchant category is blocked')
+  if (amount.gt(card.controls.perTxnLimit)) return decline('Over the per-transaction limit')
+  const acc = db.accounts.get(card.accountId)!
+  if (acc.status === 'FROZEN') return decline('Account is frozen')
+  if (available(acc).lt(amount)) return decline('Insufficient funds')
+  const holdId = crypto.randomUUID()
+  db.v2.holds.push({ id: holdId, accountId: acc.id, amount: money(amount), reason: 'CARD_AUTH', status: 'ACTIVE' })
+  const authId = crypto.randomUUID()
+  db.v2.cardAuths.set(authId, { cardId: card.id, userId, amount: money(amount), holdId, merchant: String(b.merchant ?? 'Merchant').slice(0, 40), status: 'AUTHORIZED' })
+  return json({ authId, status: 'APPROVED' })
+}
+
 export const cvvFor = (pan: string, at: number = Date.now()) => {
   const window = Math.floor(at / 30_000)
   let h = window
@@ -85,34 +110,21 @@ export const cardHandlers = [
     if (!r.user) return r.res
     if (!db.v2.flags.cards.enabled) return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
     const b = (await request.json()) as Record<string, unknown>
-    const pan = typeof b.cardNumber === 'string' ? b.cardNumber.replace(/\s/g, '') : ''
-    const card = db.v2.cards.find((c) => c.pan.replace(/\s/g, '') === pan)
-    const decline = (reason: string) => {
-      if (card) notify(card.userId, 'CARD_DECLINED', 'Card payment declined', `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`)
-      return json({ authId: crypto.randomUUID(), status: 'DECLINED', reason })
-    }
-    if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline('Card details don’t match')
-    if (!isMoney(b.amount) || new Decimal(b.amount).lt(1)) return invalid(request, 'amount', 'must be at least 1.00')
-    const amount = new Decimal(b.amount)
-    if (card.controls.frozen) return decline('Card is frozen')
-    if (!card.controls.online) return decline('Online payments are off')
-    if (card.controls.blockedCategories.includes(b.category as MerchantCategory)) return decline('Merchant category is blocked')
-    if (amount.gt(card.controls.perTxnLimit)) return decline('Over the per-transaction limit')
-    const acc = db.accounts.get(card.accountId)!
-    if (acc.status === 'FROZEN') return decline('Account is frozen')
-    if (available(acc).lt(amount)) return decline('Insufficient funds')
-    const holdId = crypto.randomUUID()
-    db.v2.holds.push({ id: holdId, accountId: acc.id, amount: money(amount), reason: 'CARD_AUTH', status: 'ACTIVE' })
-    const authId = crypto.randomUUID()
-    db.v2.cardAuths.set(authId, { cardId: card.id, amount: money(amount), holdId, merchant: String(b.merchant ?? 'Merchant').slice(0, 40), status: 'AUTHORIZED' })
-    return json({ authId, status: 'APPROVED' })
+    const idem = idempotent(request, r.user.id, b)
+    if (idem.early) return idem.early
+    const res = await authorize(r.user.id, b, request)
+    idem.save(res.status, await res.clone().json())
+    return res
   }),
   http.post(`${BASE}/sandbox/merchant/:authId/:action`, async ({ request, params }) => {
     await delay(400)
     const r = requireUser(request)
     if (!r.user) return r.res
+    const idem = idempotent(request, r.user.id, { authId: params.authId, action: params.action })
+    if (idem.early) return idem.early
+    // Like the backend: only the user who ran the authorize can capture or refund it.
     const a = db.v2.cardAuths.get(String(params.authId))
-    if (!a) return notFound(request, 'Authorization')
+    if (!a || a.userId !== r.user.id) return notFound(request, 'Authorization')
     const card = db.v2.cards.find((c) => c.id === a.cardId)!
     const acc = db.accounts.get(card.accountId)!
     const hold = db.v2.holds.find((h) => h.id === a.holdId)
@@ -127,7 +139,9 @@ export const cardHandlers = [
       db.transactions.unshift({ id: crypto.randomUUID(), journalEntryId: crypto.randomUUID(), accountId: acc.id, direction: 'CREDIT', amount: a.amount, balanceAfter: acc.balance, type: 'REFUND', description: `Refund · ${a.merchant}`, counterparty: a.merchant, createdAt: new Date().toISOString() })
       a.status = 'REFUNDED'
     } else return notFound(request)
-    return new Response(null, { status: 200 })
+    const body = { authId: params.authId, status: a.status }
+    idem.save(200, body)
+    return json(body)
   }),
 
   // Personal access tokens
