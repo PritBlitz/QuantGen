@@ -1,5 +1,4 @@
 import { MessagesSquare, Sparkles, SquarePen, Trash2 } from 'lucide-react'
-import { useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/errors'
 import { useFlag } from '@/api/flags'
@@ -7,11 +6,10 @@ import { EmptyState, PageHeader } from '@/components/PageHeader'
 import { Panel, PanelError } from '@/components/Panel'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { IntentDto } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { ChatView } from './components/ChatView'
-import { IntentCard } from './components/IntentCard'
-import { useConversations, useCopilotChat, useDeleteConversation, useIntents } from './hooks'
+import { WaitingApprovals } from './components/WaitingApprovals'
+import { useConversations, useCopilotChat, useDeleteConversation } from './hooks'
 
 const when = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
@@ -51,7 +49,7 @@ export function CopilotPage() {
         >
           <ChatView chat={chat} autoFocus />
         </section>
-        <Waiting className="order-3 lg:col-span-3" />
+        <WaitingApprovals className="order-3 lg:col-span-3" />
       </div>
     </>
   )
@@ -104,36 +102,6 @@ function History({ active, onPick, className }: { active: string | null; onPick:
             </li>
           ))}
         </ul>
-      )}
-    </Panel>
-  )
-}
-
-/** Every open proposal across chats, so nothing waits unseen (they expire after 15 minutes). */
-function Waiting({ className }: { className?: string }) {
-  const intents = useIntents('PROPOSED')
-  // Keep every card shown during this visit mounted: once approved it leaves the PROPOSED list, and
-  // unmounting it would also throw away its "Approved and carried out" confirmation. New ones go on top.
-  const [seen, setSeen] = useState<{ from: IntentDto[] | undefined; list: IntentDto[] }>({ from: undefined, list: [] })
-  if (intents.data && intents.data !== seen.from) {
-    const known = new Set(seen.list.map((i) => i.id))
-    setSeen({ from: intents.data, list: [...intents.data.filter((i) => !known.has(i.id)), ...seen.list] })
-  }
-  const shown = seen.list
-  return (
-    <Panel title="Waiting for you" eyebrow="Approvals" tone="violet" className={className} bodyClassName="mt-3">
-      {intents.isPending ? (
-        <Skeleton className="h-40" />
-      ) : intents.isError ? (
-        <PanelError what="approvals" onRetry={() => void intents.refetch()} />
-      ) : shown.length === 0 ? (
-        <p className="py-4 text-sm text-muted">Nothing to approve. When Copilot prepares an action, it waits here until you decide.</p>
-      ) : (
-        <div className="space-y-3">
-          {shown.map((i) => (
-            <IntentCard key={i.id} intent={i} />
-          ))}
-        </div>
       )}
     </Panel>
   )

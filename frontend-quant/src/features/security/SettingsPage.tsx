@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabPanel, Tabs } from '@/components/ui/tabs'
+import { WaitingApprovals } from '@/features/copilot/components/WaitingApprovals'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { AMOUNT_INPUT_RE, formatINR, ratio, toDecimal } from '@/lib/money'
 import { formatAbsolute, formatRelative } from '@/lib/time'
@@ -610,6 +611,11 @@ function DeveloperTab() {
           </ul>
         )}
       </Panel>
+      <WaitingApprovals
+        className="lg:col-span-12"
+        agent="MCP_CLIENT"
+        empty="Nothing to approve. When a connected app with “read + propose” suggests an action, it waits here until you decide."
+      />
       <Dialog
         open={created !== null}
         onOpenChange={(o) => {

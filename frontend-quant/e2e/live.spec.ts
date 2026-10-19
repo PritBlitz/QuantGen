@@ -4,6 +4,9 @@ import { expect, test, type APIRequest, type Page } from '@playwright/test'
  * Real UI against the REAL backend (no MSW). Opt-in: needs the API on :8080 and Postgres.
  *   QG_LIVE=1 npx playwright test e2e/live.spec.ts --project=desktop
  * A fresh user each run, so it never depends on seed balances.
+ * The whole file registers ~15 users and logs in ~25 times from one IP, so run the backend with
+ * QG_RATE_LIMIT_ENABLED=false (dev only); with the limiter on, run tests one at a time (-g "<name>").
+ * Tests that need a feature flag turn it on through the admin API and restore it in `finally`.
  */
 test.skip(!process.env.QG_LIVE, 'set QG_LIVE=1 with the backend running on :8080')
 
@@ -465,6 +468,53 @@ test('intents: proposed via API, approved in the UI with step-up, executed', asy
     expect(paid[0].balance).toMatch(/^750(\.0+)?$/)
   } finally {
     await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: wasOn } })
+    await Promise.all([admin.dispose(), me.ctx.dispose(), friend.ctx.dispose()])
+  }
+})
+
+// A connected app (read+propose token) proposes; with the ai flag OFF the user still approves it, on
+// Settings → Developer.
+test('intents from a connected app are approvable on the Developer tab with ai off', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(150_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const flags = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()) as Record<string, boolean>
+  await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: true } })
+  await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: false } })
+  const me = await apiCustomer(playwright, baseURL, 'mcp')
+  const friend = await apiCustomer(playwright, baseURL, 'mcppayee')
+  try {
+    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '1000.00' } })).ok()).toBe(true)
+    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
+    const stepUp = (await (await me.ctx.post('/api/v1/auth/step-up/verify', { headers: me.headers, data: { action: 'TOKEN_CREATE', pin: '246810' } })).json()).stepUpToken
+    const created = await me.ctx.post('/api/v1/users/me/tokens', {
+      headers: { ...me.headers, 'X-Step-Up-Token': stepUp },
+      data: { name: 'Claude Desktop', scope: 'read+propose', expiresInDays: 7 },
+    })
+    expect(created.status()).toBe(201)
+    const pat = (await created.json()).token as string
+    const proposed = await me.ctx.post('/api/v1/intents', {
+      headers: { Authorization: `Bearer ${pat}` },
+      data: { kind: 'TRANSFER', payload: { fromAccountId: me.account.id, toAccountNumber: friend.account.accountNumber, amount: '120.00' }, rationale: 'Splitting the cab fare.' },
+    })
+    expect(proposed.status()).toBe(201)
+    expect((await proposed.json()).proposedBy.agent).toBe('MCP_CLIENT')
+
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/settings/developer')
+    const card = page.getByRole('article', { name: /Proposed action: Send ₹120\.00/ })
+    await expect(card).toBeVisible()
+    await expect(card.getByText('Connected app')).toBeVisible()
+    await card.getByRole('button', { name: 'Approve' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await expect(card.getByText('Approved and carried out.')).toBeVisible()
+    const paid = await (await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })).json()
+    expect(paid[0].balance).toMatch(/^120(\.0+)?$/)
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: flags.mcp } })
+    await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: flags.ai } })
     await Promise.all([admin.dispose(), me.ctx.dispose(), friend.ctx.dispose()])
   }
 })
