@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequest, type Page } from '@playwright/test'
 
 /**
  * Real UI against the REAL backend (no MSW). Opt-in: needs the API on :8080 and Postgres.
@@ -305,5 +305,64 @@ test('cards: issue, reveal with step-up, pay the demo store → hold → capture
   } finally {
     await admin.put('/api/v1/admin/feature-flags/cards', { headers: auth, data: { enabled: wasOn } })
     await admin.dispose()
+  }
+})
+
+/** A fresh customer created through the API, with its own cookie jar. */
+async function apiCustomer(playwright: { request: APIRequest }, baseURL: string | undefined, tag: string) {
+  const ctx = await playwright.request.newContext({ baseURL })
+  const n = `${Date.now()}`.slice(-8) + Math.floor(Math.random() * 10)
+  const email = `${tag}${n}@example.com`
+  const password = 'Live@12345'
+  expect((await ctx.post('/api/v1/auth/register', { data: { fullName: `${tag} Tester`, email, phone: `+91${n}9`, password } })).ok()).toBe(true)
+  const token = (await (await ctx.post('/api/v1/auth/login', { data: { email, password } })).json()).accessToken as string
+  const headers = { Authorization: `Bearer ${token}` }
+  const accounts = (await (await ctx.get('/api/v1/accounts', { headers })).json()) as Array<{ id: string; accountNumber: string; balance: string }>
+  return { ctx, email, password, headers, account: accounts[0]! }
+}
+
+test('fraud: an unusual transfer is held for review, then an admin releases it', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(150_000)
+  const sender = await apiCustomer(playwright, baseURL, 'sender')
+  const friend = await apiCustomer(playwright, baseURL, 'friend')
+  const stranger = await apiCustomer(playwright, baseURL, 'stranger')
+  try {
+    const idem = () => ({ ...sender.headers, 'Idempotency-Key': crypto.randomUUID() })
+    expect((await sender.ctx.post(`/api/v1/accounts/${sender.account.id}/deposit`, { headers: idem(), data: { amount: '40000.00' } })).ok()).toBe(true)
+    // Some history with a known payee, so the next one stands out.
+    for (let i = 0; i < 3; i++) {
+      const r = await sender.ctx.post('/api/v1/transfers', { headers: idem(), data: { fromAccountId: sender.account.id, toAccountNumber: friend.account.accountNumber, amount: '1000.00' } })
+      expect(r.status()).toBe(201)
+    }
+
+    // ₹30,000 to someone never paid before → held (201 PENDING_REVIEW), money not moved.
+    await signIn(page, sender.email, sender.password, /\/dashboard$/)
+    await page.goto('/transfer')
+    await page.getByRole('radio', { name: 'Account no.' }).click()
+    await page.getByLabel('Account number').fill(stranger.account.accountNumber)
+    await page.getByLabel('Amount').fill('30000')
+    await page.getByRole('button', { name: 'Review transfer' }).click()
+    await page.getByRole('button', { name: /send ₹30,000\.00/i }).click()
+    await expect(page.getByText('being checked')).toBeVisible()
+    const held = await (await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })).json()
+    expect(held[0].balance).toMatch(/^0(\.0+)?$/)
+    await signOut(page)
+
+    // Admin releases it with a reason; the stranger is credited.
+    await signIn(page, 'admin@quantgen.dev', 'Admin@1234', /\/admin$/)
+    await page.goto('/admin/fraud')
+    await page.getByRole('link', { name: /₹30,000\.00/ }).first().click()
+    await expect(page.getByText('Large amount to someone never paid before').first()).toBeVisible()
+    await page.getByRole('button', { name: /Release transfer/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Release this transfer?' })
+    await dialog.getByRole('textbox').fill('Called the customer; payee confirmed.')
+    await dialog.getByRole('button', { name: 'Release' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByText('Called the customer; payee confirmed.')).toBeVisible()
+    await expect
+      .poll(async () => (await (await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })).json())[0].balance)
+      .toMatch(/^30000(\.0+)?$/)
+  } finally {
+    await Promise.all([sender.ctx.dispose(), friend.ctx.dispose(), stranger.ctx.dispose()])
   }
 })

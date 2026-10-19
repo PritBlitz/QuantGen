@@ -67,9 +67,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/users\/me\/tokens/,
-  /^\/api\/v1\/loans\/[^/]+\/documents/,
-  /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
-  /^\/api\/v1\/admin\/loans\/[^/]+\/underwriting/,
+  // /admin/ai stays mocked until V2-M4. (V2-M6, backend 82ee419, made fraud cases, loan
+  // documents and underwriting live on 2026-10-19; they ride on the /admin/ and /loans prefixes.)
+  /^\/api\/v1\/admin\/ai(\/|$)/,
 ]
 
 export const isLive = (pathname: string) =>
