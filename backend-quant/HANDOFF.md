@@ -1,4 +1,17 @@
-# Backend handoff (2026-10-19, after V2-M8, M9, M6, M10 and the M4 core side)
+# Backend handoff (2026-10-19, after V2-M8, M9, M6, M10, the M4 core side and the M5 core)
+
+**Update (later 2026-10-19):** V2-M5 Autopilot core is done and live (`5ac903a`, dev DB **V22**, 40 unit + **226** IT
+green). `com.quantgen.autopilot`: `RuleValidator`, `RuleRenderer`, `RuleSimulator`, `AutopilotEngine` (outbox consumer
+`autopilot`, 08:00 IST scheduler, `PricesUpdatedEvent` from `PriceSimulator`, resume sweeper), `AutopilotService`;
+`AUTOPILOT_RULE` intents. :8080 now runs with `QG_RATE_LIMIT_ENABLED=false` (the frontend's full live e2e file
+registers many users). Everything in the PRD that doesn't need `agent-quant` is built, except the smaller items in
+"Still open" below. **Next needs the owner:** go-ahead (and an Anthropic API key) for `agent-quant`.
+
+### Still open (no agent needed, smaller)
+- Autopilot: `BUDGET_THRESHOLD` trigger, `PAY_BILL` (needs saved billers), `ROUND_UP_SWEEP` (redundant with nightly
+  sweeps) are rejected as "not supported yet".
+- Intents: BILL_PAYMENT, SCHEDULED_TRANSFER, PAYMENT_REQUEST, LOAN_APPLICATION kinds.
+- P2s: card disputes (F-CARD-4), Proof of Balance anchoring (F-POB-6), chain-verify checkpoints.
 
 ## Resume here
 1. Read `CLAUDE.md`, then this file. The frontend's state is in `frontend-quant/HANDOFF.md`; the frontend session
@@ -12,7 +25,7 @@
    (`qg_smoke`) → run the jar on :8099 against it plus a node smoke script → swap :8080 → commit with explicit
    paths → message the frontend with the PRD notes. When the next milestone's files are already in the tree, stash
    just those paths (`git stash push -u -- <paths>`) before building/committing the current one.
-5. **Next: V2-M5 Autopilot core** (PRD 11.4.6, §12.7, ARCHITECTURE 12.9): DSL v1 validator with `RULE_INVALID`
+5. **Done (see the update above): V2-M5 Autopilot core** (PRD 11.4.6, §12.7, ARCHITECTURE 12.9): DSL v1 validator with `RULE_INVALID`
    fieldErrors (error code exists), server rendering, 90-day replay, deterministic engine on outbox `MONEY_MOVED` +
    scheduler, idempotent on (ruleId, version, triggerEventId), caps, 10 active rules, ₹1,00,000/day autopilot cap,
    no loops (TransferSource.AUTOPILOT never fires MONEY_RECEIVED rules), three failures pause, runs, templates
