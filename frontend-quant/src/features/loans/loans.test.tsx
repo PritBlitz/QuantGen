@@ -83,7 +83,11 @@ describe('loan application', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Continue' }))
     await user.type(within(dialog).getByLabelText('Purpose'), 'Laptop for work')
     await user.click(within(dialog).getByRole('button', { name: 'Continue' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Continue' }))
+    // Step 3's Continue waits for the accounts query (a disbursal account must exist); clicking it
+    // while disabled did nothing on a slow machine.
+    const toReview = within(dialog).getByRole('button', { name: 'Continue' })
+    await waitFor(() => expect(toReview).toBeEnabled())
+    await user.click(toReview)
     const submit = await within(dialog).findByRole('button', { name: 'Submit application' })
     await waitFor(() => expect(submit).toBeEnabled())
     await user.dblClick(submit)
