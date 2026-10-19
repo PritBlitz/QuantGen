@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 import { flagsApi, riskApi } from '@/api/endpoints.v2'
 import type { FeatureFlag, FraudCaseStatus } from '@/api/types'
 
@@ -22,9 +23,20 @@ export const useFraudCase = (id: string) => useQuery({ queryKey: riskKeys.case(i
 
 export function useFraudDecision() {
   const qc = useQueryClient()
+  // One Idempotency-Key per (case, decision, reason): a retry after a timeout replays instead of
+  // deciding twice; a different decision or reason is a new request (and gets a 409 if one landed).
+  const keys = useRef(new Map<string, string>())
+  const keyFor = (id: string, kind: string, reason: string) => {
+    const k = `${id}|${kind}|${reason}`
+    let v = keys.current.get(k)
+    if (!v) keys.current.set(k, (v = crypto.randomUUID()))
+    return v
+  }
   return useMutation({
     mutationFn: ({ id, kind, reason }: { id: string; kind: 'release' | 'reject'; reason: string }) =>
-      kind === 'release' ? riskApi.release(id, reason) : riskApi.reject(id, reason),
+      kind === 'release'
+        ? riskApi.release(id, reason, keyFor(id, kind, reason))
+        : riskApi.reject(id, reason, keyFor(id, kind, reason)),
     // A 409 means another admin decided first: refresh either way.
     onSettled: () => qc.invalidateQueries({ queryKey: ['admin'] }),
   })

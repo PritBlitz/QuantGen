@@ -20,8 +20,12 @@ describe('fraud queue (Admin v2)', () => {
     expect(screen.getByRole('link', { name: /Priya Nair/ })).toHaveAttribute('href', `/admin/fraud/${PRIYA_CASE}`)
   })
 
-  it('releases a held transfer only with a reason, and audits it', async () => {
+  it('releases a held transfer only with a reason, with an Idempotency-Key, and audits it', async () => {
     signInAs('ADMIN')
+    const keys: Array<string | null> = []
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/release')) keys.push(request.headers.get('Idempotency-Key'))
+    })
     const user = userEvent.setup()
     renderApp(`/admin/fraud/${PRIYA_CASE}`)
     expect(await screen.findByText(/matches a common "urgent help" scam pattern/)).toBeInTheDocument()
@@ -41,6 +45,8 @@ describe('fraud queue (Admin v2)', () => {
       decisionReason: 'Called the customer; payee confirmed.',
     })
     expect(db.auditLogs[0]).toMatchObject({ action: 'FRAUD_RELEASED', targetId: PRIYA_CASE })
+    expect(keys).toHaveLength(1)
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/)
     // The page refetches: no more decision buttons, the reason is shown.
     expect(await screen.findByText('Called the customer; payee confirmed.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Release transfer/ })).not.toBeInTheDocument()

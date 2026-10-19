@@ -318,10 +318,15 @@ export const riskApi = {
   cases: (params: { status?: FraudCaseStatus } & PageQuery) =>
     api.get<Page<FraudCaseDto>>('/admin/fraud-cases', { params }).then(data),
   case: (id: string) => api.get<FraudCaseDetailDto>(`/admin/fraud-cases/${seg(id)}`).then(data),
-  release: (id: string, reason: string) =>
-    api.post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/release`, { reason }).then(data),
-  reject: (id: string, reason: string) =>
-    api.post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/reject`, { reason }).then(data),
+  // Both post or free held money, so each takes an Idempotency-Key (V2-M6).
+  release: (id: string, reason: string, idempotencyKey: string) =>
+    api
+      .post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/release`, { reason }, { headers: idempotencyHeader(idempotencyKey) })
+      .then(data),
+  reject: (id: string, reason: string, idempotencyKey: string) =>
+    api
+      .post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/reject`, { reason }, { headers: idempotencyHeader(idempotencyKey) })
+      .then(data),
   uploadDocument: (loanId: string, file: File) => {
     const form = new FormData()
     form.append('file', file)

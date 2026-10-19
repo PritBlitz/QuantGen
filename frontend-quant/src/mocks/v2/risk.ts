@@ -1,7 +1,7 @@
 /** MSW handlers: risk and back office (§12.8): fraud cases, loan documents, underwriting, AI usage. */
 import { delay, http } from 'msw'
 import type { FraudCaseDetailDto, FraudCaseDto, UnderwritingDto } from '@/api/types'
-import { audit, BASE, db, error, inr, notify, paginate } from '../handlers'
+import { audit, BASE, db, error, idempotent, inr, notify, paginate } from '../handlers'
 import { addDays, Decimal, json, move, notFound, requireAdmin, requireUser, todayIst } from './common'
 import { prng } from './state'
 
@@ -50,6 +50,8 @@ export const riskHandlers = [
     const c = db.v2.fraudCases.find((x) => x.id === params.id)
     if (!c) return notFound(request, 'Case')
     const b = (await request.json()) as { reason?: unknown }
+    const idem = idempotent(request, r.user.id, { id: params.id, decision: params.decision, ...b })
+    if (idem.early) return idem.early
     const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
     if (reason.length < 5 || reason.length > 500) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [{ field: 'reason', message: 'must be 5–500 characters' }])
     if (c.status !== 'OPEN') return error(409, 'INVALID_STATE', 'Case already decided', request)
@@ -76,6 +78,7 @@ export const riskHandlers = [
     c.decidedAt = new Date().toISOString()
     c.decisionReason = reason
     audit(r.user, params.decision === 'release' ? 'FRAUD_RELEASED' : 'FRAUD_REJECTED', 'FRAUD_CASE', c.id, reason)
+    idem.save(200, toCase(c))
     return json(toCase(c))
   }),
 
