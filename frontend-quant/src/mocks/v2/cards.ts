@@ -32,7 +32,7 @@ async function authorize(userId: string, b: Record<string, unknown>, request: Re
     if (card) notify(card.userId, 'CARD_DECLINED', 'Card payment declined', `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`)
     return json({ authId: crypto.randomUUID(), status: 'DECLINED', reason })
   }
-  if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline('Card details don’t match')
+  if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline("Card details don't match")
   if (!isMoney(b.amount) || new Decimal(b.amount).lt(1)) return invalid(request, 'amount', 'must be at least 1.00')
   const amount = new Decimal(b.amount)
   if (card.controls.frozen) return decline('Card is frozen')
@@ -72,7 +72,7 @@ export const cardHandlers = [
     if (db.v2.cards.some((c) => c.accountId === acc.id)) return error(409, 'INVALID_STATE', 'This account already has a card', request)
     const pan = newPan()
     const exp = new Date()
-    const card = { id: crypto.randomUUID(), userId: r.user.id, accountId: acc.id, last4: pan.slice(-4), expiry: `${String(exp.getUTCMonth() + 1).padStart(2, '0')}/${String((exp.getUTCFullYear() + 4) % 100).padStart(2, '0')}`, status: 'ACTIVE' as const, pan: pan.replace(/(\d{4})(?=\d)/g, '$1 '), controls: { frozen: false, online: true, perTxnLimit: '25000.0000', blockedCategories: ['GAMBLING'] as MerchantCategory[] } }
+    const card = { id: crypto.randomUUID(), userId: r.user.id, accountId: acc.id, last4: pan.slice(-4), expiry: `${String(exp.getUTCMonth() + 1).padStart(2, '0')}/${String((exp.getUTCFullYear() + 4) % 100).padStart(2, '0')}`, status: 'ACTIVE' as const, pan: pan.replace(/(\d{4})(?=\d)/g, '$1 '), controls: { frozen: false, online: true, perTxnLimit: '25000.00', blockedCategories: ['GAMBLING'] as MerchantCategory[] } }
     db.v2.cards.push(card)
     audit(r.user, 'CARD_CREATED', 'CARD', card.id, `•••• ${card.last4}`)
     return json(pub(card), 201)
@@ -98,7 +98,7 @@ export const cardHandlers = [
     if (b.online !== undefined && typeof b.online !== 'boolean') return invalid(request, 'online', 'must be true or false')
     if (b.perTxnLimit !== undefined && (!isMoney(b.perTxnLimit) || new Decimal(b.perTxnLimit).lt(1) || new Decimal(b.perTxnLimit).gt(200000))) return invalid(request, 'perTxnLimit', 'must be ₹1–₹2,00,000')
     if (b.blockedCategories !== undefined && (!Array.isArray(b.blockedCategories) || b.blockedCategories.some((x) => !CATS.includes(x)))) return invalid(request, 'blockedCategories', 'unknown category')
-    c.controls = { ...c.controls, ...b, ...(b.perTxnLimit ? { perTxnLimit: money(b.perTxnLimit) } : {}) }
+    c.controls = { ...c.controls, ...b, ...(b.perTxnLimit ? { perTxnLimit: new Decimal(b.perTxnLimit).toFixed(2) } : {}) }
     c.status = c.controls.frozen ? 'FROZEN' : 'ACTIVE'
     return json(pub(c))
   }),

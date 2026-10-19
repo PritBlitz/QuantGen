@@ -260,7 +260,7 @@ export function createV2State(): V2State {
     ],
     backtests: [],
     cards: [
-      { id: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, accountId: DEMO_CHECKING, last4: '4417', expiry: '09/30', status: 'ACTIVE', pan: '9100 4521 7783 4417', controls: { frozen: false, online: true, perTxnLimit: '25000.0000', blockedCategories: ['GAMBLING'] } },
+      { id: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, accountId: DEMO_CHECKING, last4: '4417', expiry: '09/30', status: 'ACTIVE', pan: '9100 4521 7783 4417', controls: { frozen: false, online: true, perTxnLimit: '25000.00', blockedCategories: ['GAMBLING'] } },
     ],
     cardAuths: new Map(),
     tokens: [

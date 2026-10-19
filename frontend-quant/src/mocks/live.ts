@@ -54,6 +54,10 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   // Backend 15a114d (announced 2026-10-19): V2-M8 Proof of Balance. verify-chain/solvency ride on /admin/.
   { prefix: '/api/v1/public/proofs/', milestone: 'V2-M8' },
   { prefix: '/api/v1/proofs/', milestone: 'V2-M8' },
+  // Backend 0d224de (announced 2026-10-19): V2-M9 cards + merchant sandbox. Issuing rides on
+  // /accounts/{id}/cards; authorize/capture/refund need an Idempotency-Key.
+  { prefix: '/api/v1/cards', milestone: 'V2-M9' },
+  { prefix: '/api/v1/sandbox/merchant/', milestone: 'V2-M9' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -63,7 +67,6 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   /^\/api\/v1\/users\/me\/tokens/,
-  /^\/api\/v1\/accounts\/[^/]+\/cards/,
   /^\/api\/v1\/loans\/[^/]+\/documents/,
   /^\/api\/v1\/admin\/(fraud-cases|ai)(\/|$)/,
   /^\/api\/v1\/admin\/loans\/[^/]+\/underwriting/,
