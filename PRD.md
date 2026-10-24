@@ -1486,10 +1486,10 @@ with `Idempotent-Replayed: true`), because they place, settle or return money. T
 - **Insights/analytics:** `CARD` debits are spending (category from the merchant: GROCERY→GROCERIES, DINING→FOOD,
   TRAVEL→TRAVEL, ELECTRONICS→SHOPPING, GAMBLING→ENTERTAINMENT, FUEL→TRANSPORT, ENTERTAINMENT→ENTERTAINMENT,
   OTHER→SHOPPING); refunds net out of that spending like reversals. Card payments count toward budgets.
-- **Not done:** F-CARD-4 disputes (P2; contract **PROPOSED** below, not built); no auto-capture job (the store captures);
+- **Not done:** no auto-capture job (the store captures);
   card spends don't count toward the transfer limits.
 
-**F-CARD-4 disputes: ACCEPTED 2026-10-24 (drafted by the frontend, reviewed by the backend). Not built yet (P2).**
+**F-CARD-4 disputes: ACCEPTED 2026-10-24 (drafted by the frontend, reviewed by the backend). Built 2026-10-24 (V24).**
 Additive: new endpoints, one new notification type, two new audit actions. No v1 shape changes.
 
 | Method | Path | Body | Response |
@@ -1525,6 +1525,12 @@ Additive: new endpoints, one new notification type, two new audit actions. No v1
 - **Audit:** `CARD_DISPUTE_OPENED` / `CARD_DISPUTE_RESOLVED` hold last 4, amount, reason code and (for resolve) the
   admin's reason. Never the PAN, and never the customer's note (untrusted free text). Transactions show the credit as
   `type: REFUND`, so analytics and insights net it out of spending. The 60-day window was agreed with the backend.
+- **Backend notes (implemented 2026-10-24, V24):** opening needs the `cards` flag (`503` otherwise); listing, the
+  admin queue and resolving keep working with it off, so open disputes can still be settled. `POST …/dispute` takes no
+  Idempotency-Key (one open dispute per payment stops duplicates). `GET /admin/card-disputes` is oldest first; an
+  unknown `status` → `400`. Resolving an unknown dispute → `404`, an already resolved one → `409`. A refunded dispute
+  also adds a `card_refunds` row, like a sandbox refund. A sandbox refund with nothing left outside open disputes →
+  `409 INVALID_STATE`. After a rejection the payment can be disputed again (within the window).
 
 ### 12.12 Developer access
 | Method | Path | Body | Response |

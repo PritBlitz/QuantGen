@@ -23,5 +23,7 @@ public enum NotificationType {
     /** An Autopilot rule was paused after repeated failures (V2-M5). */
     RULE_PAUSED,
     /** Sent to admins when the nightly seal-chain check finds a break (PRD F-POB-4). */
-    LEDGER_INTEGRITY
+    LEDGER_INTEGRITY,
+    /** An admin refunded or rejected a card dispute (F-CARD-4). */
+    CARD_DISPUTE_RESOLVED
 }

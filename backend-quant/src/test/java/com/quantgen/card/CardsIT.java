@@ -307,6 +307,123 @@ class CardsIT extends IntegrationTest {
         assertAccount(s, card.accountId(), "1000.00", "800.00", "200.00");
     }
 
+    // ------------------------------------------------------------------ disputes (F-CARD-4)
+
+    /** A ₹400.00 payment on {@code s}'s card, run (authorized and captured) by another user as the merchant. */
+    private record Paid(Card card, TestUsers.Session merchant, String authId) {
+    }
+
+    private Paid paid(TestUsers.Session s) {
+        Card card = issue(s);
+        Bank.deposit(this, s, card.accountId(), "1000.00");
+        TestUsers.Session merchant = TestUsers.registerAndLogin(this);
+        String authId = authorize(merchant, card, "400.00", "ELECTRONICS", UUID.randomUUID()).jsonBody().get("authId")
+                .asString();
+        assertThat(settle(merchant, authId, "capture", null, UUID.randomUUID()).status()).isEqualTo(200);
+        return new Paid(card, merchant, authId);
+    }
+
+    private Response dispute(TestUsers.Session s, Paid p, Map<String, Object> body) {
+        return postJson("/api/v1/cards/" + p.card().id() + "/payments/" + p.authId() + "/dispute", body, Bank.auth(s));
+    }
+
+    private Response resolve(TestUsers.Session admin, String disputeId, String outcome, UUID key) {
+        return postJson("/api/v1/admin/card-disputes/" + disputeId + "/resolve",
+                Map.of("outcome", outcome, "reason", "Checked with the merchant"), Bank.authWithKey(admin, key));
+    }
+
+    @Test
+    void aRefundedDisputeReturnsTheMoneyOnceAndCapsTheMerchantsRefund() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        Paid p = paid(s);
+        TestUsers.Session admin = Bank.admin(this);
+        BigDecimal clearingBefore = clearing();
+
+        JsonNode payment = get("/api/v1/cards/" + p.card().id() + "/payments", s.accessToken()).jsonBody()
+                .get("content").get(0);
+        assertThat(payment.get("disputableAmount").asString()).isEqualTo("400.00");
+        assertThat(payment.get("openDisputeId").isNull()).isTrue();
+
+        // Only the cardholder: the merchant and strangers get 404.
+        Map<String, Object> body = Map.of("reason", "NOT_RECEIVED", "amount", "150.00", "note", "Never arrived");
+        assertThat(dispute(p.merchant(), p, body).status()).isEqualTo(404);
+        assertThat(get("/api/v1/cards/" + p.card().id() + "/payments", p.merchant().accessToken()).status())
+                .isEqualTo(404);
+        assertThat(dispute(s, p, Map.of("reason", "NOT_RECEIVED", "amount", "400.01")).status()).isEqualTo(400);
+
+        Response opened = dispute(s, p, body);
+        assertThat(opened.status()).isEqualTo(201);
+        String id = opened.jsonBody().get("id").asString();
+        assertThat(opened.jsonBody().get("status").asString()).isEqualTo("OPEN");
+        assertThat(opened.jsonBody().get("last4").asString()).isEqualTo(p.card().pan().substring(12));
+        assertThat(dispute(s, p, body).status()).isEqualTo(409); // one open dispute per payment
+        assertThat(get("/api/v1/cards/" + p.card().id() + "/payments", s.accessToken()).jsonBody().get("content").get(0)
+                .get("disputableAmount").asString()).isEqualTo("250.00");
+
+        // The merchant can refund only what isn't under dispute.
+        assertThat(settle(p.merchant(), p.authId(), "refund", "250.01", UUID.randomUUID()).status()).isEqualTo(400);
+        assertThat(settle(p.merchant(), p.authId(), "refund", null, UUID.randomUUID()).jsonBody().get("refundedAmount")
+                .asString()).isEqualTo("250.00");
+        assertThat(settle(p.merchant(), p.authId(), "refund", null, UUID.randomUUID()).status()).isEqualTo(409);
+
+        // Customers can't resolve; an admin can, once.
+        assertThat(resolve(s, id, "REFUNDED", UUID.randomUUID()).status()).isEqualTo(403);
+        JsonNode queue = get("/api/v1/admin/card-disputes?status=OPEN&size=100", admin.accessToken()).jsonBody();
+        assertThat(queue.toString()).contains(id).contains(s.userId().toString());
+        UUID key = UUID.randomUUID();
+        Response refunded = resolve(admin, id, "REFUNDED", key);
+        assertThat(refunded.status()).isEqualTo(200);
+        assertThat(refunded.jsonBody().get("status").asString()).isEqualTo("REFUNDED");
+        assertThat(resolve(admin, id, "REFUNDED", key).header("Idempotent-Replayed")).isEqualTo("true");
+        assertThat(resolve(admin, id, "REJECTED", UUID.randomUUID()).status()).isEqualTo(409);
+
+        assertAccount(s, p.card().accountId(), "1000.00", "0.00", "1000.00");
+        assertThat(jdbc.queryForObject("SELECT status FROM card_authorizations WHERE id = ?::uuid", String.class,
+                p.authId())).isEqualTo("REFUNDED");
+        assertThat(clearing()).isEqualByComparingTo(clearingBefore.subtract(new BigDecimal("400.00")));
+        assertThat(ledger.reconcile().balanced()).isTrue();
+        assertThat(get("/api/v1/notifications", s.accessToken()).body()).contains("CARD_DISPUTE_RESOLVED");
+        assertThat(get("/api/v1/card-disputes", s.accessToken()).jsonBody().get(0).get("resolutionReason").asString())
+                .isEqualTo("Checked with the merchant");
+        // The customer's note never reaches the audit log.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE details LIKE '%Never arrived%'",
+                Long.class)).isZero();
+    }
+
+    @Test
+    void rejectedAndLateDisputesMoveNoMoneyAndConcurrentResolvesRefundOnce() throws Exception {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session admin = Bank.admin(this);
+        Paid late = paid(s);
+        jdbc.update("UPDATE card_authorizations SET captured_at = now() - interval '61 days' WHERE id = ?::uuid",
+                late.authId());
+        assertThat(dispute(s, late, Map.of("reason", "OTHER")).status()).isEqualTo(409);
+
+        TestUsers.Session t = TestUsers.registerAndLogin(this);
+        Paid p = paid(t);
+        String rejected = dispute(t, p, Map.of("reason", "DUPLICATE", "amount", "100.00")).jsonBody().get("id").asString();
+        assertThat(resolve(admin, rejected, "REJECTED", UUID.randomUUID()).jsonBody().get("status").asString())
+                .isEqualTo("REJECTED");
+        assertAccount(t, p.card().accountId(), "600.00", "0.00", "600.00");
+
+        // A second dispute after a rejection is allowed; two admins resolving it at once refund it once.
+        Response second = dispute(t, p, Map.of("reason", "NOT_AS_DESCRIBED"));
+        assertThat(second.status()).as(second.body()).isEqualTo(201);
+        String id = second.jsonBody().get("id").asString();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> a = pool.submit(() -> resolve(admin, id, "REFUNDED", UUID.randomUUID()).status());
+            Future<Integer> b = pool.submit(() -> resolve(admin, id, "REFUNDED", UUID.randomUUID()).status());
+            assertThat(List.of(a.get(30, TimeUnit.SECONDS), b.get(30, TimeUnit.SECONDS))).containsExactlyInAnyOrder(200, 409);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertAccount(t, p.card().accountId(), "1000.00", "0.00", "1000.00");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM card_refunds WHERE authorization_id = ?::uuid", Long.class,
+                p.authId())).isEqualTo(1);
+        assertThat(ledger.reconcile().balanced()).isTrue();
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private Card issue(TestUsers.Session s) {

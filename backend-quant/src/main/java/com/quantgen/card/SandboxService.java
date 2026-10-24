@@ -71,10 +71,11 @@ public class SandboxService {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final RiskService risk;
+    private final DisputeService disputes;
 
     SandboxService(JdbcTemplate jdbc, CardService cards, AccountService accounts, LedgerService ledger,
                    IdempotencyService idempotency, NotificationService notifications, UserRateLimiter rateLimiter,
-                   PlatformTransactionManager txManager, Clock clock, RiskService risk) {
+                   PlatformTransactionManager txManager, Clock clock, RiskService risk, DisputeService disputes) {
         this.jdbc = jdbc;
         this.cards = cards;
         this.accounts = accounts;
@@ -85,6 +86,7 @@ public class SandboxService {
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
         this.risk = risk;
+        this.disputes = disputes;
     }
 
     // ------------------------------------------------------------------ authorize
@@ -217,8 +219,12 @@ public class SandboxService {
             if (!"CAPTURED".equals(auth.status())) {
                 throw new ApiException(ErrorCode.INVALID_STATE, "Only a captured payment can be refunded");
             }
-            BigDecimal remaining = auth.captured().subtract(auth.refunded());
+            // An open dispute holds back its amount (F-CARD-4), so the same money can't come back twice.
+            BigDecimal remaining = auth.captured().subtract(auth.refunded()).subtract(disputes.openDisputed(authId));
             BigDecimal refund = amount == null ? remaining : Money.normalize(amount);
+            if (refund.signum() <= 0) {
+                throw new ApiException(ErrorCode.INVALID_STATE, "Nothing is left to refund outside an open dispute");
+            }
             if (refund.compareTo(remaining) > 0) {
                 throw ApiException.fieldError(org.springframework.http.HttpStatus.BAD_REQUEST, "amount",
                         "can't be more than what is left to refund (" + Money.toJson(remaining) + ")");
