@@ -12,7 +12,10 @@ export interface CheckoutResult {
 }
 
 interface RazorpayCtor {
-  new (options: Record<string, unknown>): { open: () => void; on: (event: string, cb: (r: unknown) => void) => void }
+  new (options: Record<string, unknown>): {
+    open: () => void
+    on: (event: string, cb: (r: unknown) => void) => void
+  }
 }
 
 let loading: Promise<RazorpayCtor> | null = null

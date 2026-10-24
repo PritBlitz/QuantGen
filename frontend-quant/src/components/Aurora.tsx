@@ -5,7 +5,13 @@ import { cn } from '@/lib/utils'
  * drifting slowly behind everything, plus a grain layer. Fixed, non-interactive, `aria-hidden`.
  * Under prefers-reduced-motion the global CSS rule freezes the drift (static gradients remain).
  */
-export function Aurora({ className, intensity = 'app' }: { className?: string; intensity?: 'app' | 'hero' }) {
+export function Aurora({
+  className,
+  intensity = 'app',
+}: {
+  className?: string
+  intensity?: 'app' | 'hero'
+}) {
   const hero = intensity === 'hero'
   return (
     <div

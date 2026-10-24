@@ -2,9 +2,30 @@
 import { delay, http } from 'msw'
 import type { CardControls, CardDisputeDto, MerchantCategory } from '@/api/types'
 import { audit, BASE, db, error, idempotent, inr, isMoney, notify, paginate } from '../handlers'
-import { available, Decimal, invalid, json, money, move, notFound, ownAccount, requireAdmin, requireUser, stepUpGate } from './common'
+import {
+  available,
+  Decimal,
+  invalid,
+  json,
+  money,
+  move,
+  notFound,
+  ownAccount,
+  requireAdmin,
+  requireUser,
+  stepUpGate,
+} from './common'
 
-const CATS: MerchantCategory[] = ['GROCERY', 'DINING', 'TRAVEL', 'ELECTRONICS', 'GAMBLING', 'FUEL', 'ENTERTAINMENT', 'OTHER']
+const CATS: MerchantCategory[] = [
+  'GROCERY',
+  'DINING',
+  'TRAVEL',
+  'ELECTRONICS',
+  'GAMBLING',
+  'FUEL',
+  'ENTERTAINMENT',
+  'OTHER',
+]
 const luhn = (digits: string) => {
   let sum = 0
   for (let i = 0; i < digits.length; i++) {
@@ -25,27 +46,59 @@ function newPan() {
 }
 /** Time-based demo CVV (exported for tests). */
 /** Checks card details and controls; on approval places a hold (the auth). */
-async function authorize(userId: string, b: Record<string, unknown>, request: Request): Promise<Response> {
+async function authorize(
+  userId: string,
+  b: Record<string, unknown>,
+  request: Request,
+): Promise<Response> {
   const pan = typeof b.cardNumber === 'string' ? b.cardNumber.replace(/\s/g, '') : ''
   const card = db.v2.cards.find((c) => c.pan.replace(/\s/g, '') === pan)
   const decline = (reason: string) => {
-    if (card) notify(card.userId, 'CARD_DECLINED', 'Card payment declined', `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`)
+    if (card)
+      notify(
+        card.userId,
+        'CARD_DECLINED',
+        'Card payment declined',
+        `${inr(String(b.amount ?? '0'))} at ${String(b.merchant ?? 'merchant')}: ${reason}.`,
+      )
     return json({ authId: crypto.randomUUID(), status: 'DECLINED', reason })
   }
-  if (!card || b.expiry !== card.expiry || (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))) return decline("Card details don't match")
-  if (!isMoney(b.amount) || new Decimal(b.amount).lt(1)) return invalid(request, 'amount', 'must be at least 1.00')
+  if (
+    !card ||
+    b.expiry !== card.expiry ||
+    (b.cvv !== cvvFor(card.pan) && b.cvv !== cvvFor(card.pan, Date.now() - 30_000))
+  )
+    return decline("Card details don't match")
+  if (!isMoney(b.amount) || new Decimal(b.amount).lt(1))
+    return invalid(request, 'amount', 'must be at least 1.00')
   const amount = new Decimal(b.amount)
   if (card.controls.frozen) return decline('Card is frozen')
   if (!card.controls.online) return decline('Online payments are off')
-  if (card.controls.blockedCategories.includes(b.category as MerchantCategory)) return decline('Merchant category is blocked')
+  if (card.controls.blockedCategories.includes(b.category as MerchantCategory))
+    return decline('Merchant category is blocked')
   if (amount.gt(card.controls.perTxnLimit)) return decline('Over the per-transaction limit')
   const acc = db.accounts.get(card.accountId)!
   if (acc.status === 'FROZEN') return decline('Account is frozen')
   if (available(acc).lt(amount)) return decline('Insufficient funds')
   const holdId = crypto.randomUUID()
-  db.v2.holds.push({ id: holdId, accountId: acc.id, amount: money(amount), reason: 'CARD_AUTH', status: 'ACTIVE' })
+  db.v2.holds.push({
+    id: holdId,
+    accountId: acc.id,
+    amount: money(amount),
+    reason: 'CARD_AUTH',
+    status: 'ACTIVE',
+  })
   const authId = crypto.randomUUID()
-  db.v2.cardAuths.set(authId, { cardId: card.id, userId, amount: money(amount), holdId, merchant: String(b.merchant ?? 'Merchant').slice(0, 40), status: 'AUTHORIZED', category: b.category as MerchantCategory, refunded: '0' })
+  db.v2.cardAuths.set(authId, {
+    cardId: card.id,
+    userId,
+    amount: money(amount),
+    holdId,
+    merchant: String(b.merchant ?? 'Merchant').slice(0, 40),
+    status: 'AUTHORIZED',
+    category: b.category as MerchantCategory,
+    refunded: '0',
+  })
   return json({ authId, status: 'APPROVED' })
 }
 
@@ -58,7 +111,9 @@ export const cvvFor = (pan: string, at: number = Date.now()) => {
 const pub = ({ userId: _u, pan: _p, ...c }: (typeof db.v2.cards)[number]) => c
 
 const openDisputed = (authId: string) =>
-  db.v2.cardDisputes.filter((d) => d.authId === authId && d.status === 'OPEN').reduce((s, d) => s.plus(d.amount), new Decimal(0))
+  db.v2.cardDisputes
+    .filter((d) => d.authId === authId && d.status === 'OPEN')
+    .reduce((s, d) => s.plus(d.amount), new Decimal(0))
 
 /** F-CARD-4 view of a captured auth, as the backend's CardPaymentDto. */
 function paymentDto(authId: string, a: NonNullable<ReturnType<typeof db.v2.cardAuths.get>>) {
@@ -97,24 +152,58 @@ export const disputeHandlers = [
     await delay(400)
     const r = requireUser(request)
     if (!r.user) return r.res
-    if (!db.v2.flags.cards.enabled) return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
+    if (!db.v2.flags.cards.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
     // Cardholder only: the card must be the caller's, and the auth on that card (else 404).
     const card = db.v2.cards.find((c) => c.id === params.id && c.userId === r.user.id)
     const a = db.v2.cardAuths.get(String(params.authId))
-    if (!card || !a || a.cardId !== card.id || a.status === 'AUTHORIZED') return notFound(request, 'Payment')
+    if (!card || !a || a.cardId !== card.id || a.status === 'AUTHORIZED')
+      return notFound(request, 'Payment')
     const b = (await request.json()) as { reason?: unknown; amount?: unknown; note?: unknown }
-    if (!DISPUTE_REASONS.includes(String(b.reason))) return invalid(request, 'reason', 'pick a reason')
+    if (!DISPUTE_REASONS.includes(String(b.reason)))
+      return invalid(request, 'reason', 'pick a reason')
     const p = paymentDto(String(params.authId), a)
-    if (p.openDisputeId) return error(409, 'INVALID_STATE', 'This payment already has an open dispute', request)
-    if (Date.now() - Date.parse(p.capturedAt) > 60 * 86_400_000) return error(409, 'INVALID_STATE', 'Disputes must be raised within 60 days', request)
-    const amount = b.amount === undefined ? new Decimal(p.disputableAmount) : isMoney(b.amount) ? new Decimal(b.amount) : null
-    if (!amount || amount.lte(0) || amount.gt(p.disputableAmount)) return invalid(request, 'amount', `must be between 0.01 and ${p.disputableAmount}`)
+    if (p.openDisputeId)
+      return error(409, 'INVALID_STATE', 'This payment already has an open dispute', request)
+    if (Date.now() - Date.parse(p.capturedAt) > 60 * 86_400_000)
+      return error(409, 'INVALID_STATE', 'Disputes must be raised within 60 days', request)
+    const amount =
+      b.amount === undefined
+        ? new Decimal(p.disputableAmount)
+        : isMoney(b.amount)
+          ? new Decimal(b.amount)
+          : null
+    if (!amount || amount.lte(0) || amount.gt(p.disputableAmount))
+      return invalid(request, 'amount', `must be between 0.01 and ${p.disputableAmount}`)
     const note = typeof b.note === 'string' ? b.note.trim() : ''
     if (note.length > 280) return invalid(request, 'note', 'must be at most 280 characters')
-    if (db.v2.cardDisputes.filter((d) => d.userId === r.user.id && d.status === 'OPEN').length >= 20) return error(422, 'LIMIT_EXCEEDED', 'Too many open disputes', request)
-    const d = { id: crypto.randomUUID(), userId: r.user.id, cardId: card.id, authId: String(params.authId), last4: card.last4, merchant: a.merchant, amount: money(amount), reason: b.reason as CardDisputeDto['reason'], note: note || null, status: 'OPEN' as const, resolutionReason: null, createdAt: new Date().toISOString(), resolvedAt: null }
+    if (
+      db.v2.cardDisputes.filter((d) => d.userId === r.user.id && d.status === 'OPEN').length >= 20
+    )
+      return error(422, 'LIMIT_EXCEEDED', 'Too many open disputes', request)
+    const d = {
+      id: crypto.randomUUID(),
+      userId: r.user.id,
+      cardId: card.id,
+      authId: String(params.authId),
+      last4: card.last4,
+      merchant: a.merchant,
+      amount: money(amount),
+      reason: b.reason as CardDisputeDto['reason'],
+      note: note || null,
+      status: 'OPEN' as const,
+      resolutionReason: null,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    }
     db.v2.cardDisputes.unshift(d)
-    audit(r.user, 'CARD_DISPUTE_OPENED', 'CARD_DISPUTE', d.id, `card ${card.last4} ${inr(d.amount)} ${d.reason}`)
+    audit(
+      r.user,
+      'CARD_DISPUTE_OPENED',
+      'CARD_DISPUTE',
+      d.id,
+      `card ${card.last4} ${inr(d.amount)} ${d.reason}`,
+    )
     return json(disputePub(d), 201)
   }),
   http.get(`${BASE}/card-disputes`, ({ request }) => {
@@ -143,25 +232,51 @@ export const disputeHandlers = [
     if (idem.early) return idem.early
     const d = db.v2.cardDisputes.find((x) => x.id === params.id)
     if (!d) return notFound(request, 'Dispute')
-    if (b.outcome !== 'REFUNDED' && b.outcome !== 'REJECTED') return invalid(request, 'outcome', 'must be REFUNDED or REJECTED')
+    if (b.outcome !== 'REFUNDED' && b.outcome !== 'REJECTED')
+      return invalid(request, 'outcome', 'must be REFUNDED or REJECTED')
     const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
-    if (reason.length < 1 || reason.length > 280) return invalid(request, 'reason', 'must be 1–280 characters')
-    if (d.status !== 'OPEN') return error(409, 'INVALID_STATE', 'This dispute is already resolved', request)
+    if (reason.length < 1 || reason.length > 280)
+      return invalid(request, 'reason', 'must be 1–280 characters')
+    if (d.status !== 'OPEN')
+      return error(409, 'INVALID_STATE', 'This dispute is already resolved', request)
     if (b.outcome === 'REFUNDED') {
       const a = db.v2.cardAuths.get(d.authId)!
       const card = db.v2.cards.find((c) => c.id === d.cardId)!
       const acc = db.accounts.get(card.accountId)!
-      if (acc.status === 'CLOSED') return error(409, 'INVALID_STATE', 'The account is closed', request)
+      if (acc.status === 'CLOSED')
+        return error(409, 'INVALID_STATE', 'The account is closed', request)
       acc.balance = new Decimal(acc.balance).plus(d.amount).toFixed(4)
-      db.transactions.unshift({ id: crypto.randomUUID(), journalEntryId: crypto.randomUUID(), accountId: acc.id, direction: 'CREDIT', amount: d.amount, balanceAfter: acc.balance, type: 'REFUND', description: `Dispute refund ${d.merchant}`, counterparty: d.merchant, createdAt: new Date().toISOString() })
+      db.transactions.unshift({
+        id: crypto.randomUUID(),
+        journalEntryId: crypto.randomUUID(),
+        accountId: acc.id,
+        direction: 'CREDIT',
+        amount: d.amount,
+        balanceAfter: acc.balance,
+        type: 'REFUND',
+        description: `Dispute refund ${d.merchant}`,
+        counterparty: d.merchant,
+        createdAt: new Date().toISOString(),
+      })
       a.refunded = money(new Decimal(a.refunded ?? '0').plus(d.amount))
       if (new Decimal(a.refunded).gte(a.amount)) a.status = 'REFUNDED'
     }
     d.status = b.outcome
     d.resolutionReason = reason
     d.resolvedAt = new Date().toISOString()
-    audit(r.user, 'CARD_DISPUTE_RESOLVED', 'CARD_DISPUTE', d.id, `card ${d.last4} ${inr(d.amount)} ${b.outcome}: ${reason}`)
-    notify(d.userId, 'CARD_DISPUTE_RESOLVED', b.outcome === 'REFUNDED' ? 'Dispute refunded' : 'Dispute not upheld', `${d.merchant}: ${inr(d.amount)}${b.outcome === 'REFUNDED' ? ' is back in your account' : ''}.`)
+    audit(
+      r.user,
+      'CARD_DISPUTE_RESOLVED',
+      'CARD_DISPUTE',
+      d.id,
+      `card ${d.last4} ${inr(d.amount)} ${b.outcome}: ${reason}`,
+    )
+    notify(
+      d.userId,
+      'CARD_DISPUTE_RESOLVED',
+      b.outcome === 'REFUNDED' ? 'Dispute refunded' : 'Dispute not upheld',
+      `${d.merchant}: ${inr(d.amount)}${b.outcome === 'REFUNDED' ? ' is back in your account' : ''}.`,
+    )
     const body = disputePub(d)
     idem.save(200, body)
     return json(body)
@@ -177,13 +292,30 @@ export const cardHandlers = [
   http.post(`${BASE}/accounts/:id/cards`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    if (!db.v2.flags.cards.enabled) return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
+    if (!db.v2.flags.cards.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
     const acc = ownAccount(r.user.id, params.id)
-    if (!acc || (acc.type !== 'SAVINGS' && acc.type !== 'CHECKING')) return notFound(request, 'Account')
-    if (db.v2.cards.some((c) => c.accountId === acc.id)) return error(409, 'INVALID_STATE', 'This account already has a card', request)
+    if (!acc || (acc.type !== 'SAVINGS' && acc.type !== 'CHECKING'))
+      return notFound(request, 'Account')
+    if (db.v2.cards.some((c) => c.accountId === acc.id))
+      return error(409, 'INVALID_STATE', 'This account already has a card', request)
     const pan = newPan()
     const exp = new Date()
-    const card = { id: crypto.randomUUID(), userId: r.user.id, accountId: acc.id, last4: pan.slice(-4), expiry: `${String(exp.getUTCMonth() + 1).padStart(2, '0')}/${String((exp.getUTCFullYear() + 4) % 100).padStart(2, '0')}`, status: 'ACTIVE' as const, pan: pan.replace(/(\d{4})(?=\d)/g, '$1 '), controls: { frozen: false, online: true, perTxnLimit: '25000.00', blockedCategories: ['GAMBLING'] as MerchantCategory[] } }
+    const card = {
+      id: crypto.randomUUID(),
+      userId: r.user.id,
+      accountId: acc.id,
+      last4: pan.slice(-4),
+      expiry: `${String(exp.getUTCMonth() + 1).padStart(2, '0')}/${String((exp.getUTCFullYear() + 4) % 100).padStart(2, '0')}`,
+      status: 'ACTIVE' as const,
+      pan: pan.replace(/(\d{4})(?=\d)/g, '$1 '),
+      controls: {
+        frozen: false,
+        online: true,
+        perTxnLimit: '25000.00',
+        blockedCategories: ['GAMBLING'] as MerchantCategory[],
+      },
+    }
     db.v2.cards.push(card)
     audit(r.user, 'CARD_CREATED', 'CARD', card.id, `•••• ${card.last4}`)
     return json(pub(card), 201)
@@ -205,11 +337,27 @@ export const cardHandlers = [
     const c = db.v2.cards.find((x) => x.id === params.id && x.userId === r.user.id)
     if (!c) return notFound(request, 'Card')
     const b = (await request.json()) as Partial<CardControls>
-    if (b.frozen !== undefined && typeof b.frozen !== 'boolean') return invalid(request, 'frozen', 'must be true or false')
-    if (b.online !== undefined && typeof b.online !== 'boolean') return invalid(request, 'online', 'must be true or false')
-    if (b.perTxnLimit !== undefined && (!isMoney(b.perTxnLimit) || new Decimal(b.perTxnLimit).lt(1) || new Decimal(b.perTxnLimit).gt(200000))) return invalid(request, 'perTxnLimit', 'must be ₹1–₹2,00,000')
-    if (b.blockedCategories !== undefined && (!Array.isArray(b.blockedCategories) || b.blockedCategories.some((x) => !CATS.includes(x)))) return invalid(request, 'blockedCategories', 'unknown category')
-    c.controls = { ...c.controls, ...b, ...(b.perTxnLimit ? { perTxnLimit: new Decimal(b.perTxnLimit).toFixed(2) } : {}) }
+    if (b.frozen !== undefined && typeof b.frozen !== 'boolean')
+      return invalid(request, 'frozen', 'must be true or false')
+    if (b.online !== undefined && typeof b.online !== 'boolean')
+      return invalid(request, 'online', 'must be true or false')
+    if (
+      b.perTxnLimit !== undefined &&
+      (!isMoney(b.perTxnLimit) ||
+        new Decimal(b.perTxnLimit).lt(1) ||
+        new Decimal(b.perTxnLimit).gt(200000))
+    )
+      return invalid(request, 'perTxnLimit', 'must be ₹1–₹2,00,000')
+    if (
+      b.blockedCategories !== undefined &&
+      (!Array.isArray(b.blockedCategories) || b.blockedCategories.some((x) => !CATS.includes(x)))
+    )
+      return invalid(request, 'blockedCategories', 'unknown category')
+    c.controls = {
+      ...c.controls,
+      ...b,
+      ...(b.perTxnLimit ? { perTxnLimit: new Decimal(b.perTxnLimit).toFixed(2) } : {}),
+    }
     c.status = c.controls.frozen ? 'FROZEN' : 'ACTIVE'
     return json(pub(c))
   }),
@@ -219,7 +367,8 @@ export const cardHandlers = [
     await delay(700)
     const r = requireUser(request)
     if (!r.user) return r.res
-    if (!db.v2.flags.cards.enabled) return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
+    if (!db.v2.flags.cards.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Cards are switched off', request)
     const b = (await request.json()) as Record<string, unknown>
     const idem = idempotent(request, r.user.id, b)
     if (idem.early) return idem.early
@@ -246,11 +395,24 @@ export const cardHandlers = [
       a.status = 'CAPTURED'
       a.capturedAt = new Date().toISOString()
     } else if (params.action === 'refund') {
-      if (a.status !== 'CAPTURED') return error(409, 'INVALID_STATE', 'Only captured payments can be refunded', request)
+      if (a.status !== 'CAPTURED')
+        return error(409, 'INVALID_STATE', 'Only captured payments can be refunded', request)
       // Like the backend: money under an open dispute can't also be refunded by the merchant.
-      if (openDisputed(params.authId as string).gt(0)) return error(409, 'INVALID_STATE', 'Part of this payment is under dispute', request)
+      if (openDisputed(params.authId as string).gt(0))
+        return error(409, 'INVALID_STATE', 'Part of this payment is under dispute', request)
       acc.balance = new Decimal(acc.balance).plus(a.amount).toFixed(4)
-      db.transactions.unshift({ id: crypto.randomUUID(), journalEntryId: crypto.randomUUID(), accountId: acc.id, direction: 'CREDIT', amount: a.amount, balanceAfter: acc.balance, type: 'REFUND', description: `Refund · ${a.merchant}`, counterparty: a.merchant, createdAt: new Date().toISOString() })
+      db.transactions.unshift({
+        id: crypto.randomUUID(),
+        journalEntryId: crypto.randomUUID(),
+        accountId: acc.id,
+        direction: 'CREDIT',
+        amount: a.amount,
+        balanceAfter: acc.balance,
+        type: 'REFUND',
+        description: `Refund · ${a.merchant}`,
+        counterparty: a.merchant,
+        createdAt: new Date().toISOString(),
+      })
       a.status = 'REFUNDED'
     } else return notFound(request)
     const body = { authId: params.authId, status: a.status }
@@ -262,7 +424,11 @@ export const cardHandlers = [
   http.get(`${BASE}/users/me/tokens`, ({ request }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    return json(db.v2.tokens.filter((t) => t.userId === r.user.id).map(({ userId: _u, tokenHash: _h, ...t }) => t))
+    return json(
+      db.v2.tokens
+        .filter((t) => t.userId === r.user.id)
+        .map(({ userId: _u, tokenHash: _h, ...t }) => t),
+    )
   }),
   http.post(`${BASE}/users/me/tokens`, async ({ request }) => {
     const r = requireUser(request)
@@ -270,13 +436,23 @@ export const cardHandlers = [
     const b = (await request.json()) as { name?: unknown; scope?: unknown; expiresInDays?: unknown }
     const name = typeof b.name === 'string' ? b.name.trim() : ''
     if (!name || name.length > 40) return invalid(request, 'name', 'must be 1–40 characters')
-    if (b.scope !== 'read' && b.scope !== 'read+propose') return invalid(request, 'scope', 'must be read or read+propose')
+    if (b.scope !== 'read' && b.scope !== 'read+propose')
+      return invalid(request, 'scope', 'must be read or read+propose')
     const days = Number(b.expiresInDays)
-    if (!Number.isInteger(days) || days < 1 || days > 90) return invalid(request, 'expiresInDays', 'must be 1–90')
+    if (!Number.isInteger(days) || days < 1 || days > 90)
+      return invalid(request, 'expiresInDays', 'must be 1–90')
     const gate = stepUpGate(request, r.user, 'TOKEN_CREATE')
     if (gate) return gate
     const token = `qg_pat_${crypto.randomUUID().replace(/-/g, '')}`
-    const t = { id: crypto.randomUUID(), userId: r.user.id, name, scope: b.scope as 'read' | 'read+propose', lastUsedAt: null, expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(), tokenHash: 'hash' }
+    const t = {
+      id: crypto.randomUUID(),
+      userId: r.user.id,
+      name,
+      scope: b.scope as 'read' | 'read+propose',
+      lastUsedAt: null,
+      expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+      tokenHash: 'hash',
+    }
     db.v2.tokens.unshift(t)
     audit(r.user, 'TOKEN_CREATED', 'TOKEN', t.id, `${name} (${b.scope})`)
     const { userId: _u, tokenHash: _h, ...out } = t

@@ -33,5 +33,6 @@ export const useCopilotUi = create<CopilotUi>()((set, get) => ({
 
 // A thread belongs to whoever opened it: forget it on sign-out or when another user signs in.
 useAuthStore.subscribe((s, prev) => {
-  if (s.user?.id !== prev.user?.id) useCopilotUi.setState({ isOpen: false, pendingPrompt: null, conversationId: null })
+  if (s.user?.id !== prev.user?.id)
+    useCopilotUi.setState({ isOpen: false, pendingPrompt: null, conversationId: null })
 })

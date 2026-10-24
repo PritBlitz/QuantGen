@@ -64,8 +64,13 @@ export function AdminFraudPage() {
         </Card>
       ) : cases.data.content.length === 0 ? (
         <Card>
-          <EmptyState icon={<ShieldAlert />} title={filter === 'OPEN' ? 'Nothing waiting for review' : 'No cases here'}>
-            {filter === 'OPEN' ? 'Held transfers appear here as soon as the risk engine flags them.' : undefined}
+          <EmptyState
+            icon={<ShieldAlert />}
+            title={filter === 'OPEN' ? 'Nothing waiting for review' : 'No cases here'}
+          >
+            {filter === 'OPEN'
+              ? 'Held transfers appear here as soon as the risk engine flags them.'
+              : undefined}
           </EmptyState>
         </Card>
       ) : (
@@ -76,7 +81,13 @@ export function AdminFraudPage() {
             ))}
           </ul>
           <div className="px-5 pb-4">
-            <Pagination page={cases.data.page} totalPages={cases.data.totalPages} totalElements={cases.data.totalElements} onPage={setPage} label="cases" />
+            <Pagination
+              page={cases.data.page}
+              totalPages={cases.data.totalPages}
+              totalElements={cases.data.totalElements}
+              onPage={setPage}
+              label="cases"
+            />
           </div>
         </Card>
       )}
@@ -88,8 +99,14 @@ function CaseRow({ c }: { c: FraudCaseDto }) {
   const s = STATUS[c.status] ?? { label: c.status, tone: 'neutral' as const }
   return (
     <li>
-      <Link to={`/admin/fraud/${c.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-2/60">
-        <span className={cn('num w-10 shrink-0 text-center text-2xl font-medium', scoreTone(c.score))} aria-label={`Risk score ${c.score} of 100`}>
+      <Link
+        to={`/admin/fraud/${c.id}`}
+        className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-2/60"
+      >
+        <span
+          className={cn('num w-10 shrink-0 text-center text-2xl font-medium', scoreTone(c.score))}
+          aria-label={`Risk score ${c.score} of 100`}
+        >
           {c.score}
         </span>
         <span className="min-w-0 flex-1">
@@ -124,7 +141,11 @@ export function AdminFraudCasePage() {
 
   return (
     <div>
-      <PageHeader back={{ to: '/admin/fraud', label: 'Fraud cases' }} eyebrow={c ? `Held ${formatAbsolute(c.createdAt)}` : 'Fraud case'} title={c ? <Money value={c.amount} /> : 'Fraud case'} />
+      <PageHeader
+        back={{ to: '/admin/fraud', label: 'Fraud cases' }}
+        eyebrow={c ? `Held ${formatAbsolute(c.createdAt)}` : 'Fraud case'}
+        title={c ? <Money value={c.amount} /> : 'Fraud case'}
+      />
       {kase.isError ? (
         toApiError(kase.error).code === 'NOT_FOUND' ? (
           <p className="text-sm text-muted">This case doesn’t exist.</p>
@@ -155,7 +176,9 @@ export function AdminFraudCasePage() {
               </dl>
               {c.status !== 'OPEN' && c.decisionReason && (
                 <p className="mt-4 rounded-[var(--radius-control)] bg-surface-2 px-3 py-2 text-sm">
-                  <span className="text-muted">Decided {c.decidedAt ? formatRelative(c.decidedAt) : ''}: </span>
+                  <span className="text-muted">
+                    Decided {c.decidedAt ? formatRelative(c.decidedAt) : ''}:{' '}
+                  </span>
                   {c.decisionReason}
                 </p>
               )}
@@ -177,8 +200,14 @@ export function AdminFraudCasePage() {
                   .map((s) => (
                     <li key={s.code} className="flex items-center gap-3 text-sm">
                       <span className="min-w-0 flex-1">{s.label}</span>
-                      <span className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-                        <span className="block h-full rounded-full bg-warn" style={{ width: `${Math.min(100, s.weight)}%` }} />
+                      <span
+                        className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-2"
+                        aria-hidden="true"
+                      >
+                        <span
+                          className="block h-full rounded-full bg-warn"
+                          style={{ width: `${Math.min(100, s.weight)}%` }}
+                        />
                       </span>
                       <span className="num w-8 text-right text-xs text-muted">+{s.weight}</span>
                     </li>
@@ -205,17 +234,26 @@ export function AdminFraudCasePage() {
           }
           summary={
             <p className="text-sm">
-              <Money value={c.amount} className="font-medium" /> from {c.customer.fullName} to {c.toName}
+              <Money value={c.amount} className="font-medium" /> from {c.customer.fullName} to{' '}
+              {c.toName}
             </p>
           }
           reasonRequired
-          placeholder={decision === 'release' ? 'e.g. Called the customer; they confirmed the payee.' : 'e.g. Payee matches a reported scam account.'}
+          placeholder={
+            decision === 'release'
+              ? 'e.g. Called the customer; they confirmed the payee.'
+              : 'e.g. Payee matches a reported scam account.'
+          }
           confirmLabel={decision === 'release' ? 'Release' : 'Reject'}
           destructive={decision === 'reject'}
           onConfirm={async (reason) => {
             if (!decision) return
             await decide.mutateAsync({ id: c.id, kind: decision, reason })
-            toast.success(decision === 'release' ? 'Released. The money has been sent.' : 'Rejected. The customer keeps the money.')
+            toast.success(
+              decision === 'release'
+                ? 'Released. The money has been sent.'
+                : 'Rejected. The customer keeps the money.',
+            )
             setDecision(null)
           }}
         />
@@ -231,22 +269,37 @@ const SUGGESTION: Record<NonNullable<FraudCaseDetailDto['memo']>['suggestedActio
   CONTACT_CUSTOMER: 'Contact the customer first',
 }
 
-function Memo({ memo, onTrace }: { memo: FraudCaseDetailDto['memo']; onTrace: (runId: string) => void }) {
+function Memo({
+  memo,
+  onTrace,
+}: {
+  memo: FraudCaseDetailDto['memo']
+  onTrace: (runId: string) => void
+}) {
   return (
     <Panel title="Investigator memo" eyebrow="AI · advisory only" tone="violet">
       {!memo ? (
-        <p className="text-sm text-muted">No memo yet. The case can be decided without one; the AI never decides.</p>
+        <p className="text-sm text-muted">
+          No memo yet. The case can be decided without one; the AI never decides.
+        </p>
       ) : (
         <div className="space-y-3 text-sm">
           <p className="flex flex-wrap items-center gap-2">
             <Badge tone="violet">
-              <Sparkles aria-hidden="true" className="size-3" /> Suggests: {SUGGESTION[memo.suggestedAction] ?? memo.suggestedAction}
+              <Sparkles aria-hidden="true" className="size-3" /> Suggests:{' '}
+              {SUGGESTION[memo.suggestedAction] ?? memo.suggestedAction}
             </Badge>
-            <span className="text-xs text-muted">{memo.confidence.toLowerCase()} confidence · {formatRelative(memo.generatedAt)}</span>
+            <span className="text-xs text-muted">
+              {memo.confidence.toLowerCase()} confidence · {formatRelative(memo.generatedAt)}
+            </span>
           </p>
           <p className="whitespace-pre-wrap">{memo.summary}</p>
           {memo.runId && (
-            <button type="button" onClick={() => onTrace(memo.runId as string)} className="text-xs text-muted hover:text-violet">
+            <button
+              type="button"
+              onClick={() => onTrace(memo.runId as string)}
+              className="text-xs text-muted hover:text-violet"
+            >
               See how it was written →
             </button>
           )}

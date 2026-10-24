@@ -32,44 +32,103 @@ export const analyticsKeys = {
 
 // ── Business ────────────────────────────────────────────────────────────────────────────
 export const useOverview = (q: DateRangeQuery) =>
-  useQuery({ queryKey: analyticsKeys.overview(q), queryFn: () => analyticsApi.overview(q), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.overview(q),
+    queryFn: () => analyticsApi.overview(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
-export const useSeries = (q: DateRangeQuery & { metric: AnalyticsMetric; granularity: Granularity; compare?: boolean }, enabled = true) =>
-  useQuery({ queryKey: analyticsKeys.series(q), queryFn: () => analyticsApi.series(q), staleTime: STALE, placeholderData: keepPreviousData, enabled })
+export const useSeries = (
+  q: DateRangeQuery & { metric: AnalyticsMetric; granularity: Granularity; compare?: boolean },
+  enabled = true,
+) =>
+  useQuery({
+    queryKey: analyticsKeys.series(q),
+    queryFn: () => analyticsApi.series(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+    enabled,
+  })
 
-export const useBreakdown = (q: DateRangeQuery & { dimension: BreakdownDimension; limit?: number }) =>
-  useQuery({ queryKey: analyticsKeys.breakdown(q), queryFn: () => analyticsApi.breakdown(q), staleTime: STALE, placeholderData: keepPreviousData })
+export const useBreakdown = (
+  q: DateRangeQuery & { dimension: BreakdownDimension; limit?: number },
+) =>
+  useQuery({
+    queryKey: analyticsKeys.breakdown(q),
+    queryFn: () => analyticsApi.breakdown(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useFunnel = (q: DateRangeQuery) =>
-  useQuery({ queryKey: analyticsKeys.funnel(q), queryFn: () => analyticsApi.funnel(q), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.funnel(q),
+    queryFn: () => analyticsApi.funnel(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useCohorts = (months: number) =>
-  useQuery({ queryKey: analyticsKeys.cohorts(months), queryFn: () => analyticsApi.cohorts(months), staleTime: STALE })
+  useQuery({
+    queryKey: analyticsKeys.cohorts(months),
+    queryFn: () => analyticsApi.cohorts(months),
+    staleTime: STALE,
+  })
 
 export const useLoanBook = () =>
   useQuery({ queryKey: analyticsKeys.loanBook, queryFn: analyticsApi.loanBook, staleTime: STALE })
 
 export const useAdoption = (q: DateRangeQuery) =>
-  useQuery({ queryKey: analyticsKeys.adoption(q), queryFn: () => analyticsApi.adoption(q), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.adoption(q),
+    queryFn: () => analyticsApi.adoption(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useHealth = () =>
   useQuery({ queryKey: analyticsKeys.health, queryFn: analyticsApi.health, staleTime: STALE })
 
 // ── Personal ────────────────────────────────────────────────────────────────────────────
 export const useMoneySummary = (q: DateRangeQuery) =>
-  useQuery({ queryKey: analyticsKeys.summary(q), queryFn: () => analyticsApi.summary(q), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.summary(q),
+    queryFn: () => analyticsApi.summary(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useCashflow = (months = 12) =>
-  useQuery({ queryKey: analyticsKeys.cashflow(months), queryFn: () => analyticsApi.cashflow(months), staleTime: STALE })
+  useQuery({
+    queryKey: analyticsKeys.cashflow(months),
+    queryFn: () => analyticsApi.cashflow(months),
+    staleTime: STALE,
+  })
 
 export const useCounterparties = (q: DateRangeQuery) =>
-  useQuery({ queryKey: analyticsKeys.counterparties(q), queryFn: () => analyticsApi.counterparties({ ...q, limit: 5 }), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.counterparties(q),
+    queryFn: () => analyticsApi.counterparties({ ...q, limit: 5 }),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useBalanceHistory = (q: { accountId?: string; range: HistoryRange }) =>
-  useQuery({ queryKey: analyticsKeys.balanceHistory(q), queryFn: () => analyticsApi.balanceHistory(q), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.balanceHistory(q),
+    queryFn: () => analyticsApi.balanceHistory(q),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const usePortfolioAnalytics = (range: PortfolioRange) =>
-  useQuery({ queryKey: analyticsKeys.portfolio(range), queryFn: () => analyticsApi.portfolio(range), staleTime: STALE, placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: analyticsKeys.portfolio(range),
+    queryFn: () => analyticsApi.portfolio(range),
+    staleTime: STALE,
+    placeholderData: keepPreviousData,
+  })
 
 export const useLoanAnalytics = () =>
   useQuery({ queryKey: analyticsKeys.loans, queryFn: analyticsApi.loans, staleTime: STALE })

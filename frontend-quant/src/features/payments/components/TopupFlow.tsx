@@ -46,25 +46,36 @@ export function TopupFlow({ account, onDone }: { account: AccountDto; onDone: ()
     e.preventDefault()
     setError(null)
     setFieldError(null)
-    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1)) return setFieldError('Enter at least ₹1')
+    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1))
+      return setFieldError('Enter at least ₹1')
     if (toDecimal(amount).gt(100000)) return setFieldError('At most ₹1,00,000 per top-up')
     setPhase('checkout')
     try {
-      const order = topup?.status === 'CREATED' ? topup : await payApi.createTopup(account.id, toDecimal(amount).toFixed(2), ensure())
+      const order =
+        topup?.status === 'CREATED'
+          ? topup
+          : await payApi.createTopup(account.id, toDecimal(amount).toFixed(2), ensure())
       setTopup(order)
       const result = useSimulatedCheckout
         ? await new Promise<CheckoutResult | null>((resolve) => setSimulate(() => resolve))
-        : await openCheckout({ keyId: order.gatewayKeyId, orderId: order.gatewayOrderId, name: user?.fullName ?? '', email: user?.email ?? '' })
+        : await openCheckout({
+            keyId: order.gatewayKeyId,
+            orderId: order.gatewayOrderId,
+            name: user?.fullName ?? '',
+            email: user?.email ?? '',
+          })
       setSimulate(null)
       if (!result) {
         setPhase('form')
         return
       }
       setPhase('verifying')
-      let t = await payApi.verifyTopup(order.id, result.paymentId, result.signature).catch((err: unknown) => {
-        if (toApiError(err).code === 'PAYMENT_VERIFICATION_FAILED') throw err
-        return null
-      })
+      let t = await payApi
+        .verifyTopup(order.id, result.paymentId, result.signature)
+        .catch((err: unknown) => {
+          if (toApiError(err).code === 'PAYMENT_VERIFICATION_FAILED') throw err
+          return null
+        })
       if (!t || t.status === 'CREATED') t = await poll(order.id)
       if (t?.status === 'CREDITED') {
         setTopup(t)
@@ -73,7 +84,15 @@ export function TopupFlow({ account, onDone }: { account: AccountDto; onDone: ()
         void invalidate('accounts')
       } else {
         setPhase('failed')
-        setError({ title: t?.status === 'FAILED' ? 'The payment failed, so nothing was added.' : 'We’re still waiting for Razorpay to confirm.', detail: t?.failureReason ?? 'If money left your card, it will be credited automatically once Razorpay confirms. Check back in a few minutes.' })
+        setError({
+          title:
+            t?.status === 'FAILED'
+              ? 'The payment failed, so nothing was added.'
+              : 'We’re still waiting for Razorpay to confirm.',
+          detail:
+            t?.failureReason ??
+            'If money left your card, it will be credited automatically once Razorpay confirms. Check back in a few minutes.',
+        })
       }
     } catch (err) {
       setSimulate(null)
@@ -100,14 +119,19 @@ export function TopupFlow({ account, onDone }: { account: AccountDto; onDone: ()
         <div className="rounded-2xl border border-violet/40 bg-violet/[0.08] p-4">
           <p className="eyebrow text-violet">Razorpay test checkout · simulated (dev mocks)</p>
           <p className="mt-2 text-sm text-muted">
-            Order <span className="num text-text">{topup?.gatewayOrderId}</span> for <Money value={topup?.amount ?? '0'} className="text-text" />. With real test keys this is the Razorpay window.
+            Order <span className="num text-text">{topup?.gatewayOrderId}</span> for{' '}
+            <Money value={topup?.amount ?? '0'} className="text-text" />. With real test keys this
+            is the Razorpay window.
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => simulate(null)}>
             Close
           </Button>
-          <Button variant="secondary" onClick={() => simulate({ paymentId: 'pay_forged', signature: 'bad' })}>
+          <Button
+            variant="secondary"
+            onClick={() => simulate({ paymentId: 'pay_forged', signature: 'bad' })}
+          >
             Tamper signature
           </Button>
           <Button
@@ -125,16 +149,33 @@ export function TopupFlow({ account, onDone }: { account: AccountDto; onDone: ()
 
   return (
     <form onSubmit={(e) => void start(e)} className="space-y-5" noValidate>
-      <p className="text-sm text-muted">Pay with UPI, card or netbanking in Razorpay’s <strong className="text-text">test mode</strong>. No real money moves.</p>
-      <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={fieldError ?? undefined} autoFocus disabled={phase !== 'form'} />
+      <p className="text-sm text-muted">
+        Pay with UPI, card or netbanking in Razorpay’s{' '}
+        <strong className="text-text">test mode</strong>. No real money moves.
+      </p>
+      <AmountInput
+        label="Amount"
+        value={amount}
+        onValueChange={setAmount}
+        error={fieldError ?? undefined}
+        autoFocus
+        disabled={phase !== 'form'}
+      />
       {error && <MoneyErrorAlert copy={error} />}
       <p className="flex items-center gap-2 text-xs text-muted">
-        <ShieldCheck aria-hidden="true" className="size-4 text-gain" /> We credit only after verifying the payment with Razorpay ourselves.
+        <ShieldCheck aria-hidden="true" className="size-4 text-gain" /> We credit only after
+        verifying the payment with Razorpay ourselves.
       </p>
-      <Button type="submit" size="lg" className="w-full" disabled={phase !== 'form' && phase !== 'failed'}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={phase !== 'form' && phase !== 'failed'}
+      >
         {phase === 'checkout' || phase === 'verifying' ? (
           <>
-            <Loader2 className="animate-spin" aria-hidden="true" /> {phase === 'checkout' ? 'Waiting for checkout…' : 'Verifying payment…'}
+            <Loader2 className="animate-spin" aria-hidden="true" />{' '}
+            {phase === 'checkout' ? 'Waiting for checkout…' : 'Verifying payment…'}
           </>
         ) : (
           <>

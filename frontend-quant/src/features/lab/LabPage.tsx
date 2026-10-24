@@ -23,10 +23,27 @@ import { cn } from '@/lib/utils'
 
 type Kind = StrategyDsl['type']
 const KINDS: Array<{ value: Kind; label: string; about: string }> = [
-  { value: 'SMA_CROSS', label: 'SMA crossover', about: 'Buy when the fast moving average crosses above the slow one; sell when it crosses below.' },
-  { value: 'RSI', label: 'RSI', about: 'Buy when RSI drops below the lower threshold (oversold); sell above the upper one.' },
-  { value: 'BUY_THE_DIP', label: 'Buy the dip', about: 'Buy after a drop over 5 days; sell once it’s up by the take-profit.' },
-  { value: 'REBALANCE', label: 'Rebalance', about: 'Hold the picked symbols in equal weights, rebalancing on a fixed schedule.' },
+  {
+    value: 'SMA_CROSS',
+    label: 'SMA crossover',
+    about:
+      'Buy when the fast moving average crosses above the slow one; sell when it crosses below.',
+  },
+  {
+    value: 'RSI',
+    label: 'RSI',
+    about: 'Buy when RSI drops below the lower threshold (oversold); sell above the upper one.',
+  },
+  {
+    value: 'BUY_THE_DIP',
+    label: 'Buy the dip',
+    about: 'Buy after a drop over 5 days; sell once it’s up by the take-profit.',
+  },
+  {
+    value: 'REBALANCE',
+    label: 'Rebalance',
+    about: 'Hold the picked symbols in equal weights, rebalancing on a fixed schedule.',
+  },
 ]
 const MAX_SYMBOLS = 5
 /** Earliest price history the server backtests over. */
@@ -73,26 +90,46 @@ export function LabPage() {
   const run = useRunBacktest()
   const uid = useId()
   const [kind, setKind] = useState<Kind>('SMA_CROSS')
-  const [params, setParams] = useState({ fast: '10', slow: '30', period: '14', buyBelow: '30', sellAbove: '70', dropPct: '5', takeProfitPct: '8', everyDays: '30' })
+  const [params, setParams] = useState({
+    fast: '10',
+    slow: '30',
+    period: '14',
+    buyBelow: '30',
+    sellAbove: '70',
+    dropPct: '5',
+    takeProfitPct: '8',
+    everyDays: '30',
+  })
   const [symbols, setSymbols] = useState<string[]>(['QGEN'])
   const [from, setFrom] = useState(daysAgoIST(365))
   const [to, setTo] = useState(todayIST())
   const [cash, setCash] = useState('100000')
   const [touched, setTouched] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const set = (k: keyof typeof params) => (v: string) => setParams((p) => ({ ...p, [k]: v.replace(/[^\d.]/g, '').slice(0, 6) }))
+  const set = (k: keyof typeof params) => (v: string) =>
+    setParams((p) => ({ ...p, [k]: v.replace(/[^\d.]/g, '').slice(0, 6) }))
 
   const errors = useMemo(() => {
     const e: Record<string, string | undefined> = {}
     if (kind === 'SMA_CROSS') {
       e.fast = intIn(params.fast, 2, 199, 'Fast')
       e.slow = intIn(params.slow, 3, 200, 'Slow')
-      if (!e.fast && !e.slow && Number.parseInt(params.slow, 10) <= Number.parseInt(params.fast, 10)) e.slow = 'Slow must be longer than fast'
+      if (
+        !e.fast &&
+        !e.slow &&
+        Number.parseInt(params.slow, 10) <= Number.parseInt(params.fast, 10)
+      )
+        e.slow = 'Slow must be longer than fast'
     } else if (kind === 'RSI') {
       e.period = intIn(params.period, 2, 50, 'Period')
       e.buyBelow = intIn(params.buyBelow, 1, 99, 'Buy below')
       e.sellAbove = intIn(params.sellAbove, 1, 99, 'Sell above')
-      if (!e.buyBelow && !e.sellAbove && Number.parseInt(params.sellAbove, 10) <= Number.parseInt(params.buyBelow, 10)) e.sellAbove = 'Sell level must be above the buy level'
+      if (
+        !e.buyBelow &&
+        !e.sellAbove &&
+        Number.parseInt(params.sellAbove, 10) <= Number.parseInt(params.buyBelow, 10)
+      )
+        e.sellAbove = 'Sell level must be above the buy level'
     } else if (kind === 'BUY_THE_DIP') {
       e.dropPct = pctIn(params.dropPct, '0.5', '50', 'Drop')
       e.takeProfitPct = pctIn(params.takeProfitPct, '0.5', '100', 'Take profit')
@@ -106,7 +143,12 @@ export function LabPage() {
     else if (from < MIN_FROM) e.dates = 'Price history starts on 1 Jan 2021'
     else if (isoDaysBetween(from, to) < 30) e.dates = 'Pick a period of at least 30 days'
     else if (from < isoMinusYears(to, 5)) e.dates = 'Pick a period of at most 5 years'
-    if (!/^\d{1,8}(\.\d{1,2})?$/.test(cash) || toDecimal(cash).lt(1000) || toDecimal(cash).gt(10000000)) e.cash = 'Between ₹1,000 and ₹1,00,00,000'
+    if (
+      !/^\d{1,8}(\.\d{1,2})?$/.test(cash) ||
+      toDecimal(cash).lt(1000) ||
+      toDecimal(cash).gt(10000000)
+    )
+      e.cash = 'Between ₹1,000 and ₹1,00,00,000'
     return e
   }, [kind, params, symbols, from, to, cash])
   const invalid = Object.values(errors).some(Boolean)
@@ -118,14 +160,25 @@ export function LabPage() {
       case 'SMA_CROSS':
         return { type: kind, fast: n(params.fast), slow: n(params.slow) }
       case 'RSI':
-        return { type: kind, period: n(params.period), buyBelow: n(params.buyBelow), sellAbove: n(params.sellAbove) }
+        return {
+          type: kind,
+          period: n(params.period),
+          buyBelow: n(params.buyBelow),
+          sellAbove: n(params.sellAbove),
+        }
       case 'BUY_THE_DIP':
         return { type: kind, dropPct: params.dropPct, takeProfitPct: params.takeProfitPct }
       case 'REBALANCE': {
         // Equal weights that add up to exactly 100 (the last one takes the rounding).
         const each = toDecimal('100').div(symbols.length).toDecimalPlaces(2, 1)
         const weights = Object.fromEntries(
-          symbols.map((s, i) => [s, (i === symbols.length - 1 ? toDecimal('100').minus(each.times(symbols.length - 1)) : each).toFixed(2)]),
+          symbols.map((s, i) => [
+            s,
+            (i === symbols.length - 1
+              ? toDecimal('100').minus(each.times(symbols.length - 1))
+              : each
+            ).toFixed(2),
+          ]),
         )
         return { type: kind, everyDays: n(params.everyDays), weights }
       }
@@ -143,7 +196,8 @@ export function LabPage() {
   }
 
   const runs = history.data ?? []
-  const shown = runs.find((r) => r.id === selectedId) ?? (run.data as BacktestDto | undefined) ?? runs[0]
+  const shown =
+    runs.find((r) => r.id === selectedId) ?? (run.data as BacktestDto | undefined) ?? runs[0]
   const runError = run.error ? toApiError(run.error) : null
 
   if (history.isError && isUnavailable(history.error)) {
@@ -160,7 +214,9 @@ export function LabPage() {
   }
 
   const toggleSymbol = (s: string) =>
-    setSymbols((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : cur.length >= MAX_SYMBOLS ? cur : [...cur, s]))
+    setSymbols((cur) =>
+      cur.includes(s) ? cur.filter((x) => x !== s) : cur.length >= MAX_SYMBOLS ? cur : [...cur, s],
+    )
 
   return (
     <div>
@@ -171,8 +227,9 @@ export function LabPage() {
       <p className="mb-6 flex items-start gap-2 rounded-[var(--radius-control)] bg-warn/10 px-4 py-3 text-sm">
         <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warn" />
         <span>
-          <strong className="font-medium">Simulated data.</strong> QuantGen’s prices are simulated, so these results show
-          how a rule behaves, not what you would have earned. Nothing here places an order.
+          <strong className="font-medium">Simulated data.</strong> QuantGen’s prices are simulated,
+          so these results show how a rule behaves, not what you would have earned. Nothing here
+          places an order.
         </span>
       </p>
 
@@ -189,26 +246,76 @@ export function LabPage() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               {kind === 'SMA_CROSS' && (
                 <>
-                  <NumField id={`${uid}-fast`} label="Fast (days)" value={params.fast} onChange={set('fast')} error={err('fast')} />
-                  <NumField id={`${uid}-slow`} label="Slow (days)" value={params.slow} onChange={set('slow')} error={err('slow')} />
+                  <NumField
+                    id={`${uid}-fast`}
+                    label="Fast (days)"
+                    value={params.fast}
+                    onChange={set('fast')}
+                    error={err('fast')}
+                  />
+                  <NumField
+                    id={`${uid}-slow`}
+                    label="Slow (days)"
+                    value={params.slow}
+                    onChange={set('slow')}
+                    error={err('slow')}
+                  />
                 </>
               )}
               {kind === 'RSI' && (
                 <>
-                  <NumField id={`${uid}-period`} label="Period (days)" value={params.period} onChange={set('period')} error={err('period')} />
+                  <NumField
+                    id={`${uid}-period`}
+                    label="Period (days)"
+                    value={params.period}
+                    onChange={set('period')}
+                    error={err('period')}
+                  />
                   <span />
-                  <NumField id={`${uid}-buy`} label="Buy below" value={params.buyBelow} onChange={set('buyBelow')} error={err('buyBelow')} />
-                  <NumField id={`${uid}-sell`} label="Sell above" value={params.sellAbove} onChange={set('sellAbove')} error={err('sellAbove')} />
+                  <NumField
+                    id={`${uid}-buy`}
+                    label="Buy below"
+                    value={params.buyBelow}
+                    onChange={set('buyBelow')}
+                    error={err('buyBelow')}
+                  />
+                  <NumField
+                    id={`${uid}-sell`}
+                    label="Sell above"
+                    value={params.sellAbove}
+                    onChange={set('sellAbove')}
+                    error={err('sellAbove')}
+                  />
                 </>
               )}
               {kind === 'BUY_THE_DIP' && (
                 <>
-                  <NumField id={`${uid}-drop`} label="Drop (%)" value={params.dropPct} onChange={set('dropPct')} error={err('dropPct')} decimal />
-                  <NumField id={`${uid}-tp`} label="Take profit (%)" value={params.takeProfitPct} onChange={set('takeProfitPct')} error={err('takeProfitPct')} decimal />
+                  <NumField
+                    id={`${uid}-drop`}
+                    label="Drop (%)"
+                    value={params.dropPct}
+                    onChange={set('dropPct')}
+                    error={err('dropPct')}
+                    decimal
+                  />
+                  <NumField
+                    id={`${uid}-tp`}
+                    label="Take profit (%)"
+                    value={params.takeProfitPct}
+                    onChange={set('takeProfitPct')}
+                    error={err('takeProfitPct')}
+                    decimal
+                  />
                 </>
               )}
               {kind === 'REBALANCE' && (
-                <NumField id={`${uid}-every`} label="Every (days)" value={params.everyDays} onChange={set('everyDays')} error={err('everyDays')} />
+                <NumField
+                  id={`${uid}-every`}
+                  label="Every (days)"
+                  value={params.everyDays}
+                  onChange={set('everyDays')}
+                  error={err('everyDays')}
+                />
               )}
             </div>
           </Panel>
@@ -231,7 +338,9 @@ export function LabPage() {
                       onClick={() => toggleSymbol(i.symbol)}
                       className={cn(
                         'num rounded-full px-3 py-1.5 text-xs hairline transition-colors disabled:opacity-40',
-                        on ? 'border-accent bg-accent text-accent-ink' : 'text-muted hover:text-text',
+                        on
+                          ? 'border-accent bg-accent text-accent-ink'
+                          : 'text-muted hover:text-text',
                       )}
                     >
                       {i.symbol}
@@ -251,11 +360,24 @@ export function LabPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-from`}>From</Label>
-                <Input id={`${uid}-from`} type="date" value={from} min={MIN_FROM} max={to} onChange={(e) => setFrom(e.target.value)} />
+                <Input
+                  id={`${uid}-from`}
+                  type="date"
+                  value={from}
+                  min={MIN_FROM}
+                  max={to}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-to`}>To</Label>
-                <Input id={`${uid}-to`} type="date" value={to} max={todayIST()} onChange={(e) => setTo(e.target.value)} />
+                <Input
+                  id={`${uid}-to`}
+                  type="date"
+                  value={to}
+                  max={todayIST()}
+                  onChange={(e) => setTo(e.target.value)}
+                />
               </div>
             </div>
             {err('dates') && (
@@ -264,17 +386,28 @@ export function LabPage() {
               </p>
             )}
             <div className="mt-4">
-              <AmountInput label="Starting cash" value={cash} onValueChange={setCash} error={err('cash')} />
+              <AmountInput
+                label="Starting cash"
+                value={cash}
+                onValueChange={setCash}
+                error={err('cash')}
+              />
             </div>
           </Panel>
 
           {runError && (
             <p role="alert" className="text-sm text-loss">
-              {runError.fieldErrors[0] ? `${runError.fieldErrors[0].field}: ${runError.fieldErrors[0].message}` : errorMessage(runError)}
+              {runError.fieldErrors[0]
+                ? `${runError.fieldErrors[0].field}: ${runError.fieldErrors[0].message}`
+                : errorMessage(runError)}
             </p>
           )}
           <Button type="submit" size="lg" className="w-full" disabled={run.isPending}>
-            {run.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
+            {run.isPending ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Play aria-hidden="true" />
+            )}
             {run.isPending ? 'Running…' : 'Run backtest'}
           </Button>
         </form>
@@ -306,7 +439,9 @@ export function LabPage() {
                     >
                       <span className="min-w-0 flex-1 truncate">
                         {describe(r.strategy)} · {r.symbols.join(', ')}
-                        <span className="block text-xs font-normal text-muted">{formatRelative(r.createdAt)}</span>
+                        <span className="block text-xs font-normal text-muted">
+                          {formatRelative(r.createdAt)}
+                        </span>
                       </span>
                       <ReturnText pct={r.returnPct} />
                     </button>
@@ -321,7 +456,21 @@ export function LabPage() {
   )
 }
 
-function NumField({ id, label, value, onChange, error, decimal }: { id: string; label: string; value: string; onChange: (v: string) => void; error?: string; decimal?: boolean }) {
+function NumField({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+  decimal,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+  error?: string
+  decimal?: boolean
+}) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
@@ -386,7 +535,11 @@ function Result({ r }: { r: BacktestDto }) {
         series={[{ key: 'value', label: 'Portfolio value', color: 'var(--chart-1)', kind: 'area' }]}
       />
       <h3 className="mt-6 text-sm font-medium">
-        Trades <span className="font-normal text-muted">({r.trades.length}{r.trades.length >= 60 ? ', latest 60' : ''})</span>
+        Trades{' '}
+        <span className="font-normal text-muted">
+          ({r.trades.length}
+          {r.trades.length >= 60 ? ', latest 60' : ''})
+        </span>
       </h3>
       {r.trades.length === 0 ? (
         <p className="mt-2 text-sm text-muted">The rule never fired in this period.</p>
@@ -396,17 +549,28 @@ function Result({ r }: { r: BacktestDto }) {
             <caption className="sr-only">Simulated trades</caption>
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted">
-                <th scope="col" className="py-2 pr-3 font-normal">Date</th>
-                <th scope="col" className="py-2 pr-3 font-normal">Trade</th>
-                <th scope="col" className="py-2 text-right font-normal">Price</th>
+                <th scope="col" className="py-2 pr-3 font-normal">
+                  Date
+                </th>
+                <th scope="col" className="py-2 pr-3 font-normal">
+                  Trade
+                </th>
+                <th scope="col" className="py-2 text-right font-normal">
+                  Price
+                </th>
               </tr>
             </thead>
             <tbody>
               {[...r.trades].reverse().map((t, i) => (
-                <tr key={`${t.t}-${t.symbol}-${i}`} className="border-b border-border last:border-0">
+                <tr
+                  key={`${t.t}-${t.symbol}-${i}`}
+                  className="border-b border-border last:border-0"
+                >
                   <td className="py-2 pr-3 text-muted">{formatDate(t.t)}</td>
                   <td className="py-2 pr-3">
-                    <Badge tone={t.side === 'BUY' ? 'gain' : 'loss'}>{t.side === 'BUY' ? 'Buy' : 'Sell'}</Badge>{' '}
+                    <Badge tone={t.side === 'BUY' ? 'gain' : 'loss'}>
+                      {t.side === 'BUY' ? 'Buy' : 'Sell'}
+                    </Badge>{' '}
                     <span className="num">{t.quantity}</span> × {t.symbol}
                   </td>
                   <td className="py-2 text-right">

@@ -15,15 +15,57 @@ import { useIdempotencyKey } from '@/lib/idempotency'
 import { cn } from '@/lib/utils'
 import { CATEGORY_LABEL, formatPan } from './labels'
 
-interface Product { id: string; name: string; merchant: string; category: MerchantCategory; price: MoneyString }
-const COFFEE: Product = { id: 'coffee', name: 'Filter coffee beans, 500 g', merchant: 'QuantGen Store · Pantry', category: 'GROCERY', price: '649.00' }
+interface Product {
+  id: string
+  name: string
+  merchant: string
+  category: MerchantCategory
+  price: MoneyString
+}
+const COFFEE: Product = {
+  id: 'coffee',
+  name: 'Filter coffee beans, 500 g',
+  merchant: 'QuantGen Store · Pantry',
+  category: 'GROCERY',
+  price: '649.00',
+}
 const PRODUCTS: Product[] = [
   COFFEE,
-  { id: 'dinner', name: 'Dinner for two', merchant: 'QuantGen Store · Kitchen', category: 'DINING', price: '2400.00' },
-  { id: 'headphones', name: 'Wireless headphones', merchant: 'QuantGen Store · Electronics', category: 'ELECTRONICS', price: '8999.00' },
-  { id: 'flight', name: 'Flight BLR → DEL', merchant: 'QuantGen Store · Travel', category: 'TRAVEL', price: '6850.00' },
-  { id: 'laptop', name: 'Laptop', merchant: 'QuantGen Store · Electronics', category: 'ELECTRONICS', price: '54990.00' },
-  { id: 'casino', name: 'Casino chips', merchant: 'Lucky Sandbox Casino', category: 'GAMBLING', price: '5000.00' },
+  {
+    id: 'dinner',
+    name: 'Dinner for two',
+    merchant: 'QuantGen Store · Kitchen',
+    category: 'DINING',
+    price: '2400.00',
+  },
+  {
+    id: 'headphones',
+    name: 'Wireless headphones',
+    merchant: 'QuantGen Store · Electronics',
+    category: 'ELECTRONICS',
+    price: '8999.00',
+  },
+  {
+    id: 'flight',
+    name: 'Flight BLR → DEL',
+    merchant: 'QuantGen Store · Travel',
+    category: 'TRAVEL',
+    price: '6850.00',
+  },
+  {
+    id: 'laptop',
+    name: 'Laptop',
+    merchant: 'QuantGen Store · Electronics',
+    category: 'ELECTRONICS',
+    price: '54990.00',
+  },
+  {
+    id: 'casino',
+    name: 'Casino chips',
+    merchant: 'Lucky Sandbox Casino',
+    category: 'GAMBLING',
+    price: '5000.00',
+  },
 ]
 /** The demo merchant settles a few seconds after authorizing, like a real store would later. */
 const CAPTURE_AFTER_MS = 5000
@@ -115,15 +157,24 @@ export function SandboxPage() {
     if (errors.pan || errors.expiry || errors.cvv || paying) return
     setPaying(true)
     try {
-      const res = await cardsApi.authorize({
-        cardNumber: pan.replace(/\s/g, ''),
-        expiry,
-        cvv,
+      const res = await cardsApi.authorize(
+        {
+          cardNumber: pan.replace(/\s/g, ''),
+          expiry,
+          cvv,
+          amount: product.price,
+          merchant: product.merchant,
+          category: product.category,
+        },
+        checkoutKey.ensure(),
+      )
+      const payment: Payment = {
+        authId: res.authId,
+        product: product.name,
         amount: product.price,
-        merchant: product.merchant,
-        category: product.category,
-      }, checkoutKey.ensure())
-      const payment: Payment = { authId: res.authId, product: product.name, amount: product.price, status: res.status === 'APPROVED' ? 'AUTHORIZED' : 'DECLINED', reason: res.reason }
+        status: res.status === 'APPROVED' ? 'AUTHORIZED' : 'DECLINED',
+        reason: res.reason,
+      }
       setPayments((list) => [payment, ...list])
       if (res.status === 'APPROVED') {
         void invalidate('accounts')
@@ -143,7 +194,10 @@ export function SandboxPage() {
     return (
       <>
         <PageHeader title="Demo store" back={{ to: '/cards', label: 'Cards' }} />
-        <EmptyState icon={<Store />} title="The demo store is closed while cards are switched off" />
+        <EmptyState
+          icon={<Store />}
+          title="The demo store is closed while cards are switched off"
+        />
       </>
     )
 
@@ -180,7 +234,11 @@ export function SandboxPage() {
           </Panel>
         </div>
         <div className="lg:col-span-5">
-          <Panel title="Pay by card" eyebrow="2" description="Use the details from your Cards page.">
+          <Panel
+            title="Pay by card"
+            eyebrow="2"
+            description="Use the details from your Cards page."
+          >
             <form onSubmit={(e) => void pay(e)} noValidate className="space-y-3" autoComplete="off">
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-pan`}>Card number</Label>
@@ -237,8 +295,14 @@ export function SandboxPage() {
                 </p>
               )}
               <Button type="submit" size="lg" className="w-full" disabled={paying}>
-                {paying ? <Loader2 className="animate-spin" aria-hidden="true" /> : <ShoppingBag aria-hidden="true" />}
-                {paying ? 'Paying…' : (
+                {paying ? (
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <ShoppingBag aria-hidden="true" />
+                )}
+                {paying ? (
+                  'Paying…'
+                ) : (
                   <>
                     Pay <Money value={product.price} />
                   </>
@@ -263,7 +327,9 @@ export function SandboxPage() {
                   <span className="font-medium">{p.product}</span>
                   {p.reason && <span className="block text-xs text-muted">{p.reason}</span>}
                   {p.status === 'AUTHORIZED' && (
-                    <span className="block text-xs text-muted">The store collects it in a few seconds.</span>
+                    <span className="block text-xs text-muted">
+                      The store collects it in a few seconds.
+                    </span>
                   )}
                 </span>
                 <Money value={p.amount} />

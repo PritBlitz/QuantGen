@@ -44,7 +44,10 @@ export function SavingsPage() {
 
   const goals = (accounts.data ?? []).filter((a) => a.type === 'GOAL')
   const cash = (accounts.data ?? []).filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING')
-  const saved = sumMoney([...goals.map((g) => g.balance), ...(fds.data ?? []).filter((f) => f.status === 'ACTIVE').map((f) => f.principal)])
+  const saved = sumMoney([
+    ...goals.map((g) => g.balance),
+    ...(fds.data ?? []).filter((f) => f.status === 'ACTIVE').map((f) => f.principal),
+  ])
 
   return (
     <div>
@@ -71,8 +74,21 @@ export function SavingsPage() {
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Saved in total" value={<Money value={saved} />} />
         <Stat label="Goals" value={goals.length} />
-        <Stat label="Fixed deposits" value={(fds.data ?? []).filter((f) => f.status === 'ACTIVE').length} />
-        <Stat label="Interest accrued" value={<Money value={sumMoney((fds.data ?? []).filter((f) => f.status === 'ACTIVE').map((f) => f.accruedInterest))} className="text-gain" />} />
+        <Stat
+          label="Fixed deposits"
+          value={(fds.data ?? []).filter((f) => f.status === 'ACTIVE').length}
+        />
+        <Stat
+          label="Interest accrued"
+          value={
+            <Money
+              value={sumMoney(
+                (fds.data ?? []).filter((f) => f.status === 'ACTIVE').map((f) => f.accruedInterest),
+              )}
+              className="text-gain"
+            />
+          }
+        />
       </div>
 
       <section aria-labelledby="goals-h">
@@ -85,7 +101,11 @@ export function SavingsPage() {
           <Skeleton className="h-48 w-full" />
         ) : goals.length === 0 ? (
           <Panel title="No goals yet">
-            <EmptyState icon={<Target />} title="What are you saving for?" action={<Button onClick={() => setCreating(true)}>Create a goal</Button>}>
+            <EmptyState
+              icon={<Target />}
+              title="What are you saving for?"
+              action={<Button onClick={() => setCreating(true)}>Create a goal</Button>}
+            >
               A trip, a laptop, an emergency fund. Each goal is its own ring-fenced account.
             </EmptyState>
           </Panel>
@@ -98,14 +118,20 @@ export function SavingsPage() {
                 <li key={g.id}>
                   <SpotlightCard tone="cyan" className="flex h-full flex-col">
                     <div className="flex items-start gap-4">
-                      <ProgressRing value={ratio(g.balance, target)} label={`${Math.round(ratio(g.balance, target) * 100)}% of target`} size={88} caption="saved" />
+                      <ProgressRing
+                        value={ratio(g.balance, target)}
+                        label={`${Math.round(ratio(g.balance, target) * 100)}% of target`}
+                        size={88}
+                        caption="saved"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="text-2xl" aria-hidden="true">
                           {g.goal?.emoji ?? '🎯'}
                         </p>
                         <p className="truncate font-medium">{g.goal?.name ?? 'Goal'}</p>
                         <p className="text-sm text-muted">
-                          <Money value={g.balance} className="text-text" /> of <Money value={target} />
+                          <Money value={g.balance} className="text-text" /> of{' '}
+                          <Money value={target} />
                         </p>
                         {p && (
                           <Badge tone={p.onTrack ? 'gain' : 'warn'} dot className="mt-2">
@@ -115,13 +141,27 @@ export function SavingsPage() {
                         )}
                       </div>
                     </div>
-                    {g.goal?.targetDate && <p className="mt-4 text-xs text-muted">Target date {formatDate(g.goal.targetDate)}</p>}
+                    {g.goal?.targetDate && (
+                      <p className="mt-4 text-xs text-muted">
+                        Target date {formatDate(g.goal.targetDate)}
+                      </p>
+                    )}
                     <RoundUpNote goalId={g.id} cash={cash} />
                     <div className="mt-auto flex gap-2 pt-5">
-                      <Button size="sm" className="flex-1" onClick={() => setMoving({ goal: g, direction: 'in' })}>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setMoving({ goal: g, direction: 'in' })}
+                      >
                         <ArrowDownLeft aria-hidden="true" /> Add
                       </Button>
-                      <Button size="sm" variant="secondary" className="flex-1" onClick={() => setMoving({ goal: g, direction: 'out' })} disabled={toDecimal(g.balance).isZero()}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => setMoving({ goal: g, direction: 'out' })}
+                        disabled={toDecimal(g.balance).isZero()}
+                      >
                         <ArrowUpRight aria-hidden="true" /> Withdraw
                       </Button>
                     </div>
@@ -143,7 +183,14 @@ export function SavingsPage() {
       </div>
 
       {creating && <CreateGoal onClose={() => setCreating(false)} />}
-      {moving && <GoalMove goal={moving.goal} direction={moving.direction} cash={cash} onClose={() => setMoving(null)} />}
+      {moving && (
+        <GoalMove
+          goal={moving.goal}
+          direction={moving.direction}
+          cash={cash}
+          onClose={() => setMoving(null)}
+        />
+      )}
       {booking && <BookFd cash={cash} onClose={() => setBooking(false)} />}
     </div>
   )
@@ -166,7 +213,8 @@ function RoundUpNote({ goalId, cash }: { goalId: string; cash: AccountDto[] }) {
   if (!feeding.length) return null
   return (
     <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
-      <Coins aria-hidden="true" className="size-3.5 text-accent" /> Round-ups to ₹{feeding[0]?.roundTo} feed this goal
+      <Coins aria-hidden="true" className="size-3.5 text-accent" /> Round-ups to ₹
+      {feeding[0]?.roundTo} feed this goal
     </p>
   )
 }
@@ -184,9 +232,16 @@ function CreateGoal({ onClose }: { onClose: () => void }) {
     e.preventDefault()
     setError(null)
     if (!name.trim()) return setError('Name your goal.')
-    if (!AMOUNT_INPUT_RE.test(target) || toDecimal(target).lt(100)) return setError('Set a target of at least ₹100.')
+    if (!AMOUNT_INPUT_RE.test(target) || toDecimal(target).lt(100))
+      return setError('Set a target of at least ₹100.')
     create.mutate(
-      { type: 'GOAL', name: name.trim(), target: toDecimal(target).toFixed(2), emoji, ...(date ? { targetDate: date } : {}) },
+      {
+        type: 'GOAL',
+        name: name.trim(),
+        target: toDecimal(target).toFixed(2),
+        emoji,
+        ...(date ? { targetDate: date } : {}),
+      },
       {
         onSuccess: () => {
           toast.success('Goal created')
@@ -201,19 +256,44 @@ function CreateGoal({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="New goal" description="It gets its own account, separate from everyday money.">
+      <DialogContent
+        title="New goal"
+        description="It gets its own account, separate from everyday money."
+      >
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Icon">
             {EMOJI.map((e) => (
-              <button key={e} type="button" role="radio" aria-checked={emoji === e} onClick={() => setEmoji(e)} className={`grid size-10 place-items-center rounded-xl text-xl hairline ${emoji === e ? 'border-accent bg-accent/10' : 'bg-surface-2'}`}>
+              <button
+                key={e}
+                type="button"
+                role="radio"
+                aria-checked={emoji === e}
+                onClick={() => setEmoji(e)}
+                className={`grid size-10 place-items-center rounded-xl text-xl hairline ${emoji === e ? 'border-accent bg-accent/10' : 'bg-surface-2'}`}
+              >
                 {e}
               </button>
             ))}
           </div>
-          <FormField label="Name" maxLength={40} placeholder="Goa in December" value={name} onChange={(e) => setName(e.target.value)} />
+          <FormField
+            label="Name"
+            maxLength={40}
+            placeholder="Goa in December"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           <AmountInput label="Target" value={target} onValueChange={setTarget} />
-          <FormField label="Target date (optional)" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+          <FormField
+            label="Target date (optional)"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel
@@ -229,7 +309,17 @@ function CreateGoal({ onClose }: { onClose: () => void }) {
 }
 
 /** Add to / withdraw from a goal: a normal own-account transfer (idempotent, no step-up). */
-function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direction: 'in' | 'out'; cash: AccountDto[]; onClose: () => void }) {
+function GoalMove({
+  goal,
+  direction,
+  cash,
+  onClose,
+}: {
+  goal: AccountDto
+  direction: 'in' | 'out'
+  cash: AccountDto[]
+  onClose: () => void
+}) {
   const [otherId, setOtherId] = useState(cash[0]?.id ?? '')
   const [amount, setAmount] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
@@ -243,8 +333,10 @@ function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direct
 
   function review() {
     setFieldError(null)
-    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1)) return setFieldError('Enter at least ₹1')
-    if (toDecimal(amount).gt(fromAvail)) return setFieldError(`Only ${formatINR(fromAvail)} available`)
+    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1))
+      return setFieldError('Enter at least ₹1')
+    if (toDecimal(amount).gt(fromAvail))
+      return setFieldError(`Only ${formatINR(fromAvail)} available`)
     action.review()
   }
 
@@ -261,12 +353,19 @@ function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direct
           </div>
         ) : action.step === 'review' && from && to ? (
           <div className="space-y-5">
-            <ReviewAmount value={amount} caption={direction === 'in' ? 'Into your goal' : 'Back to everyday money'} />
+            <ReviewAmount
+              value={amount}
+              caption={direction === 'in' ? 'Into your goal' : 'Back to everyday money'}
+            />
             <ReviewRows>
               <ReviewRow label="From">{accountLabel(from)}</ReviewRow>
               <ReviewRow label="To">{accountLabel(to)}</ReviewRow>
             </ReviewRows>
-            {action.error && <MoneyErrorAlert copy={moneyErrorCopy(action.error, { amount, balance: fromAvail })} />}
+            {action.error && (
+              <MoneyErrorAlert
+                copy={moneyErrorCopy(action.error, { amount, balance: fromAvail })}
+              />
+            )}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={action.edit} disabled={action.pending}>
                 Edit
@@ -276,11 +375,22 @@ function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direct
                 disabled={action.pending}
                 onClick={() =>
                   void action
-                    .confirm((key) => payApi.transfer({ fromAccountId: from.id, toAccountNumber: to.accountNumber, amount: toDecimal(amount).toFixed(2), note: direction === 'in' ? `Saved to ${name}` : `From ${name}` }, key))
+                    .confirm((key) =>
+                      payApi.transfer(
+                        {
+                          fromAccountId: from.id,
+                          toAccountNumber: to.accountNumber,
+                          amount: toDecimal(amount).toFixed(2),
+                          note: direction === 'in' ? `Saved to ${name}` : `From ${name}`,
+                        },
+                        key,
+                      ),
+                    )
                     .then((r) => r.ok && void invalidate('accounts', 'transfers'))
                 }
               >
-                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Confirm
+                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}{' '}
+                Confirm
               </Button>
             </div>
           </div>
@@ -288,9 +398,34 @@ function GoalMove({ goal, direction, cash, onClose }: { goal: AccountDto; direct
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>{direction === 'in' ? 'From' : 'To'}</Label>
-              <Select aria-label={direction === 'in' ? 'From' : 'To'} value={otherId} onValueChange={setOtherId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
+              <Select
+                aria-label={direction === 'in' ? 'From' : 'To'}
+                value={otherId}
+                onValueChange={setOtherId}
+                options={cash.map((a) => ({
+                  value: a.id,
+                  text: accountLabel(a),
+                  label: (
+                    <span className="flex w-full justify-between gap-3">
+                      {accountLabel(a)}{' '}
+                      <Money value={a.availableBalance ?? a.balance} className="text-muted" />
+                    </span>
+                  ),
+                }))}
+              />
             </div>
-            <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={fieldError ?? undefined} autoFocus hint={<>Available <Money value={fromAvail} className="text-text" /></>} />
+            <AmountInput
+              label="Amount"
+              value={amount}
+              onValueChange={setAmount}
+              error={fieldError ?? undefined}
+              autoFocus
+              hint={
+                <>
+                  Available <Money value={fromAvail} className="text-text" />
+                </>
+              }
+            />
             <Button className="w-full" onClick={review}>
               Review
             </Button>
@@ -306,7 +441,8 @@ function RoundUpPanel({ cash, goals }: { cash: AccountDto[]; goals: AccountDto[]
   const [accountId, setAccountId] = useState(cash[0]?.id ?? '')
   const current = useRoundUp(accountId)
   const save = useMutation({
-    mutationFn: (b: { enabled: boolean; roundTo: 10 | 50 | 100; goalAccountId: string }) => savingsApi.setRoundUp(accountId, b),
+    mutationFn: (b: { enabled: boolean; roundTo: 10 | 50 | 100; goalAccountId: string }) =>
+      savingsApi.setRoundUp(accountId, b),
     onSuccess: () => {
       toast.success('Round-ups updated')
       void qc.invalidateQueries({ queryKey: ['savings', 'round-up'] })
@@ -315,14 +451,27 @@ function RoundUpPanel({ cash, goals }: { cash: AccountDto[]; goals: AccountDto[]
   })
   const r = current.data
   return (
-    <Panel eyebrow="Spare change" title="Round-ups" description="Every spend rounds up; the change is swept into a goal once a day.">
+    <Panel
+      eyebrow="Spare change"
+      title="Round-ups"
+      description="Every spend rounds up; the change is swept into a goal once a day."
+    >
       {goals.length === 0 ? (
         <p className="text-sm text-muted">Create a goal first.</p>
       ) : (
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Round up spends from</Label>
-            <Select aria-label="Round up spends from" value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
+            <Select
+              aria-label="Round up spends from"
+              value={accountId}
+              onValueChange={setAccountId}
+              options={cash.map((a) => ({
+                value: a.id,
+                text: accountLabel(a),
+                label: accountLabel(a),
+              }))}
+            />
           </div>
           {!r ? (
             <Skeleton className="h-28 w-full" />
@@ -330,16 +479,55 @@ function RoundUpPanel({ cash, goals }: { cash: AccountDto[]; goals: AccountDto[]
             <>
               <div className="space-y-1.5">
                 <Label>Round to the next</Label>
-                <Segmented label="Round to" value={String(r.roundTo) as '10' | '50' | '100'} onValueChange={(v) => save.mutate({ enabled: r.enabled, roundTo: Number(v) as 10 | 50 | 100, goalAccountId: r.goalAccountId || (goals[0]?.id ?? '') })} options={[{ value: '10', label: '₹10' }, { value: '50', label: '₹50' }, { value: '100', label: '₹100' }]} />
+                <Segmented
+                  label="Round to"
+                  value={String(r.roundTo) as '10' | '50' | '100'}
+                  onValueChange={(v) =>
+                    save.mutate({
+                      enabled: r.enabled,
+                      roundTo: Number(v) as 10 | 50 | 100,
+                      goalAccountId: r.goalAccountId || (goals[0]?.id ?? ''),
+                    })
+                  }
+                  options={[
+                    { value: '10', label: '₹10' },
+                    { value: '50', label: '₹50' },
+                    { value: '100', label: '₹100' },
+                  ]}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Into</Label>
-                <Select aria-label="Into" value={r.goalAccountId || (goals[0]?.id ?? '')} onValueChange={(v) => save.mutate({ enabled: r.enabled, roundTo: r.roundTo, goalAccountId: v })} options={goals.map((g) => ({ value: g.id, text: g.goal?.name ?? 'Goal', label: `${g.goal?.emoji ?? '🎯'} ${g.goal?.name ?? 'Goal'}` }))} />
+                <Select
+                  aria-label="Into"
+                  value={r.goalAccountId || (goals[0]?.id ?? '')}
+                  onValueChange={(v) =>
+                    save.mutate({ enabled: r.enabled, roundTo: r.roundTo, goalAccountId: v })
+                  }
+                  options={goals.map((g) => ({
+                    value: g.id,
+                    text: g.goal?.name ?? 'Goal',
+                    label: `${g.goal?.emoji ?? '🎯'} ${g.goal?.name ?? 'Goal'}`,
+                  }))}
+                />
               </div>
-              <Button variant={r.enabled ? 'secondary' : 'primary'} disabled={save.isPending} onClick={() => save.mutate({ enabled: !r.enabled, roundTo: r.roundTo, goalAccountId: r.goalAccountId || (goals[0]?.id ?? '') })}>
-                <Coins aria-hidden="true" /> {r.enabled ? 'Turn off round-ups' : 'Turn on round-ups'}
+              <Button
+                variant={r.enabled ? 'secondary' : 'primary'}
+                disabled={save.isPending}
+                onClick={() =>
+                  save.mutate({
+                    enabled: !r.enabled,
+                    roundTo: r.roundTo,
+                    goalAccountId: r.goalAccountId || (goals[0]?.id ?? ''),
+                  })
+                }
+              >
+                <Coins aria-hidden="true" />{' '}
+                {r.enabled ? 'Turn off round-ups' : 'Turn on round-ups'}
               </Button>
-              <p className="text-xs text-muted">Example: a ₹243 bill rounds to ₹250, so ₹7 goes to your goal.</p>
+              <p className="text-xs text-muted">
+                Example: a ₹243 bill rounds to ₹250, so ₹7 goes to your goal.
+              </p>
             </>
           )}
         </div>
@@ -358,7 +546,9 @@ function FdList() {
       ) : !fds.data ? (
         <Skeleton className="h-32 w-full" />
       ) : fds.data.length === 0 ? (
-        <EmptyState icon={<Landmark />} title="No fixed deposits">Book one from the top of the page.</EmptyState>
+        <EmptyState icon={<Landmark />} title="No fixed deposits">
+          Book one from the top of the page.
+        </EmptyState>
       ) : (
         <ul className="space-y-2">
           {fds.data.map((f) => {
@@ -372,7 +562,9 @@ function FdList() {
                       {f.status !== 'ACTIVE' && <Badge>{f.status.toLowerCase()}</Badge>}
                     </p>
                     <p className="text-xs text-muted">
-                      {f.accountNumberMasked} · {f.tenureDays} days · matures {formatDate(f.maturityDate)} · {f.onMaturity === 'RENEW' ? 'auto-renews' : 'pays out'}
+                      {f.accountNumberMasked} · {f.tenureDays} days · matures{' '}
+                      {formatDate(f.maturityDate)} ·{' '}
+                      {f.onMaturity === 'RENEW' ? 'auto-renews' : 'pays out'}
                     </p>
                   </div>
                   <div className="text-right text-sm">
@@ -385,10 +577,18 @@ function FdList() {
                   </div>
                 </div>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
-                  <div className="h-full rounded-full bg-chart-3" style={{ width: `${Math.min(100, (held / f.tenureDays) * 100)}%` }} />
+                  <div
+                    className="h-full rounded-full bg-chart-3"
+                    style={{ width: `${Math.min(100, (held / f.tenureDays) * 100)}%` }}
+                  />
                 </div>
                 {f.status === 'ACTIVE' && (
-                  <Button size="sm" variant="ghost" className="mt-2 -ml-2" onClick={() => setClosing(f)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="mt-2 -ml-2"
+                    onClick={() => setClosing(f)}
+                  >
                     Close early
                   </Button>
                 )}
@@ -407,12 +607,16 @@ function CloseFd({ fd, onClose }: { fd: FixedDepositDto; onClose: () => void }) 
   const qc = useQueryClient()
   return (
     <Dialog open onOpenChange={(o) => !o && !action.pending && onClose()}>
-      <DialogContent title="Close this deposit early?" description="You’ll get the rate for the time it was held, minus 1%. The money returns to the account it came from.">
+      <DialogContent
+        title="Close this deposit early?"
+        description="You’ll get the rate for the time it was held, minus 1%. The money returns to the account it came from."
+      >
         {action.step === 'success' && action.result ? (
           <div className="space-y-4 text-center">
             <SuccessCheck label="Deposit closed" />
             <p className="text-sm text-muted">
-              <Money value={action.result.maturityAmount} className="text-text" /> returned, including <Money value={action.result.accruedInterest} /> interest.
+              <Money value={action.result.maturityAmount} className="text-text" /> returned,
+              including <Money value={action.result.accruedInterest} /> interest.
             </p>
             <Button className="w-full" onClick={onClose}>
               Done
@@ -436,15 +640,18 @@ function CloseFd({ fd, onClose }: { fd: FixedDepositDto; onClose: () => void }) 
                 disabled={action.pending}
                 onClick={() => {
                   action.review()
-                  void action.confirm((key) => savingsApi.closeFd(fd.id, key)).then((r) => {
-                    if (r.ok) {
-                      void qc.invalidateQueries({ queryKey: ['savings'] })
-                      void qc.invalidateQueries({ queryKey: ['accounts'] })
-                    }
-                  })
+                  void action
+                    .confirm((key) => savingsApi.closeFd(fd.id, key))
+                    .then((r) => {
+                      if (r.ok) {
+                        void qc.invalidateQueries({ queryKey: ['savings'] })
+                        void qc.invalidateQueries({ queryKey: ['accounts'] })
+                      }
+                    })
                 }}
               >
-                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Close deposit
+                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}{' '}
+                Close deposit
               </Button>
             </div>
           </div>
@@ -475,24 +682,33 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
   const from = cash.find((a) => a.id === fromId)
   const rate = rates.data?.find((r) => days >= r.minDays && days <= r.maxDays)?.annualRate
   // Indicative only (simple interest for display); the server computes the real figure.
-  const estimate = rate && AMOUNT_INPUT_RE.test(amount) ? toDecimal(amount).times(rate).div(100).times(days).div(365).toDecimalPlaces(2) : null
+  const estimate =
+    rate && AMOUNT_INPUT_RE.test(amount)
+      ? toDecimal(amount).times(rate).div(100).times(days).div(365).toDecimalPlaces(2)
+      : null
 
   function review() {
     setFieldError(null)
-    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1000)) return setFieldError('At least ₹1,000')
+    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1000))
+      return setFieldError('At least ₹1,000')
     if (toDecimal(amount).gt(1000000)) return setFieldError('At most ₹10,00,000')
     action.review()
   }
 
   return (
     <Dialog open onOpenChange={(o) => !o && !action.pending && onClose()}>
-      <DialogContent title="Book a fixed deposit" description="A fixed rate for a fixed term. Closing early pays the rate for the time held, minus 1%." className="max-w-lg">
+      <DialogContent
+        title="Book a fixed deposit"
+        description="A fixed rate for a fixed term. Closing early pays the rate for the time held, minus 1%."
+        className="max-w-lg"
+      >
         {action.step === 'success' && action.result ? (
           <div className="space-y-4 text-center">
             <SuccessCheck label="Deposit booked" />
             <p className="font-display text-4xl">{formatINR(action.result.principal)}</p>
             <p className="text-sm text-muted">
-              at {action.result.annualRate}% p.a., maturing {formatDate(action.result.maturityDate)} at <Money value={action.result.maturityAmount} className="text-text" />.
+              at {action.result.annualRate}% p.a., maturing {formatDate(action.result.maturityDate)}{' '}
+              at <Money value={action.result.maturityAmount} className="text-text" />.
             </p>
             <Button className="w-full" onClick={onClose}>
               Done
@@ -500,7 +716,10 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
           </div>
         ) : action.step === 'review' && from && rate ? (
           <div className="space-y-5">
-            <ReviewAmount value={amount} caption={`Fixed for ${TENURES.find((t) => t.days === days)?.label}`} />
+            <ReviewAmount
+              value={amount}
+              caption={`Fixed for ${TENURES.find((t) => t.days === days)?.label}`}
+            />
             <ReviewRows>
               <ReviewRow label="Rate" emphasis>
                 {rate}% p.a.
@@ -511,9 +730,18 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
                   <Money value={estimate} />
                 </ReviewRow>
               )}
-              <ReviewRow label="At maturity">{onMaturity === 'RENEW' ? 'Renew automatically' : 'Pay out to this account'}</ReviewRow>
+              <ReviewRow label="At maturity">
+                {onMaturity === 'RENEW' ? 'Renew automatically' : 'Pay out to this account'}
+              </ReviewRow>
             </ReviewRows>
-            {action.error && <MoneyErrorAlert copy={moneyErrorCopy(action.error, { amount, balance: from.availableBalance ?? from.balance })} />}
+            {action.error && (
+              <MoneyErrorAlert
+                copy={moneyErrorCopy(action.error, {
+                  amount,
+                  balance: from.availableBalance ?? from.balance,
+                })}
+              />
+            )}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={action.edit} disabled={action.pending}>
                 Edit
@@ -522,15 +750,28 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
                 className="flex-1"
                 disabled={action.pending}
                 onClick={() =>
-                  void action.confirm((key) => savingsApi.bookFd({ fromAccountId: from.id, amount: toDecimal(amount).toFixed(2), tenureDays: days, onMaturity }, key)).then((r) => {
-                    if (r.ok) {
-                      void qc.invalidateQueries({ queryKey: ['savings'] })
-                      void qc.invalidateQueries({ queryKey: ['accounts'] })
-                    }
-                  })
+                  void action
+                    .confirm((key) =>
+                      savingsApi.bookFd(
+                        {
+                          fromAccountId: from.id,
+                          amount: toDecimal(amount).toFixed(2),
+                          tenureDays: days,
+                          onMaturity,
+                        },
+                        key,
+                      ),
+                    )
+                    .then((r) => {
+                      if (r.ok) {
+                        void qc.invalidateQueries({ queryKey: ['savings'] })
+                        void qc.invalidateQueries({ queryKey: ['accounts'] })
+                      }
+                    })
                 }
               >
-                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Book deposit
+                {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}{' '}
+                Book deposit
               </Button>
             </div>
           </div>
@@ -538,16 +779,43 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>From</Label>
-              <Select aria-label="From" value={fromId} onValueChange={setFromId} options={cash.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))} />
+              <Select
+                aria-label="From"
+                value={fromId}
+                onValueChange={setFromId}
+                options={cash.map((a) => ({
+                  value: a.id,
+                  text: accountLabel(a),
+                  label: (
+                    <span className="flex w-full justify-between gap-3">
+                      {accountLabel(a)}{' '}
+                      <Money value={a.availableBalance ?? a.balance} className="text-muted" />
+                    </span>
+                  ),
+                }))}
+              />
             </div>
-            <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={fieldError ?? undefined} />
+            <AmountInput
+              label="Amount"
+              value={amount}
+              onValueChange={setAmount}
+              error={fieldError ?? undefined}
+            />
             <div className="space-y-1.5">
               <Label>Tenure</Label>
               <div className="grid grid-cols-3 gap-2">
                 {TENURES.map((t) => {
-                  const r = rates.data?.find((x) => t.days >= x.minDays && t.days <= x.maxDays)?.annualRate
+                  const r = rates.data?.find(
+                    (x) => t.days >= x.minDays && t.days <= x.maxDays,
+                  )?.annualRate
                   return (
-                    <button key={t.days} type="button" aria-pressed={days === t.days} onClick={() => setDays(t.days)} className={`rounded-xl p-2.5 text-left text-sm hairline transition-colors ${days === t.days ? 'border-accent bg-accent/10' : 'bg-surface-2 hover:border-border-strong'}`}>
+                    <button
+                      key={t.days}
+                      type="button"
+                      aria-pressed={days === t.days}
+                      onClick={() => setDays(t.days)}
+                      className={`rounded-xl p-2.5 text-left text-sm hairline transition-colors ${days === t.days ? 'border-accent bg-accent/10' : 'bg-surface-2 hover:border-border-strong'}`}
+                    >
                       <span className="block font-medium">{t.label}</span>
                       <span className="num text-xs text-muted">{r ? `${r}%` : '—'}</span>
                     </button>
@@ -557,9 +825,21 @@ function BookFd({ cash, onClose }: { cash: AccountDto[]; onClose: () => void }) 
             </div>
             <div className="space-y-1.5">
               <Label>At maturity</Label>
-              <Segmented label="On maturity" value={onMaturity} onValueChange={setOnMaturity} options={[{ value: 'PAYOUT', label: 'Pay out' }, { value: 'RENEW', label: 'Renew' }]} />
+              <Segmented
+                label="On maturity"
+                value={onMaturity}
+                onValueChange={setOnMaturity}
+                options={[
+                  { value: 'PAYOUT', label: 'Pay out' },
+                  { value: 'RENEW', label: 'Renew' },
+                ]}
+              />
             </div>
-            {estimate && <p className="text-sm text-muted">You’d earn about <Money value={estimate} className="text-gain" /> (indicative).</p>}
+            {estimate && (
+              <p className="text-sm text-muted">
+                You’d earn about <Money value={estimate} className="text-gain" /> (indicative).
+              </p>
+            )}
             <Button className="w-full" onClick={review} disabled={!rate}>
               Review
             </Button>

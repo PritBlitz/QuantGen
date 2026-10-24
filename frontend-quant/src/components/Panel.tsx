@@ -50,7 +50,10 @@ export function Panel({
 
 export function PanelError({ what, onRetry }: { what: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-start justify-center gap-3 py-6 text-sm" role="alert">
+    <div
+      className="flex flex-1 flex-col items-start justify-center gap-3 py-6 text-sm"
+      role="alert"
+    >
       <p className="flex items-center gap-2 text-muted">
         <AlertCircle aria-hidden="true" className="size-4 text-warn" />
         Couldn’t load {what}.

@@ -20,7 +20,13 @@ describe('Proof of Balance', () => {
     const user = userEvent.setup()
     renderApp('/proof')
     await user.click(await verifyButton())
-    expect(await screen.findByText('Verified. Your balance is in the published total.', {}, { timeout: 8000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Verified. Your balance is in the published total.',
+        {},
+        { timeout: 8000 },
+      ),
+    ).toBeInTheDocument()
     await user.click(screen.getByText('Show the maths, step by step'))
     expect(screen.getAllByText('match')).toHaveLength(2)
   })
@@ -34,17 +40,32 @@ describe('Proof of Balance', () => {
     const options = await screen.findAllByRole('option')
     await user.click(options[3] as HTMLElement)
     await user.click(await verifyButton())
-    expect(await screen.findByText('Verified. Your balance is in the published total.', {}, { timeout: 8000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Verified. Your balance is in the published total.',
+        {},
+        { timeout: 8000 },
+      ),
+    ).toBeInTheDocument()
   })
 
   it('fails when the server’s proof doesn’t add up (tampered balance)', async () => {
     signInAs('CUSTOMER')
     // Pass the real proof through, but inflate the leaf balance by ₹1.
     server.use(
-      http.get('/api/v1/proofs/accounts/:id', async ({ request }) => {
-        const real = (await (await fetch(new Request(request.url, { headers: request.headers }))).json()) as BalanceProofDto
-        return HttpResponse.json({ ...real, leaf: { ...real.leaf, balance: new Decimal(real.leaf.balance).plus(1).toFixed(4) } })
-      }, { once: true }), // once: the inner fetch then reaches the regular mock handler
+      http.get(
+        '/api/v1/proofs/accounts/:id',
+        async ({ request }) => {
+          const real = (await (
+            await fetch(new Request(request.url, { headers: request.headers }))
+          ).json()) as BalanceProofDto
+          return HttpResponse.json({
+            ...real,
+            leaf: { ...real.leaf, balance: new Decimal(real.leaf.balance).plus(1).toFixed(4) },
+          })
+        },
+        { once: true },
+      ), // once: the inner fetch then reaches the regular mock handler
     )
     const user = userEvent.setup()
     renderApp('/proof')
@@ -61,6 +82,8 @@ describe('Proof of Balance', () => {
     expect(await screen.findByText('Solvency')).toBeInTheDocument()
     expect(await screen.findByText(/×$/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Verify chain' }))
-    expect(await screen.findByText(/Intact through seal/, {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Intact through seal/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
   })
 })

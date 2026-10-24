@@ -67,12 +67,7 @@ export interface AccountV2Fields {
   goal?: GoalInfo | null
 }
 export type TransactionTypeV2 =
-  | TransactionType
-  | 'BILL_PAYMENT'
-  | 'INTEREST'
-  | 'CARD'
-  | 'REFUND'
-  | 'TOPUP'
+  TransactionType | 'BILL_PAYMENT' | 'INTEREST' | 'CARD' | 'REFUND' | 'TOPUP'
 export type TransferStatusV2 = 'COMPLETED' | 'FAILED' | 'PENDING_REVIEW' | 'REJECTED'
 export type TransferSource = 'MANUAL' | 'SCHEDULED' | 'AUTOPILOT' | 'INTENT' | 'REQUEST'
 export type KycStatus = 'NONE' | 'PENDING' | 'VERIFIED'
@@ -222,14 +217,7 @@ export interface ScheduledTransferDto {
   } | null
 }
 export type BillerCategory =
-  | 'ELECTRICITY'
-  | 'MOBILE'
-  | 'BROADBAND'
-  | 'DTH'
-  | 'GAS'
-  | 'WATER'
-  | 'CREDIT_CARD'
-  | 'INSURANCE'
+  'ELECTRICITY' | 'MOBILE' | 'BROADBAND' | 'DTH' | 'GAS' | 'WATER' | 'CREDIT_CARD' | 'INSURANCE'
 export interface BillerDto {
   id: Uuid
   name: string
@@ -768,14 +756,7 @@ export interface SolvencyDto {
 
 // §12.11 Cards ──────────────────────────────────────────────────────────────────────
 export type MerchantCategory =
-  | 'GROCERY'
-  | 'DINING'
-  | 'TRAVEL'
-  | 'ELECTRONICS'
-  | 'GAMBLING'
-  | 'FUEL'
-  | 'ENTERTAINMENT'
-  | 'OTHER'
+  'GROCERY' | 'DINING' | 'TRAVEL' | 'ELECTRONICS' | 'GAMBLING' | 'FUEL' | 'ENTERTAINMENT' | 'OTHER'
 export interface CardControls {
   frozen: boolean
   online: boolean
@@ -805,7 +786,8 @@ export interface MerchantAuthRequest {
   category: MerchantCategory
 }
 // F-CARD-4 disputes (PRD §12.11, accepted 2026-10-24) ───────────────────────────────
-export type DisputeReason = 'NOT_RECEIVED' | 'NOT_AS_DESCRIBED' | 'DUPLICATE' | 'NOT_RECOGNISED' | 'OTHER'
+export type DisputeReason =
+  'NOT_RECEIVED' | 'NOT_AS_DESCRIBED' | 'DUPLICATE' | 'NOT_RECOGNISED' | 'OTHER'
 export type DisputeStatus = 'OPEN' | 'REFUNDED' | 'REJECTED'
 /** A captured payment on the caller's own card. `disputableAmount` = captured − refunded − open disputes. */
 export interface CardPaymentDto {
@@ -878,10 +860,7 @@ export type AnalyticsMetric =
   | 'AUTOPILOT_RUNS'
   | 'FRAUD_CASES'
 export type KpiKey =
-  | AnalyticsMetric
-  | 'FUNDED_USERS_PCT'
-  | 'OUTSTANDING_PRINCIPAL'
-  | 'OVERDUE_RATE_PCT'
+  AnalyticsMetric | 'FUNDED_USERS_PCT' | 'OUTSTANDING_PRINCIPAL' | 'OVERDUE_RATE_PCT'
 export type BreakdownDimension =
   | 'TRANSACTION_TYPE'
   | 'ACCOUNT_TYPE'
@@ -963,7 +942,11 @@ export interface LoanBookDto {
   avgTicket: MoneyString
   overdueAmount: MoneyString
   overdueRatePct: DecimalString
-  ageing: Array<{ bucket: '1-30' | '31-60' | '61-90' | '90+'; count: DecimalString; amount: MoneyString }>
+  ageing: Array<{
+    bucket: '1-30' | '31-60' | '61-90' | '90+'
+    count: DecimalString
+    amount: MoneyString
+  }>
   byStatus: Array<{ status: LoanStatus; count: DecimalString; amount: MoneyString }>
 }
 export interface AdoptionDto {
@@ -974,7 +957,12 @@ export interface AdoptionDto {
     pct: DecimalString
     available: boolean
   }>
-  ai: { available: boolean; turns: DecimalString; costUsd: DecimalString; costPerActiveUser: DecimalString }
+  ai: {
+    available: boolean
+    turns: DecimalString
+    costUsd: DecimalString
+    costPerActiveUser: DecimalString
+  }
   autopilot: { available: boolean; runs: DecimalString; successPct: DecimalString }
   fraud: { available: boolean; cases: DecimalString; releasedPct: DecimalString }
 }

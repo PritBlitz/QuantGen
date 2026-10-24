@@ -17,12 +17,19 @@ export const securityKeys = {
 /** /users/me, seeded from the session so the page renders instantly. */
 export function useMe() {
   const cached = useAuthStore((s) => s.user)
-  return useQuery({ queryKey: securityKeys.me, queryFn: authApi.me, initialData: cached ?? undefined })
+  return useQuery({
+    queryKey: securityKeys.me,
+    queryFn: authApi.me,
+    initialData: cached ?? undefined,
+  })
 }
 
-export const usePasskeys = () => useQuery({ queryKey: securityKeys.passkeys, queryFn: securityApi.passkeys })
-export const useSessions = () => useQuery({ queryKey: securityKeys.sessions, queryFn: securityApi.sessions })
-export const useLimits = () => useQuery({ queryKey: securityKeys.limits, queryFn: securityApi.limits })
+export const usePasskeys = () =>
+  useQuery({ queryKey: securityKeys.passkeys, queryFn: securityApi.passkeys })
+export const useSessions = () =>
+  useQuery({ queryKey: securityKeys.sessions, queryFn: securityApi.sessions })
+export const useLimits = () =>
+  useQuery({ queryKey: securityKeys.limits, queryFn: securityApi.limits })
 export const useKyc = () => useQuery({ queryKey: securityKeys.kyc, queryFn: securityApi.kyc })
 export const useTokens = () => useQuery({ queryKey: securityKeys.tokens, queryFn: tokensApi.list })
 
@@ -47,13 +54,17 @@ export function useAddPasskey() {
 
 export function useRemovePasskey() {
   const invalidate = useInvalidate(securityKeys.passkeys, securityKeys.me)
-  return useMutation({ mutationFn: (id: string) => securityApi.removePasskey(id), onSuccess: invalidate })
+  return useMutation({
+    mutationFn: (id: string) => securityApi.removePasskey(id),
+    onSuccess: invalidate,
+  })
 }
 
 export function useSetPin() {
   const invalidate = useInvalidate(securityKeys.me)
   return useMutation({
-    mutationFn: ({ pin, password }: { pin: string; password?: string }) => securityApi.setPin(pin, password),
+    mutationFn: ({ pin, password }: { pin: string; password?: string }) =>
+      securityApi.setPin(pin, password),
     onSuccess: invalidate,
   })
 }
@@ -61,7 +72,8 @@ export function useSetPin() {
 export function useRevokeSession() {
   const invalidate = useInvalidate(securityKeys.sessions)
   return useMutation({
-    mutationFn: (id: string | 'others') => (id === 'others' ? securityApi.revokeOtherSessions() : securityApi.revokeSession(id)),
+    mutationFn: (id: string | 'others') =>
+      id === 'others' ? securityApi.revokeOtherSessions() : securityApi.revokeSession(id),
     onSuccess: invalidate,
   })
 }
@@ -69,7 +81,8 @@ export function useRevokeSession() {
 export function useSetLimits() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { perTransfer?: MoneyString; daily?: MoneyString }) => securityApi.setLimits(body),
+    mutationFn: (body: { perTransfer?: MoneyString; daily?: MoneyString }) =>
+      securityApi.setLimits(body),
     onSuccess: (data) => qc.setQueryData(securityKeys.limits, data),
   })
 }
@@ -88,7 +101,8 @@ export function useSetKyc() {
 export function useCreateToken() {
   const invalidate = useInvalidate(securityKeys.tokens)
   return useMutation({
-    mutationFn: (body: { name: string; scope: TokenScope; expiresInDays: number }) => tokensApi.create(body),
+    mutationFn: (body: { name: string; scope: TokenScope; expiresInDays: number }) =>
+      tokensApi.create(body),
     onSuccess: invalidate,
   })
 }

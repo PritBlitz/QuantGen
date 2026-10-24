@@ -5,20 +5,35 @@
  * Approving an intent re-validates it and moves money through the same mock ledger as the UI.
  */
 import { delay, http, HttpResponse } from 'msw'
-import type { AgentName, CitationDto, ConversationDetailDto, IntentDto, IntentKind, TraceDto } from '@/api/types'
+import type {
+  AgentName,
+  CitationDto,
+  ConversationDetailDto,
+  IntentDto,
+  IntentKind,
+  TraceDto,
+} from '@/api/types'
 import { BASE, db, error, idempotent, inr, last4, notify } from '../handlers'
 import { available, Decimal, json, money, move, notFound, requireUser, stepUpGate } from './common'
 import { budgetsFor, syntheticSpend } from './savings'
 import { DEMO_GOAL_GOA, PEOPLE } from './state'
 
 const enc = new TextEncoder()
-const sse = (event: string, data: unknown) => enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+const sse = (event: string, data: unknown) =>
+  enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
 
 type Step = { agent: AgentName; tool: string; ms: number }
 interface Plan {
   steps: Step[]
   text: string
-  intent?: { kind: IntentKind; payload: Record<string, unknown>; rationale: string; summary: IntentDto['summary']; risk: IntentDto['riskLevel']; stepUp: boolean }
+  intent?: {
+    kind: IntentKind
+    payload: Record<string, unknown>
+    rationale: string
+    summary: IntentDto['summary']
+    risk: IntentDto['riskLevel']
+    stepUp: boolean
+  }
   citations?: CitationDto[]
 }
 
@@ -28,11 +43,15 @@ function plan(userId: string, text: string): Plan {
   const savings = accts.find((a) => a.type === 'SAVINGS')
   const amountMatch = t.match(/(?:₹|rs\.?\s*|inr\s*)?(\d[\d,]*(?:\.\d{1,2})?)\s*(k|l|lakh)?/)
   const amount = amountMatch
-    ? new Decimal(amountMatch[1]!.replace(/,/g, '')).times(amountMatch[2] === 'k' ? 1000 : amountMatch[2] ? 100000 : 1)
+    ? new Decimal(amountMatch[1]!.replace(/,/g, '')).times(
+        amountMatch[2] === 'k' ? 1000 : amountMatch[2] ? 100000 : 1,
+      )
     : null
 
   // Payments: "pay meera 500 for dinner"
-  const payTo = Object.values(PEOPLE).find((p) => p.id !== userId && t.includes(p.name.split(' ')[0]!.toLowerCase()))
+  const payTo = Object.values(PEOPLE).find(
+    (p) => p.id !== userId && t.includes(p.name.split(' ')[0]!.toLowerCase()),
+  )
   if (/\b(pay|send|transfer)\b/.test(t) && payTo && amount && savings) {
     const big = amount.gt(50000)
     return {
@@ -45,7 +64,12 @@ function plan(userId: string, text: string): Plan {
       text: `I’ve prepared a payment of ${inr(amount)} to ${payTo.name} (${payTo.handle}) from your Savings account. Check the card below and approve it if it looks right${big ? ' — it’s over ₹50,000, so you’ll confirm with your passkey or PIN' : ''}. Nothing is sent until you approve.`,
       intent: {
         kind: 'TRANSFER',
-        payload: { fromAccountId: savings.id, toHandle: payTo.handle, amount: money(amount), note: text.match(/for (.+)$/i)?.[1]?.slice(0, 60) ?? null },
+        payload: {
+          fromAccountId: savings.id,
+          toHandle: payTo.handle,
+          amount: money(amount),
+          note: text.match(/for (.+)$/i)?.[1]?.slice(0, 60) ?? null,
+        },
         rationale: `You asked to pay ${payTo.name.split(' ')[0]} ${inr(amount)}. Your Savings balance covers it and you’re within today’s limit.`,
         summary: {
           title: `Pay ${inr(amount)} to ${payTo.name}`,
@@ -81,7 +105,15 @@ function plan(userId: string, text: string): Plan {
           kind: 'ORDER',
           payload: { accountId: savings.id, symbol: sym, side: 'BUY', quantity: qty },
           rationale: `Market order for ${qty} ${sym}. Estimated cost uses the latest tick.`,
-          summary: { title: `Buy ${qty} × ${sym}`, lines: [{ label: 'Instrument', value: `${inst.name} (${sym})` }, { label: 'Estimated cost', value: inr(total) }, { label: 'Pay from', value: `Savings ${last4(savings.accountNumber)}` }, { label: 'Order type', value: 'Market' }] },
+          summary: {
+            title: `Buy ${qty} × ${sym}`,
+            lines: [
+              { label: 'Instrument', value: `${inst.name} (${sym})` },
+              { label: 'Estimated cost', value: inr(total) },
+              { label: 'Pay from', value: `Savings ${last4(savings.accountNumber)}` },
+              { label: 'Order type', value: 'Market' },
+            ],
+          },
           risk: total.gt(50000) ? 'MEDIUM' : 'LOW',
           stepUp: false,
         },
@@ -104,7 +136,14 @@ function plan(userId: string, text: string): Plan {
         kind: 'GOAL_TRANSFER',
         payload: { fromAccountId: savings.id, toAccountId: DEMO_GOAL_GOA, amount: money(amount) },
         rationale: 'Own-account move: no limits or step-up apply.',
-        summary: { title: `Move ${inr(amount)} to ${goal?.name ?? 'goal'}`, lines: [{ label: 'From', value: `Savings ${last4(savings.accountNumber)}` }, { label: 'To', value: goal?.name ?? 'Goal' }, { label: 'Amount', value: inr(amount) }] },
+        summary: {
+          title: `Move ${inr(amount)} to ${goal?.name ?? 'goal'}`,
+          lines: [
+            { label: 'From', value: `Savings ${last4(savings.accountNumber)}` },
+            { label: 'To', value: goal?.name ?? 'Goal' },
+            { label: 'Amount', value: inr(amount) },
+          ],
+        },
         risk: 'LOW',
         stepUp: false,
       },
@@ -125,7 +164,9 @@ function plan(userId: string, text: string): Plan {
       text: `This month you’ve spent about ${inr(total)}. The biggest pieces are ${spend
         .slice(0, 3)
         .map(([c, v]) => `${c.toLowerCase()} (${inr(v)})`)
-        .join(', ')}. ${over.length ? `Heads-up: ${over.map((b) => b.category.toLowerCase()).join(' and ')} ${over.length === 1 ? 'is' : 'are'} past 80% of budget.` : 'All your budgets are comfortably under 80%.'} Want me to set a budget or move the leftover into a goal?`,
+        .join(
+          ', ',
+        )}. ${over.length ? `Heads-up: ${over.map((b) => b.category.toLowerCase()).join(' and ')} ${over.length === 1 ? 'is' : 'are'} past 80% of budget.` : 'All your budgets are comfortably under 80%.'} Want me to set a budget or move the leftover into a goal?`,
       citations: [{ type: 'METRIC', id: 'spending', label: 'Spending by category (this month)' }],
     }
   }
@@ -152,7 +193,11 @@ function plan(userId: string, text: string): Plan {
         { agent: 'LEDGER_ANALYST', tool: 'list_accounts', ms: 350 },
       ],
       text: `You have ${cash.map((a) => `${inr(available(a))} available in ${a.type === 'SAVINGS' ? 'Savings' : 'Checking'} ${last4(a.accountNumber)}`).join(' and ')}. Your goals hold ${inr(accts.filter((a) => a.type === 'GOAL').reduce((s, a) => s.plus(a.balance), new Decimal(0)))} more.`,
-      citations: cash.map((a) => ({ type: 'ACCOUNT' as const, id: a.id, label: `${a.type === 'SAVINGS' ? 'Savings' : 'Checking'} ${last4(a.accountNumber)}` })),
+      citations: cash.map((a) => ({
+        type: 'ACCOUNT' as const,
+        id: a.id,
+        label: `${a.type === 'SAVINGS' ? 'Savings' : 'Checking'} ${last4(a.accountNumber)}`,
+      })),
     }
   }
 
@@ -180,33 +225,70 @@ function newTrace(steps: Step[]): TraceDto {
     totalMs: steps.reduce((s, x) => s + x.ms, 0) + 900,
     costUsd: (0.004 + steps.length * 0.0021).toFixed(4),
     steps: [
-      ...steps.map((s) => ({ agent: s.agent, kind: (s.tool.startsWith('ask_') || s.tool === 'route' ? 'MODEL' : 'TOOL') as 'MODEL' | 'TOOL', name: s.tool, status: 'OK' as const, latencyMs: s.ms, inputTokens: s.tool.startsWith('ask_') ? 1840 : null, outputTokens: s.tool.startsWith('ask_') ? 120 : null, detail: s.tool === 'resolve_payee' ? 'handle → masked name' : null })),
-      { agent: 'CONCIERGE', kind: 'MODEL', name: 'compose_answer', status: 'OK', latencyMs: 900, inputTokens: 2310, outputTokens: 180, detail: null },
+      ...steps.map((s) => ({
+        agent: s.agent,
+        kind: (s.tool.startsWith('ask_') || s.tool === 'route' ? 'MODEL' : 'TOOL') as
+          'MODEL' | 'TOOL',
+        name: s.tool,
+        status: 'OK' as const,
+        latencyMs: s.ms,
+        inputTokens: s.tool.startsWith('ask_') ? 1840 : null,
+        outputTokens: s.tool.startsWith('ask_') ? 120 : null,
+        detail: s.tool === 'resolve_payee' ? 'handle → masked name' : null,
+      })),
+      {
+        agent: 'CONCIERGE',
+        kind: 'MODEL',
+        name: 'compose_answer',
+        status: 'OK',
+        latencyMs: 900,
+        inputTokens: 2310,
+        outputTokens: 180,
+        detail: null,
+      },
     ],
   }
 }
 
-function publicIntent({ userId: _u, payload: _p, ...i }: IntentDto & { userId: string; payload: Record<string, unknown> }): IntentDto {
-  if (i.status === 'PROPOSED' && Date.parse(i.expiresAt) < Date.now()) return { ...i, status: 'EXPIRED' }
+function publicIntent({
+  userId: _u,
+  payload: _p,
+  ...i
+}: IntentDto & { userId: string; payload: Record<string, unknown> }): IntentDto {
+  if (i.status === 'PROPOSED' && Date.parse(i.expiresAt) < Date.now())
+    return { ...i, status: 'EXPIRED' }
   return i
 }
 
-const conv = (userId: string, id: unknown) => db.v2.conversations.find((c) => c.id === id && c.userId === userId)
+const conv = (userId: string, id: unknown) =>
+  db.v2.conversations.find((c) => c.id === id && c.userId === userId)
 
 export const copilotHandlers = [
   http.post(`${BASE}/copilot/conversations`, ({ request }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    if (!db.v2.flags.ai.enabled) return error(503, 'FEATURE_DISABLED', 'Copilot is switched off', request)
+    if (!db.v2.flags.ai.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Copilot is switched off', request)
     const now = new Date().toISOString()
-    const c: ConversationDetailDto & { userId: string } = { id: crypto.randomUUID(), userId: r.user.id, title: null, createdAt: now, updatedAt: now, messages: [] }
+    const c: ConversationDetailDto & { userId: string } = {
+      id: crypto.randomUUID(),
+      userId: r.user.id,
+      title: null,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    }
     db.v2.conversations.unshift(c)
     return json({ id: c.id }, 201)
   }),
   http.get(`${BASE}/copilot/conversations`, ({ request }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    return json(db.v2.conversations.filter((c) => c.userId === r.user.id).map(({ userId: _u, messages: _m, ...c }) => c))
+    return json(
+      db.v2.conversations
+        .filter((c) => c.userId === r.user.id)
+        .map(({ userId: _u, messages: _m, ...c }) => c),
+    )
   }),
   http.get(`${BASE}/copilot/conversations/:id`, ({ request, params }) => {
     const r = requireUser(request)
@@ -214,7 +296,17 @@ export const copilotHandlers = [
     const c = conv(r.user.id, params.id)
     if (!c) return notFound(request, 'Conversation')
     const { userId: _u, ...out } = c
-    return json({ ...out, messages: out.messages.map((m) => ({ ...m, intents: m.intents.map((i) => publicIntent(db.v2.intents.find((x) => x.id === i.id) ?? { ...i, userId: '', payload: {} })) })) })
+    return json({
+      ...out,
+      messages: out.messages.map((m) => ({
+        ...m,
+        intents: m.intents.map((i) =>
+          publicIntent(
+            db.v2.intents.find((x) => x.id === i.id) ?? { ...i, userId: '', payload: {} },
+          ),
+        ),
+      })),
+    })
   }),
   http.delete(`${BASE}/copilot/conversations/:id`, ({ request, params }) => {
     const r = requireUser(request)
@@ -227,19 +319,31 @@ export const copilotHandlers = [
   http.post(`${BASE}/copilot/conversations/:id/messages`, async ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    if (!db.v2.flags.ai.enabled) return error(503, 'FEATURE_DISABLED', 'Copilot is switched off', request)
+    if (!db.v2.flags.ai.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Copilot is switched off', request)
     const c = conv(r.user.id, params.id)
     if (!c) return notFound(request, 'Conversation')
     const b = (await request.json()) as { text?: unknown }
     const text = typeof b.text === 'string' ? b.text.trim() : ''
-    if (!text || text.length > 2000) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [{ field: 'text', message: 'must be 1–2000 characters' }])
+    if (!text || text.length > 2000)
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'text', message: 'must be 1–2000 characters' },
+      ])
     const user = r.user
     const p = plan(user.id, text)
     const trace = newTrace(p.steps)
     db.v2.traces.set(trace.runId, trace)
     db.v2.aiCalls += 1
     const now = new Date().toISOString()
-    c.messages.push({ id: crypto.randomUUID(), role: 'USER', text, intents: [], citations: [], runId: null, createdAt: now })
+    c.messages.push({
+      id: crypto.randomUUID(),
+      role: 'USER',
+      text,
+      intents: [],
+      citations: [],
+      runId: null,
+      createdAt: now,
+    })
     c.title ??= text.slice(0, 48)
     c.updatedAt = now
 
@@ -279,17 +383,31 @@ export const copilotHandlers = [
           controller.enqueue(sse('token', { text: word }))
           if (word.trim()) await delay(18)
         }
-        c.messages.push({ id: crypto.randomUUID(), role: 'ASSISTANT', text: p.text, intents: intent ? [intent] : [], citations: p.citations ?? [], runId: trace.runId, createdAt: new Date().toISOString() })
-        controller.enqueue(sse('done', { runId: trace.runId, usage: { inputTokens: 4150, outputTokens: 300 } }))
+        c.messages.push({
+          id: crypto.randomUUID(),
+          role: 'ASSISTANT',
+          text: p.text,
+          intents: intent ? [intent] : [],
+          citations: p.citations ?? [],
+          runId: trace.runId,
+          createdAt: new Date().toISOString(),
+        })
+        controller.enqueue(
+          sse('done', { runId: trace.runId, usage: { inputTokens: 4150, outputTokens: 300 } }),
+        )
         controller.close()
       },
     })
-    return new HttpResponse(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } })
+    return new HttpResponse(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+    })
   }),
   http.get(`${BASE}/copilot/runs/:runId/trace`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    const owns = db.v2.conversations.some((c) => c.userId === r.user.id && c.messages.some((m) => m.runId === params.runId))
+    const owns = db.v2.conversations.some(
+      (c) => c.userId === r.user.id && c.messages.some((m) => m.runId === params.runId),
+    )
     const t = db.v2.traces.get(String(params.runId))
     return t && owns ? json(t) : notFound(request, 'Run')
   }),
@@ -299,14 +417,20 @@ export const copilotHandlers = [
     const r = requireUser(request)
     if (!r.user) return r.res
     const status = new URL(request.url).searchParams.get('status')
-    return json(db.v2.intents.filter((i) => i.userId === r.user.id).map(publicIntent).filter((i) => !status || i.status === status))
+    return json(
+      db.v2.intents
+        .filter((i) => i.userId === r.user.id)
+        .map(publicIntent)
+        .filter((i) => !status || i.status === status),
+    )
   }),
   http.post(`${BASE}/intents/:id/reject`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
     const i = db.v2.intents.find((x) => x.id === params.id && x.userId === r.user.id)
     if (!i) return notFound(request, 'Intent')
-    if (publicIntent(i).status !== 'PROPOSED') return error(409, 'INVALID_STATE', 'Intent is not open', request)
+    if (publicIntent(i).status !== 'PROPOSED')
+      return error(409, 'INVALID_STATE', 'Intent is not open', request)
     i.status = 'REJECTED'
     return json(publicIntent(i))
   }),
@@ -350,10 +474,36 @@ export const copilotHandlers = [
       }
       if (!to) return fail('NOT_FOUND')
       const toUser = [...db.users.values()].find((u) => u.user.id === to.userId)?.user
-      move(from, to, amount, 'TRANSFER', (p.note as string) ?? `Transfer to ${toUser?.fullName ?? 'goal'}`, (p.note as string) ?? `Transfer from ${r.user.fullName}`, `To ${toUser?.fullName ?? ''} ${last4(to.accountNumber)}`, `From ${r.user.fullName} ${last4(from.accountNumber)}`)
+      move(
+        from,
+        to,
+        amount,
+        'TRANSFER',
+        (p.note as string) ?? `Transfer to ${toUser?.fullName ?? 'goal'}`,
+        (p.note as string) ?? `Transfer from ${r.user.fullName}`,
+        `To ${toUser?.fullName ?? ''} ${last4(to.accountNumber)}`,
+        `From ${r.user.fullName} ${last4(from.accountNumber)}`,
+      )
       const id = crypto.randomUUID()
-      db.transfers.unshift({ id, userId: r.user.id, fromAccountNumber: from.accountNumber, toAccountNumber: to.accountNumber, toName: toUser?.fullName ?? 'Goal', amount: money(amount), note: (p.note as string) ?? null, status: 'COMPLETED', createdAt: new Date().toISOString(), source: 'INTENT' })
-      if (toUser && toUser.id !== r.user.id) notify(toUser.id, 'MONEY_RECEIVED', 'Money received', `${inr(amount)} from ${r.user.fullName}.`)
+      db.transfers.unshift({
+        id,
+        userId: r.user.id,
+        fromAccountNumber: from.accountNumber,
+        toAccountNumber: to.accountNumber,
+        toName: toUser?.fullName ?? 'Goal',
+        amount: money(amount),
+        note: (p.note as string) ?? null,
+        status: 'COMPLETED',
+        createdAt: new Date().toISOString(),
+        source: 'INTENT',
+      })
+      if (toUser && toUser.id !== r.user.id)
+        notify(
+          toUser.id,
+          'MONEY_RECEIVED',
+          'Money received',
+          `${inr(amount)} from ${r.user.fullName}.`,
+        )
       i.resultRef = { type: 'TRANSFER', id }
     } else if (i.kind === 'ORDER') {
       const inst = db.instruments.get(String(p.symbol))
@@ -364,15 +514,37 @@ export const copilotHandlers = [
       move(from, null, total, 'TRADE', `Bought ${qty} × ${inst.symbol}`, '')
       const h = db.holdings.find((x) => x.userId === r.user.id && x.symbol === inst.symbol)
       if (h) {
-        h.avgCost = new Decimal(h.avgCost).times(h.quantity).plus(total).div(h.quantity + qty).toFixed(4)
+        h.avgCost = new Decimal(h.avgCost)
+          .times(h.quantity)
+          .plus(total)
+          .div(h.quantity + qty)
+          .toFixed(4)
         h.quantity += qty
-      } else db.holdings.push({ userId: r.user.id, symbol: inst.symbol, quantity: qty, avgCost: new Decimal(inst.price).toFixed(4), realizedPnl: '0' })
+      } else
+        db.holdings.push({
+          userId: r.user.id,
+          symbol: inst.symbol,
+          quantity: qty,
+          avgCost: new Decimal(inst.price).toFixed(4),
+          realizedPnl: '0',
+        })
       const id = crypto.randomUUID()
-      db.orders.unshift({ id, userId: r.user.id, symbol: inst.symbol, side: 'BUY', quantity: qty, price: inst.price, total: money(total), status: 'FILLED', createdAt: new Date().toISOString() })
+      db.orders.unshift({
+        id,
+        userId: r.user.id,
+        symbol: inst.symbol,
+        side: 'BUY',
+        quantity: qty,
+        price: inst.price,
+        total: money(total),
+        status: 'FILLED',
+        createdAt: new Date().toISOString(),
+      })
       i.resultRef = { type: 'ORDER', id }
     } else {
       // Same result types as the backend: the result's own type, not the intent kind.
-      const type = i.kind === 'FD_BOOKING' ? 'FIXED_DEPOSIT' : i.kind === 'LOAN_APPLICATION' ? 'LOAN' : i.kind
+      const type =
+        i.kind === 'FD_BOOKING' ? 'FIXED_DEPOSIT' : i.kind === 'LOAN_APPLICATION' ? 'LOAN' : i.kind
       i.resultRef = { type, id: crypto.randomUUID() }
     }
     i.status = 'EXECUTED'

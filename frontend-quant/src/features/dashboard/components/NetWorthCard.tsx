@@ -51,9 +51,15 @@ export function NetWorthCard({ className }: { className?: string }) {
   } else {
     const cashAccts = accounts.data.filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING')
     const cash = sumMoney(cashAccts.map((a) => a.balance))
-    const saved = sumMoney(accounts.data.filter((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT').map((a) => a.balance))
+    const saved = sumMoney(
+      accounts.data
+        .filter((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT')
+        .map((a) => a.balance),
+    )
     const invested = new Decimal(portfolio.data.totalMarketValue)
-    const owed = sumMoney(loans.data.filter((l) => l.status === 'ACTIVE').map((l) => l.outstandingPrincipal))
+    const owed = sumMoney(
+      loans.data.filter((l) => l.status === 'ACTIVE').map((l) => l.outstandingPrincipal),
+    )
     const net = cash.plus(saved).plus(invested).minus(owed)
     const held = sumMoney(cashAccts.map((a) => a.holdsTotal ?? '0'))
     const points = history.data?.points
@@ -61,10 +67,14 @@ export function NetWorthCard({ className }: { className?: string }) {
       <>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div aria-live="polite" aria-atomic="true">
-            <RollingMoney value={net} className="font-display text-[clamp(2.75rem,7vw,4.75rem)] leading-none" />
+            <RollingMoney
+              value={net}
+              className="font-display text-[clamp(2.75rem,7vw,4.75rem)] leading-none"
+            />
           </div>
           <p className="flex items-center gap-2 pb-2 text-sm text-muted">
-            Unrealized P&amp;L <Money value={portfolio.data.totalUnrealizedPnl} tone="pnl" className="text-sm" />
+            Unrealized P&amp;L{' '}
+            <Money value={portfolio.data.totalUnrealizedPnl} tone="pnl" className="text-sm" />
           </p>
         </div>
         {points && points.length > 1 ? (
@@ -72,7 +82,10 @@ export function NetWorthCard({ className }: { className?: string }) {
             <Sparkline values={points.map((p) => p.balance)} color="var(--chart-1)" height={84} />
             <p className="mt-1 flex justify-between text-[0.6875rem] text-muted">
               <span>Cash, last 30 days</span>
-              <Link to="/insights?tab=wealth" className="inline-flex items-center gap-0.5 hover:text-text">
+              <Link
+                to="/insights?tab=wealth"
+                className="inline-flex items-center gap-0.5 hover:text-text"
+              >
                 Wealth insights <ArrowUpRight aria-hidden="true" className="size-3" />
               </Link>
             </p>
@@ -81,10 +94,23 @@ export function NetWorthCard({ className }: { className?: string }) {
           <Skeleton className="mt-5 h-[84px] w-full" />
         ) : null}
         <dl className="mt-auto grid grid-cols-2 gap-2.5 pt-6 text-sm sm:grid-cols-4">
-          <Breakdown label="Cash" value={<Money value={cash} />} hint={held.gt(0) ? <>incl. <Money value={held} /> on hold</> : undefined} />
+          <Breakdown
+            label="Cash"
+            value={<Money value={cash} />}
+            hint={
+              held.gt(0) ? (
+                <>
+                  incl. <Money value={held} /> on hold
+                </>
+              ) : undefined
+            }
+          />
           <Breakdown label="Saved" value={<Money value={saved} />} />
           <Breakdown label="Investments" value={<Money value={invested} />} />
-          <Breakdown label="Loans owed" value={owed.isZero() ? <Money value={owed} /> : <Money value={owed.neg()} />} />
+          <Breakdown
+            label="Loans owed"
+            value={owed.isZero() ? <Money value={owed} /> : <Money value={owed.neg()} />}
+          />
         </dl>
       </>
     )
@@ -97,7 +123,15 @@ export function NetWorthCard({ className }: { className?: string }) {
   )
 }
 
-function Breakdown({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
+function Breakdown({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: React.ReactNode
+  hint?: React.ReactNode
+}) {
   return (
     <div className="rounded-[14px] bg-surface-2/70 px-3.5 py-3 hairline">
       <dt className="text-xs text-muted">{label}</dt>

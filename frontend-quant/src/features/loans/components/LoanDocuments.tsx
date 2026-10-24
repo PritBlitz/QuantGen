@@ -12,7 +12,8 @@ const MAX_BYTES = 5 * 1024 * 1024
 const MAX_DOCS = 3
 const TYPES = ['application/pdf', 'image/png', 'image/jpeg']
 
-const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`)
+const size = (b: number) =>
+  b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`
 
 /**
  * Supporting documents for a loan application (F-RISK-3): salary slips or statements, read by
@@ -37,7 +38,13 @@ export function LoanDocuments({ loanId, canUpload }: { loanId: string; canUpload
     },
     onError: (e) => {
       const ae = toApiError(e)
-      setError(ae.code === 'LIMIT_EXCEEDED' ? `You can upload at most ${MAX_DOCS} documents.` : (ae.fieldErrors[0]?.message ? `The file ${ae.fieldErrors[0].message}.` : errorMessage(ae)))
+      setError(
+        ae.code === 'LIMIT_EXCEEDED'
+          ? `You can upload at most ${MAX_DOCS} documents.`
+          : ae.fieldErrors[0]?.message
+            ? `The file ${ae.fieldErrors[0].message}.`
+            : errorMessage(ae),
+      )
     },
   })
 
@@ -64,7 +71,9 @@ export function LoanDocuments({ loanId, canUpload }: { loanId: string; canUpload
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted">Optional: salary slips or a bank statement can speed up the review.</p>
+        <p className="text-sm text-muted">
+          Optional: salary slips or a bank statement can speed up the review.
+        </p>
       )}
       {canUpload && !full && (
         <form
@@ -91,8 +100,15 @@ export function LoanDocuments({ loanId, canUpload }: { loanId: string; canUpload
             className="block w-full text-sm text-muted file:mr-3 file:rounded-[var(--radius-control)] file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-text"
           />
           <label htmlFor={consentId} className="flex items-start gap-2 text-xs text-muted">
-            <input id={consentId} type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
-            I agree that QuantGen’s AI assistant may read this document to help review my application. A person makes the decision.
+            <input
+              id={consentId}
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5"
+            />
+            I agree that QuantGen’s AI assistant may read this document to help review my
+            application. A person makes the decision.
           </label>
           {error && (
             <p role="alert" className="text-sm text-loss">
@@ -100,7 +116,11 @@ export function LoanDocuments({ loanId, canUpload }: { loanId: string; canUpload
             </p>
           )}
           <Button type="submit" variant="secondary" size="sm" disabled={upload.isPending}>
-            {upload.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
+            {upload.isPending ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Upload aria-hidden="true" />
+            )}
             {upload.isPending ? 'Uploading…' : 'Upload'}
           </Button>
         </form>

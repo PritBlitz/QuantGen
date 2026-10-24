@@ -13,7 +13,8 @@ function spyOnRuleWrites() {
   const calls: Array<{ method: string; path: string; stepUp: string | null }> = []
   server.events.on('request:start', ({ request }) => {
     const path = new URL(request.url).pathname
-    if (request.method !== 'GET' && /\/autopilot\/rules/.test(path)) calls.push({ method: request.method, path, stepUp: request.headers.get('X-Step-Up-Token') })
+    if (request.method !== 'GET' && /\/autopilot\/rules/.test(path))
+      calls.push({ method: request.method, path, stepUp: request.headers.get('X-Step-Up-Token') })
   })
   return calls
 }
@@ -30,11 +31,16 @@ describe('Autopilot', () => {
     const user = userEvent.setup()
     const { router } = renderApp('/autopilot/new')
 
-    await user.type(await screen.findByLabelText('Describe your rule'), 'Every month on the 5th buy ₹8000 of TCS')
+    await user.type(
+      await screen.findByLabelText('Describe your rule'),
+      'Every month on the 5th buy ₹8000 of TCS',
+    )
     await user.click(screen.getByRole('button', { name: 'Turn into a rule' }))
 
     // The sentence comes from /autopilot/validate (the server), not from the AI.
-    expect(await screen.findByText(/On the 5th of every month/i, {}, { timeout: 8000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText(/On the 5th of every month/i, {}, { timeout: 8000 }),
+    ).toBeInTheDocument()
     const switchOn = screen.getByRole('button', { name: 'Switch on' })
     expect(switchOn).toBeDisabled()
 
@@ -48,7 +54,9 @@ describe('Autopilot', () => {
     await user.click(screen.getByRole('button', { name: 'Switch on' }))
     await enterPin(user)
 
-    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/autopilot\/[0-9a-f-]{36}$/))
+    await waitFor(() =>
+      expect(router.state.location.pathname).toMatch(/^\/autopilot\/[0-9a-f-]{36}$/),
+    )
     expect(await screen.findByRole('heading', { level: 1, name: 'TCS SIP' })).toBeInTheDocument()
     // First try refused with STEP_UP_REQUIRED, the retry carries the token.
     const creates = calls.filter((c) => c.method === 'POST' && c.path.endsWith('/autopilot/rules'))
@@ -62,7 +70,11 @@ describe('Autopilot', () => {
     renderApp('/autopilot/new')
     await user.click(await screen.findByRole('button', { name: /Build it myself/ }))
     // The button renders disabled until the debounced /validate answers; a click before that is lost.
-    const replay = await screen.findByRole('button', { name: 'Replay the last 90 days' }, { timeout: 8000 })
+    const replay = await screen.findByRole(
+      'button',
+      { name: 'Replay the last 90 days' },
+      { timeout: 8000 },
+    )
     await waitFor(() => expect(replay).toBeEnabled())
     await user.click(replay)
     expect(await screen.findByText('Times it ran')).toBeInTheDocument()
@@ -72,7 +84,9 @@ describe('Autopilot', () => {
     await user.clear(perRun)
     await user.type(perRun, '9000')
     // Inline under the field and in the summary next to the sentence.
-    expect(await screen.findAllByText('can’t be more than the monthly cap', {}, { timeout: 5000 })).toHaveLength(2)
+    expect(
+      await screen.findAllByText('can’t be more than the monthly cap', {}, { timeout: 5000 }),
+    ).toHaveLength(2)
     expect(screen.getByLabelText('Per run')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByText('You changed the rule, so replay it again.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch on' })).toBeDisabled()
@@ -84,14 +98,28 @@ describe('Autopilot', () => {
     const user = userEvent.setup()
     renderApp('/autopilot/new')
     await user.click(await screen.findByRole('button', { name: /Build it myself/ }))
-    await user.click(await screen.findByRole('combobox', { name: 'Action type' }, { timeout: 8000 }))
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Action type' }, { timeout: 8000 }),
+    )
     await user.click(await screen.findByRole('option', { name: 'Sweep round-ups' }))
     // The blank rule runs on a schedule, so the server renders the sweep in its own words.
-    expect(await screen.findByText(/move the round-ups to the next ₹10 on spends from/, {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        /move the round-ups to the next ₹10 on spends from/,
+        {},
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('combobox', { name: 'Trigger' }))
     await user.click(await screen.findByRole('option', { name: 'Money arrives' }))
-    expect(await screen.findAllByText('round-up sweeps run on a schedule trigger', {}, { timeout: 5000 })).not.toHaveLength(0)
+    expect(
+      await screen.findAllByText(
+        'round-up sweeps run on a schedule trigger',
+        {},
+        { timeout: 5000 },
+      ),
+    ).not.toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Replay the last 90 days' })).toBeDisabled()
   })
 
@@ -100,7 +128,9 @@ describe('Autopilot', () => {
     const calls = spyOnRuleWrites()
     const user = userEvent.setup()
     renderApp('/autopilot')
-    const card = (await screen.findByRole('link', { name: 'Salary splitter' })).closest('li') as HTMLElement
+    const card = (await screen.findByRole('link', { name: 'Salary splitter' })).closest(
+      'li',
+    ) as HTMLElement
 
     await user.click(within(card).getByRole('button', { name: /Pause/ }))
     expect(await within(card).findByText('Paused')).toBeInTheDocument()
@@ -133,12 +163,18 @@ describe('Autopilot', () => {
     signInAs('CUSTOMER')
     server.use(
       http.post('/api/v1/autopilot/compile', () =>
-        HttpResponse.json({ status: 503, code: 'FEATURE_DISABLED', message: 'Use the form', fieldErrors: [] }, { status: 503 }),
+        HttpResponse.json(
+          { status: 503, code: 'FEATURE_DISABLED', message: 'Use the form', fieldErrors: [] },
+          { status: 503 },
+        ),
       ),
     )
     const user = userEvent.setup()
     renderApp('/autopilot/new')
-    await user.type(await screen.findByLabelText('Describe your rule'), 'Every month on the 5th buy ₹8000 of TCS')
+    await user.type(
+      await screen.findByLabelText('Describe your rule'),
+      'Every month on the 5th buy ₹8000 of TCS',
+    )
     await user.click(screen.getByRole('button', { name: 'Turn into a rule' }))
     expect(await screen.findByLabelText('Rule name', {}, { timeout: 8000 })).toBeInTheDocument()
   })
@@ -157,13 +193,28 @@ describe('Autopilot', () => {
     server.use(
       http.get('/api/v1/autopilot/rules/:id/runs', () =>
         HttpResponse.json({
-          content: [{ id: 'r1', ruleVersion: 1, triggerEventId: 'e1', triggerSummary: '₹85,000 arrived in Checking', startedAt: new Date().toISOString(), outcome: null, actions: [] }],
-          page: 0, size: 20, totalElements: 1, totalPages: 1,
+          content: [
+            {
+              id: 'r1',
+              ruleVersion: 1,
+              triggerEventId: 'e1',
+              triggerSummary: '₹85,000 arrived in Checking',
+              startedAt: new Date().toISOString(),
+              outcome: null,
+              actions: [],
+            },
+          ],
+          page: 0,
+          size: 20,
+          totalElements: 1,
+          totalPages: 1,
         }),
       ),
     )
     renderApp(`/autopilot/${SALARY_RULE}`)
-    const row = (await screen.findByText('₹85,000 arrived in Checking')).closest('li') as HTMLElement
+    const row = (await screen.findByText('₹85,000 arrived in Checking')).closest(
+      'li',
+    ) as HTMLElement
     expect(within(row).getByText('Running')).toBeInTheDocument()
   })
 

@@ -76,7 +76,10 @@ export function TrendChart({
   return (
     <div className={cn('w-full', className)} role="img" aria-label={ariaLabel}>
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: hideYAxis ? 4 : 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 4, bottom: 0, left: hideYAxis ? 4 : 0 }}
+        >
           <defs>
             {series.map((s) => (
               <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">

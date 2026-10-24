@@ -175,8 +175,9 @@ export const payApi = {
       .then(data),
   createRequest: (body: { toHandle: string; amount: MoneyString; note?: string }) =>
     api.post<PaymentRequestDto>('/payment-requests', body).then(data),
-  requests: (params: { direction: 'INCOMING' | 'OUTGOING'; status?: PaymentRequestStatus } & PageQuery) =>
-    api.get<Page<PaymentRequestDto>>('/payment-requests', { params }).then(data),
+  requests: (
+    params: { direction: 'INCOMING' | 'OUTGOING'; status?: PaymentRequestStatus } & PageQuery,
+  ) => api.get<Page<PaymentRequestDto>>('/payment-requests', { params }).then(data),
   payRequest: (id: string, fromAccountId: string, idempotencyKey: string) =>
     api
       .post<TransferDto>(
@@ -250,7 +251,9 @@ export const savingsApi = {
   createGoal: (body: CreateGoalRequest) =>
     api.post<AccountDto & AccountV2Fields>('/accounts', body).then(data),
   roundUp: (accountId: string) =>
-    api.get<RoundUpRequest & { accountId: string }>(`/accounts/${seg(accountId)}/round-up`).then(data),
+    api
+      .get<RoundUpRequest & { accountId: string }>(`/accounts/${seg(accountId)}/round-up`)
+      .then(data),
   setRoundUp: (accountId: string, body: RoundUpRequest) =>
     api.put(`/accounts/${seg(accountId)}/round-up`, body).then(() => undefined),
   fdRates: () => api.get<FdRateDto[]>('/fixed-deposits/rates').then(data),
@@ -279,7 +282,8 @@ export const savingsApi = {
   budgets: () => api.get<BudgetDto[]>('/budgets').then(data),
   setBudgets: (body: Array<{ category: Category; monthlyLimit: MoneyString }>) =>
     api.put<BudgetDto[]>('/budgets', body).then(data),
-  forecast: (days = 30) => api.get<ForecastDto>('/insights/forecast', { params: { days } }).then(data),
+  forecast: (days = 30) =>
+    api.get<ForecastDto>('/insights/forecast', { params: { days } }).then(data),
   netWorth: (months = 12) =>
     api.get<NetWorthDto>('/insights/net-worth', { params: { months } }).then(data),
 }
@@ -333,11 +337,19 @@ export const riskApi = {
   // Both post or free held money, so each takes an Idempotency-Key (V2-M6).
   release: (id: string, reason: string, idempotencyKey: string) =>
     api
-      .post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/release`, { reason }, { headers: idempotencyHeader(idempotencyKey) })
+      .post<FraudCaseDto>(
+        `/admin/fraud-cases/${seg(id)}/release`,
+        { reason },
+        { headers: idempotencyHeader(idempotencyKey) },
+      )
       .then(data),
   reject: (id: string, reason: string, idempotencyKey: string) =>
     api
-      .post<FraudCaseDto>(`/admin/fraud-cases/${seg(id)}/reject`, { reason }, { headers: idempotencyHeader(idempotencyKey) })
+      .post<FraudCaseDto>(
+        `/admin/fraud-cases/${seg(id)}/reject`,
+        { reason },
+        { headers: idempotencyHeader(idempotencyKey) },
+      )
       .then(data),
   uploadDocument: (loanId: string, file: File) => {
     const form = new FormData()
@@ -406,7 +418,9 @@ export const cardsApi = {
   // All three move money (a hold, its capture, a reversal), so each takes an Idempotency-Key (V2-M9).
   authorize: (body: MerchantAuthRequest, idempotencyKey: string) =>
     api
-      .post<MerchantAuthDto>('/sandbox/merchant/authorize', body, { headers: idempotencyHeader(idempotencyKey) })
+      .post<MerchantAuthDto>('/sandbox/merchant/authorize', body, {
+        headers: idempotencyHeader(idempotencyKey),
+      })
       .then(data),
   capture: (authId: string, idempotencyKey: string, amount?: MoneyString) =>
     api
@@ -423,14 +437,26 @@ export const cardsApi = {
   // F-CARD-4 disputes. Opening one moves no money (🔒, no key); the admin's resolve does (🔒💰).
   payments: (cardId: string, params: PageQuery = {}) =>
     api.get<Page<CardPaymentDto>>(`/cards/${seg(cardId)}/payments`, { params }).then(data),
-  openDispute: (cardId: string, authId: string, body: { reason: DisputeReason; amount?: MoneyString; note?: string }) =>
-    api.post<CardDisputeDto>(`/cards/${seg(cardId)}/payments/${seg(authId)}/dispute`, body).then(data),
+  openDispute: (
+    cardId: string,
+    authId: string,
+    body: { reason: DisputeReason; amount?: MoneyString; note?: string },
+  ) =>
+    api
+      .post<CardDisputeDto>(`/cards/${seg(cardId)}/payments/${seg(authId)}/dispute`, body)
+      .then(data),
   disputes: () => api.get<CardDisputeDto[]>('/card-disputes').then(data),
   adminDisputes: (params: PageQuery & { status?: DisputeStatus } = {}) =>
     api.get<Page<AdminCardDisputeDto>>('/admin/card-disputes', { params }).then(data),
-  resolveDispute: (id: string, body: { outcome: 'REFUNDED' | 'REJECTED'; reason: string }, idempotencyKey: string) =>
+  resolveDispute: (
+    id: string,
+    body: { outcome: 'REFUNDED' | 'REJECTED'; reason: string },
+    idempotencyKey: string,
+  ) =>
     api
-      .post<CardDisputeDto>(`/admin/card-disputes/${seg(id)}/resolve`, body, { headers: idempotencyHeader(idempotencyKey) })
+      .post<CardDisputeDto>(`/admin/card-disputes/${seg(id)}/resolve`, body, {
+        headers: idempotencyHeader(idempotencyKey),
+      })
       .then(data),
 }
 
@@ -443,13 +469,15 @@ export const tokensApi = {
 }
 
 // §12.13 Analytics ─────────────────────────────────────────────────────────────────
-export type AdminReport = 'overview' | 'timeseries' | 'breakdown' | 'funnel' | 'cohorts' | 'loan-book'
+export type AdminReport =
+  'overview' | 'timeseries' | 'breakdown' | 'funnel' | 'cohorts' | 'loan-book'
 
 export const analyticsApi = {
   overview: (q: DateRangeQuery) =>
     api.get<OverviewDto>('/admin/analytics/overview', { params: q }).then(data),
-  series: (q: DateRangeQuery & { metric: AnalyticsMetric; granularity: Granularity; compare?: boolean }) =>
-    api.get<SeriesDto>('/admin/analytics/timeseries', { params: q }).then(data),
+  series: (
+    q: DateRangeQuery & { metric: AnalyticsMetric; granularity: Granularity; compare?: boolean },
+  ) => api.get<SeriesDto>('/admin/analytics/timeseries', { params: q }).then(data),
   breakdown: (q: DateRangeQuery & { dimension: BreakdownDimension; limit?: number }) =>
     api.get<BreakdownDto>('/admin/analytics/breakdown', { params: q }).then(data),
   funnel: (q: DateRangeQuery) =>

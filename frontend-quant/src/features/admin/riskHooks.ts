@@ -5,7 +5,8 @@ import type { FeatureFlag, FraudCaseStatus } from '@/api/types'
 
 /** Admin v2 data (PRD §12.8, §12.14): fraud queue, underwriting, AI usage, feature flags. */
 export const riskKeys = {
-  cases: (status: FraudCaseStatus | 'ALL', page: number) => ['admin', 'fraud', status, page] as const,
+  cases: (status: FraudCaseStatus | 'ALL', page: number) =>
+    ['admin', 'fraud', status, page] as const,
   case: (id: string) => ['admin', 'fraud', 'case', id] as const,
   underwriting: (loanId: string) => ['admin', 'underwriting', loanId] as const,
   documents: (loanId: string) => ['loans', loanId, 'documents'] as const,
@@ -19,7 +20,8 @@ export const useFraudCases = (status: FraudCaseStatus | 'ALL', page: number) =>
     queryFn: () => riskApi.cases({ ...(status === 'ALL' ? {} : { status }), page, size: 10 }),
     placeholderData: keepPreviousData,
   })
-export const useFraudCase = (id: string) => useQuery({ queryKey: riskKeys.case(id), queryFn: () => riskApi.case(id) })
+export const useFraudCase = (id: string) =>
+  useQuery({ queryKey: riskKeys.case(id), queryFn: () => riskApi.case(id) })
 
 export function useFraudDecision() {
   const qc = useQueryClient()
@@ -33,7 +35,15 @@ export function useFraudDecision() {
     return v
   }
   return useMutation({
-    mutationFn: ({ id, kind, reason }: { id: string; kind: 'release' | 'reject'; reason: string }) =>
+    mutationFn: ({
+      id,
+      kind,
+      reason,
+    }: {
+      id: string
+      kind: 'release' | 'reject'
+      reason: string
+    }) =>
       kind === 'release'
         ? riskApi.release(id, reason, keyFor(id, kind, reason))
         : riskApi.reject(id, reason, keyFor(id, kind, reason)),
@@ -43,19 +53,37 @@ export function useFraudDecision() {
 }
 
 export const useUnderwriting = (loanId: string, enabled: boolean) =>
-  useQuery({ queryKey: riskKeys.underwriting(loanId), queryFn: () => riskApi.underwriting(loanId), enabled, retry: false })
+  useQuery({
+    queryKey: riskKeys.underwriting(loanId),
+    queryFn: () => riskApi.underwriting(loanId),
+    enabled,
+    retry: false,
+  })
 export const useLoanDocuments = (loanId: string) =>
-  useQuery({ queryKey: riskKeys.documents(loanId), queryFn: () => riskApi.documents(loanId), retry: false })
+  useQuery({
+    queryKey: riskKeys.documents(loanId),
+    queryFn: () => riskApi.documents(loanId),
+    retry: false,
+  })
 
 export const useAiUsage = (from: string, to: string) =>
-  useQuery({ queryKey: riskKeys.aiUsage(from, to), queryFn: () => riskApi.aiUsage({ from, to }), placeholderData: keepPreviousData })
+  useQuery({
+    queryKey: riskKeys.aiUsage(from, to),
+    queryFn: () => riskApi.aiUsage({ from, to }),
+    placeholderData: keepPreviousData,
+  })
 
-export const useAdminFlags = () => useQuery({ queryKey: riskKeys.flags, queryFn: flagsApi.adminList })
+export const useAdminFlags = () =>
+  useQuery({ queryKey: riskKeys.flags, queryFn: flagsApi.adminList })
 export function useSetFlag() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ name, enabled }: { name: FeatureFlag; enabled: boolean }) => flagsApi.set(name, enabled),
+    mutationFn: ({ name, enabled }: { name: FeatureFlag; enabled: boolean }) =>
+      flagsApi.set(name, enabled),
     onSettled: () =>
-      Promise.all([qc.invalidateQueries({ queryKey: riskKeys.flags }), qc.invalidateQueries({ queryKey: ['feature-flags'] })]),
+      Promise.all([
+        qc.invalidateQueries({ queryKey: riskKeys.flags }),
+        qc.invalidateQueries({ queryKey: ['feature-flags'] }),
+      ]),
   })
 }

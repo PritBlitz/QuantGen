@@ -48,7 +48,9 @@ export function ProofPage() {
             <Skeleton className="h-80" />
           ) : roots.data.length === 0 ? (
             <Panel title="No snapshot yet" eyebrow="Verify">
-              <p className="text-sm text-muted">The first snapshot is published at midnight (IST). Come back tomorrow to verify.</p>
+              <p className="text-sm text-muted">
+                The first snapshot is published at midnight (IST). Come back tomorrow to verify.
+              </p>
             </Panel>
           ) : (
             <Verifier roots={roots.data} />
@@ -60,8 +62,14 @@ export function ProofPage() {
             <ul className="space-y-2 text-sm">
               <Point ok>Your balance on that date was counted in the published total.</Point>
               <Point ok>No account in the tree has a negative balance hiding liabilities.</Point>
-              <Point ok>The published fingerprint is tied to the ledger’s hash chain, so history can’t be quietly rewritten.</Point>
-              <Point>It doesn’t prove the bank holds matching assets outside the system (this is a sandbox).</Point>
+              <Point ok>
+                The published fingerprint is tied to the ledger’s hash chain, so history can’t be
+                quietly rewritten.
+              </Point>
+              <Point>
+                It doesn’t prove the bank holds matching assets outside the system (this is a
+                sandbox).
+              </Point>
             </ul>
           </Panel>
           {roots.data && roots.data.length > 1 && <History roots={roots.data} />}
@@ -74,7 +82,11 @@ export function ProofPage() {
 function Point({ ok, children }: { ok?: boolean; children: React.ReactNode }) {
   return (
     <li className="flex gap-2">
-      {ok ? <Check aria-label="Proves" className="mt-0.5 size-4 shrink-0 text-gain" /> : <CircleX aria-label="Doesn’t prove" className="mt-0.5 size-4 shrink-0 text-muted" />}
+      {ok ? (
+        <Check aria-label="Proves" className="mt-0.5 size-4 shrink-0 text-gain" />
+      ) : (
+        <CircleX aria-label="Doesn’t prove" className="mt-0.5 size-4 shrink-0 text-muted" />
+      )}
       <span className={ok ? undefined : 'text-muted'}>{children}</span>
     </li>
   )
@@ -110,7 +122,11 @@ function Verifier({ roots }: { roots: ProofRootDto[] }) {
               setAccountId(v)
               verify.reset()
             }}
-            options={mine.map((a) => ({ value: a.id, label: accountLabel(a), text: accountLabel(a) }))}
+            options={mine.map((a) => ({
+              value: a.id,
+              label: accountLabel(a),
+              text: accountLabel(a),
+            }))}
           />
         </div>
         <div className="space-y-1.5">
@@ -122,12 +138,24 @@ function Verifier({ roots }: { roots: ProofRootDto[] }) {
               setDate(v)
               verify.reset()
             }}
-            options={roots.map((r) => ({ value: r.date, label: formatDate(r.date), text: formatDate(r.date) }))}
+            options={roots.map((r) => ({
+              value: r.date,
+              label: formatDate(r.date),
+              text: formatDate(r.date),
+            }))}
             className="sm:w-40"
           />
         </div>
-        <Button size="lg" disabled={!acct || !published || verify.isPending} onClick={() => verify.mutate()}>
-          {verify.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Fingerprint aria-hidden="true" />}
+        <Button
+          size="lg"
+          disabled={!acct || !published || verify.isPending}
+          onClick={() => verify.mutate()}
+        >
+          {verify.isPending ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Fingerprint aria-hidden="true" />
+          )}
           {verify.isPending ? 'Verifying…' : 'Verify'}
         </Button>
       </div>
@@ -140,13 +168,23 @@ function Verifier({ roots }: { roots: ProofRootDto[] }) {
               : errorMessage(verify.error)}
           </p>
         )}
-        {fresh && published && <Result proof={res.proof} result={res.result} published={published} />}
+        {fresh && published && (
+          <Result proof={res.proof} result={res.result} published={published} />
+        )}
       </div>
     </Panel>
   )
 }
 
-function Result({ proof, result, published }: { proof: BalanceProofDto; result: VerifyResult; published: ProofRootDto }) {
+function Result({
+  proof,
+  result,
+  published,
+}: {
+  proof: BalanceProofDto
+  result: VerifyResult
+  published: ProofRootDto
+}) {
   return (
     <div className="space-y-4">
       <div
@@ -156,13 +194,23 @@ function Result({ proof, result, published }: { proof: BalanceProofDto; result: 
           result.ok ? 'border border-gain/40 bg-gain/10' : 'border border-loss/40 bg-loss/10',
         )}
       >
-        {result.ok ? <CircleCheck aria-hidden="true" className="size-6 shrink-0 text-gain" /> : <CircleX aria-hidden="true" className="size-6 shrink-0 text-loss" />}
+        {result.ok ? (
+          <CircleCheck aria-hidden="true" className="size-6 shrink-0 text-gain" />
+        ) : (
+          <CircleX aria-hidden="true" className="size-6 shrink-0 text-loss" />
+        )}
         <div>
-          <p className="font-medium">{result.ok ? 'Verified. Your balance is in the published total.' : 'Verification failed.'}</p>
+          <p className="font-medium">
+            {result.ok
+              ? 'Verified. Your balance is in the published total.'
+              : 'Verification failed.'}
+          </p>
           <p className="mt-0.5 text-sm text-muted">
             {result.ok ? (
               <>
-                On {formatDate(proof.date)} this account held <Money value={proof.leaf.balance} className="text-text" />, and it’s one of {published.leafCount.toLocaleString('en-IN')} balances adding up to{' '}
+                On {formatDate(proof.date)} this account held{' '}
+                <Money value={proof.leaf.balance} className="text-text" />, and it’s one of{' '}
+                {published.leafCount.toLocaleString('en-IN')} balances adding up to{' '}
                 <Money value={published.totalLiabilities} className="text-text" />.
               </>
             ) : (
@@ -173,15 +221,29 @@ function Result({ proof, result, published }: { proof: BalanceProofDto; result: 
       </div>
 
       <details className="group rounded-[var(--radius-control)] bg-surface-2/50 hairline">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">Show the maths, step by step</summary>
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+          Show the maths, step by step
+        </summary>
         <ol className="space-y-2 px-4 pb-4 text-sm">
-          <Step n={0} title="Your leaf" hash={result.steps[0]?.node.hash ?? ''} sum={result.steps[0]?.node.sum ?? '0'}>
-            SHA-256 of “account id | balance | salt”. The salt hides your balance from anyone who sees the tree.
+          <Step
+            n={0}
+            title="Your leaf"
+            hash={result.steps[0]?.node.hash ?? ''}
+            sum={result.steps[0]?.node.sum ?? '0'}
+          >
+            SHA-256 of “account id | balance | salt”. The salt hides your balance from anyone who
+            sees the tree.
           </Step>
           {proof.path.map((sib, i) => {
             const step = result.steps[i + 1]
             return (
-              <Step key={i} n={i + 1} title={`Combine with the ${sib.side === 'LEFT' ? 'left' : 'right'} neighbour`} hash={step?.node.hash ?? '—'} sum={step?.node.sum ?? '0'}>
+              <Step
+                key={i}
+                n={i + 1}
+                title={`Combine with the ${sib.side === 'LEFT' ? 'left' : 'right'} neighbour`}
+                hash={step?.node.hash ?? '—'}
+                sum={step?.node.sum ?? '0'}
+              >
                 Neighbour {short(sib.hash)} holds <Money value={sib.sum} />.
               </Step>
             )
@@ -190,7 +252,12 @@ function Result({ proof, result, published }: { proof: BalanceProofDto; result: 
             <p className="font-medium">Compare with what was published</p>
             <dl className="mt-1.5 space-y-1 text-xs">
               <Compare label="Root" computed={result.computedRoot} published={published.root} />
-              <Compare label="Total" computed={result.computedTotal} published={published.totalLiabilities} money />
+              <Compare
+                label="Total"
+                computed={result.computedTotal}
+                published={published.totalLiabilities}
+                money
+              />
             </dl>
           </li>
         </ol>
@@ -199,7 +266,19 @@ function Result({ proof, result, published }: { proof: BalanceProofDto; result: 
   )
 }
 
-function Step({ n, title, hash, sum, children }: { n: number; title: string; hash: string; sum: string; children: React.ReactNode }) {
+function Step({
+  n,
+  title,
+  hash,
+  sum,
+  children,
+}: {
+  n: number
+  title: string
+  hash: string
+  sum: string
+  children: React.ReactNode
+}) {
   return (
     <li className="rounded-[var(--radius-control)] bg-surface-solid p-3 hairline">
       <p className="flex items-baseline justify-between gap-3">
@@ -215,13 +294,27 @@ function Step({ n, title, hash, sum, children }: { n: number; title: string; has
   )
 }
 
-function Compare({ label, computed, published, money }: { label: string; computed: string; published: string; money?: boolean }) {
-  const ok = money ? computed.replace(/0+$/, '') === published.replace(/0+$/, '') : computed === published.toLowerCase()
+function Compare({
+  label,
+  computed,
+  published,
+  money,
+}: {
+  label: string
+  computed: string
+  published: string
+  money?: boolean
+}) {
+  const ok = money
+    ? computed.replace(/0+$/, '') === published.replace(/0+$/, '')
+    : computed === published.toLowerCase()
   return (
     <div className="flex flex-wrap items-baseline gap-x-2">
       <dt className="w-10 text-muted">{label}</dt>
       <dd className="num min-w-0 flex-1 break-all">
-        {money ? <Money value={computed} /> : short(computed)} <span className="text-muted">vs</span> {money ? <Money value={published} /> : short(published)}
+        {money ? <Money value={computed} /> : short(computed)}{' '}
+        <span className="text-muted">vs</span>{' '}
+        {money ? <Money value={published} /> : short(published)}
       </dd>
       <dd className={ok ? 'text-gain' : 'text-loss'}>{ok ? 'match' : 'mismatch'}</dd>
     </div>
@@ -257,7 +350,9 @@ function LatestRoot({ root }: { root: ProofRootDto }) {
         </div>
         <div>
           <dt className="text-xs text-muted">Accounts included</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">{root.leafCount.toLocaleString('en-IN')}</dd>
+          <dd className="mt-0.5 font-medium tabular-nums">
+            {root.leafCount.toLocaleString('en-IN')}
+          </dd>
         </div>
         <div className="col-span-2">
           <dt className="text-xs text-muted">Ledger hash chain at</dt>

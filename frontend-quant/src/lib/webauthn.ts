@@ -46,8 +46,12 @@ function creationFromJson(o: Json): PublicKeyCredentialCreationOptions {
   return {
     ...(o as unknown as PublicKeyCredentialCreationOptions),
     challenge: b64urlToBuffer(String(o.challenge)),
-    user: { ...(user as unknown as PublicKeyCredentialUserEntity), id: b64urlToBuffer(String(user.id)) },
-    excludeCredentials: descriptors(o.excludeCredentials) as PublicKeyCredentialDescriptor[] | undefined,
+    user: {
+      ...(user as unknown as PublicKeyCredentialUserEntity),
+      id: b64urlToBuffer(String(user.id)),
+    },
+    excludeCredentials: descriptors(o.excludeCredentials) as
+      PublicKeyCredentialDescriptor[] | undefined,
   }
 }
 
@@ -57,7 +61,8 @@ function requestFromJson(o: Json): PublicKeyCredentialRequestOptions {
   return {
     ...(o as unknown as PublicKeyCredentialRequestOptions),
     challenge: b64urlToBuffer(String(o.challenge)),
-    allowCredentials: descriptors(o.allowCredentials) as PublicKeyCredentialDescriptor[] | undefined,
+    allowCredentials: descriptors(o.allowCredentials) as
+      PublicKeyCredentialDescriptor[] | undefined,
   }
 }
 
@@ -87,7 +92,8 @@ export async function createPasskey(options: Json): Promise<Json | null> {
     const cred = await navigator.credentials.create({ publicKey: creationFromJson(options) })
     return cred ? credentialToJson(cred as PublicKeyCredential) : null
   } catch (e) {
-    if (e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return null
+    if (e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError'))
+      return null
     throw e
   }
 }
@@ -98,7 +104,8 @@ export async function getPasskeyAssertion(options: Json): Promise<Json | null> {
     const cred = await navigator.credentials.get({ publicKey: requestFromJson(options) })
     return cred ? credentialToJson(cred as PublicKeyCredential) : null
   } catch (e) {
-    if (e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return null
+    if (e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError'))
+      return null
     throw e
   }
 }

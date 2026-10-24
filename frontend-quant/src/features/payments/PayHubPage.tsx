@@ -1,4 +1,13 @@
-import { ArrowDownToLine, ArrowRight, ArrowUpRight, CalendarClock, Copy, QrCode, ReceiptText, Split } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarClock,
+  Copy,
+  QrCode,
+  ReceiptText,
+  Split,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
@@ -21,10 +30,30 @@ import { PayRequestDialog } from './components/PayRequestDialog'
 import type { PaymentRequestDto } from '@/api/types'
 
 const LINKS = [
-  { to: '/transfer', label: 'Send money', sub: 'Handle, payee or account number', icon: ArrowUpRight },
-  { to: '/pay/requests', label: 'Request money', sub: 'Ask anyone with a handle', icon: ArrowDownToLine },
-  { to: '/pay/scheduled', label: 'Schedule', sub: 'Rent, SIPs, recurring transfers', icon: CalendarClock },
-  { to: '/pay/bills', label: 'Pay bills', sub: 'Power, mobile, broadband, more', icon: ReceiptText },
+  {
+    to: '/transfer',
+    label: 'Send money',
+    sub: 'Handle, payee or account number',
+    icon: ArrowUpRight,
+  },
+  {
+    to: '/pay/requests',
+    label: 'Request money',
+    sub: 'Ask anyone with a handle',
+    icon: ArrowDownToLine,
+  },
+  {
+    to: '/pay/scheduled',
+    label: 'Schedule',
+    sub: 'Rent, SIPs, recurring transfers',
+    icon: CalendarClock,
+  },
+  {
+    to: '/pay/bills',
+    label: 'Pay bills',
+    sub: 'Power, mobile, broadband, more',
+    icon: ReceiptText,
+  },
   { to: '/pay/splits', label: 'Split a bill', sub: 'Groups that settle themselves', icon: Split },
   { to: '/pay/qr', label: 'Scan a QR', sub: 'Or show yours', icon: QrCode },
 ]
@@ -42,12 +71,23 @@ export function PayHubPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Pay" title={<>Money, <em className="text-gradient">on the move.</em></>} description="Send, request, schedule, split and pay bills, all from one ledger that never loses a paisa." />
+      <PageHeader
+        eyebrow="Pay"
+        title={
+          <>
+            Money, <em className="text-gradient">on the move.</em>
+          </>
+        }
+        description="Send, request, schedule, split and pay bills, all from one ledger that never loses a paisa."
+      />
       <PayTabs />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <SpotlightCard tone="violet" className="relative overflow-hidden lg:col-span-5">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-violet/20 blur-3xl" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-violet/20 blur-3xl"
+          />
           <p className="eyebrow">Your QuantGen handle</p>
           {me.isPending ? (
             <Skeleton className="mt-3 h-10 w-48" />
@@ -55,15 +95,23 @@ export function PayHubPage() {
             <>
               <p className="num mt-3 text-3xl font-medium">{handle}</p>
               <div className="mt-5 flex items-center gap-5">
-                <div className="rounded-2xl bg-surface-solid p-3 hairline">{link && <QrCanvas value={link} size={132} />}</div>
+                <div className="rounded-2xl bg-surface-solid p-3 hairline">
+                  {link && <QrCanvas value={link} size={132} />}
+                </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted">Anyone can scan this to pay you. It opens a pre-filled screen; they still confirm.</p>
+                  <p className="text-sm text-muted">
+                    Anyone can scan this to pay you. It opens a pre-filled screen; they still
+                    confirm.
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="secondary"
                       onClick={() => {
-                        if (link) void navigator.clipboard.writeText(link).then(() => toast.success('Payment link copied'))
+                        if (link)
+                          void navigator.clipboard
+                            .writeText(link)
+                            .then(() => toast.success('Payment link copied'))
                       }}
                     >
                       <Copy aria-hidden="true" /> Copy link
@@ -77,7 +125,10 @@ export function PayHubPage() {
             </>
           ) : (
             <div className="mt-3">
-              <p className="text-sm text-muted">Claim a handle like <span className="num text-text">yourname@qg</span> so friends can pay you without your account number.</p>
+              <p className="text-sm text-muted">
+                Claim a handle like <span className="num text-text">yourname@qg</span> so friends
+                can pay you without your account number.
+              </p>
               <Button className="mt-4" onClick={() => setHandleOpen(true)}>
                 Claim my handle
               </Button>
@@ -88,14 +139,20 @@ export function PayHubPage() {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-7">
           {LINKS.map(({ to, label, sub, icon: Icon }) => (
             <li key={to}>
-              <Link to={to} className="group flex h-full flex-col justify-between gap-6 rounded-[var(--radius-card)] bg-surface p-4 hairline transition-[border-color,transform] hover:-translate-y-0.5 hover:border-border-strong">
+              <Link
+                to={to}
+                className="group flex h-full flex-col justify-between gap-6 rounded-[var(--radius-card)] bg-surface p-4 hairline transition-[border-color,transform] hover:-translate-y-0.5 hover:border-border-strong"
+              >
                 <span className="grid size-10 place-items-center rounded-xl bg-accent text-accent-ink">
                   <Icon aria-hidden="true" className="size-4" />
                 </span>
                 <span>
                   <span className="flex items-center gap-1 text-sm font-medium">
                     {label}
-                    <ArrowRight aria-hidden="true" className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ArrowRight
+                      aria-hidden="true"
+                      className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100"
+                    />
                   </span>
                   <span className="mt-0.5 block text-xs text-muted">{sub}</span>
                 </span>
@@ -132,7 +189,16 @@ export function PayHubPage() {
           </Panel>
         )}
         {!isUnavailable(scheduled.error) && (
-          <Panel className="lg:col-span-6" eyebrow="Automatic" title="Scheduled transfers" action={<Link to="/pay/scheduled" className="text-sm text-muted hover:text-text">Manage</Link>}>
+          <Panel
+            className="lg:col-span-6"
+            eyebrow="Automatic"
+            title="Scheduled transfers"
+            action={
+              <Link to="/pay/scheduled" className="text-sm text-muted hover:text-text">
+                Manage
+              </Link>
+            }
+          >
             {!scheduled.data ? (
               <Skeleton className="h-24 w-full" />
             ) : scheduled.data.filter((s) => s.status === 'ACTIVE').length === 0 ? (
@@ -148,7 +214,8 @@ export function PayHubPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{s.note ?? s.toName}</p>
                         <p className="text-xs text-muted">
-                          {s.frequency.toLowerCase()} · next {s.nextRunDate ? formatDate(s.nextRunDate) : '—'}
+                          {s.frequency.toLowerCase()} · next{' '}
+                          {s.nextRunDate ? formatDate(s.nextRunDate) : '—'}
                         </p>
                       </div>
                       <Money value={s.amount} className="text-sm" />
@@ -163,8 +230,16 @@ export function PayHubPage() {
         </div>
       </div>
 
-      {handleOpen && accounts.data && <HandleDialog open onOpenChange={setHandleOpen} current={handle} accounts={accounts.data} />}
-      {paying && accounts.data && <PayRequestDialog request={paying} accounts={accounts.data} onClose={() => setPaying(null)} />}
+      {handleOpen && accounts.data && (
+        <HandleDialog open onOpenChange={setHandleOpen} current={handle} accounts={accounts.data} />
+      )}
+      {paying && accounts.data && (
+        <PayRequestDialog
+          request={paying}
+          accounts={accounts.data}
+          onClose={() => setPaying(null)}
+        />
+      )}
     </div>
   )
 }

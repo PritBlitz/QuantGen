@@ -23,8 +23,13 @@ function adminErrorCopy(e: ApiError) {
 
 /** Client-side check for UX only; the server validates the same bounds (5–max, 500 unless a contract says less). */
 const requiredReason = (max: number) =>
-  z.string().trim().min(5, 'Give a reason of at least 5 characters').max(max, `Keep it under ${max} characters`)
-const optionalReason = (max: number) => z.string().trim().max(max, `Keep it under ${max} characters`)
+  z
+    .string()
+    .trim()
+    .min(5, 'Give a reason of at least 5 characters')
+    .max(max, `Keep it under ${max} characters`)
+const optionalReason = (max: number) =>
+  z.string().trim().max(max, `Keep it under ${max} characters`)
 
 /**
  * Review-then-confirm dialog for a sensitive admin action. The reason is audited server-side,

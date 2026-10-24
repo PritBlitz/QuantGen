@@ -48,7 +48,9 @@ export function SplitsPage() {
         <Skeleton className="h-48 w-full" />
       ) : groups.data.length === 0 ? (
         <Panel title="No groups yet">
-          <EmptyState icon={<Users />} title="Start a group">Trips, flatmates, dinners: add people by handle and log who paid.</EmptyState>
+          <EmptyState icon={<Users />} title="Start a group">
+            Trips, flatmates, dinners: add people by handle and log who paid.
+          </EmptyState>
         </Panel>
       ) : (
         <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -68,10 +70,16 @@ function GroupCard({ g, myHandle }: { g: GroupDto; myHandle: string | null }) {
   const total = sumMoney(g.expenses.map((e) => e.amount))
   return (
     <li>
-      <Link to={`/pay/splits/${g.id}`} className="group flex h-full flex-col rounded-[var(--radius-card)] bg-surface p-5 hairline transition-[transform,border-color] hover:-translate-y-0.5 hover:border-border-strong">
+      <Link
+        to={`/pay/splits/${g.id}`}
+        className="group flex h-full flex-col rounded-[var(--radius-card)] bg-surface p-5 hairline transition-[transform,border-color] hover:-translate-y-0.5 hover:border-border-strong"
+      >
         <div className="flex items-start justify-between gap-3">
           <p className="font-medium">{g.name}</p>
-          <ArrowRight aria-hidden="true" className="size-4 text-muted transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight
+            aria-hidden="true"
+            className="size-4 text-muted transition-transform group-hover:translate-x-0.5"
+          />
         </div>
         <div className="mt-3 flex -space-x-2">
           {g.members.slice(0, 5).map((m) => (
@@ -81,8 +89,23 @@ function GroupCard({ g, myHandle }: { g: GroupDto; myHandle: string | null }) {
         <p className="mt-4 text-xs text-muted">
           {g.expenses.length} expenses · <Money value={total} className="text-text" /> total
         </p>
-        <p className={cn('mt-1 text-sm font-medium', bal.gt(0) ? 'text-gain' : bal.lt(0) ? 'text-warn' : 'text-muted')}>
-          {bal.gt(0) ? <>You’re owed <Money value={bal} /></> : bal.lt(0) ? <>You owe <Money value={bal.neg()} /></> : 'All settled'}
+        <p
+          className={cn(
+            'mt-1 text-sm font-medium',
+            bal.gt(0) ? 'text-gain' : bal.lt(0) ? 'text-warn' : 'text-muted',
+          )}
+        >
+          {bal.gt(0) ? (
+            <>
+              You’re owed <Money value={bal} />
+            </>
+          ) : bal.lt(0) ? (
+            <>
+              You owe <Money value={bal.neg()} />
+            </>
+          ) : (
+            'All settled'
+          )}
         </p>
       </Link>
     </li>
@@ -114,7 +137,11 @@ function CreateGroup({ onClose }: { onClose: () => void }) {
         },
         onError: (err) => {
           const ae = toApiError(err)
-          setError(ae.code === 'INVALID_STATE' ? 'Set your handle first (Pay → Your handle).' : (ae.fieldErrors[0]?.message ?? errorMessage(ae)))
+          setError(
+            ae.code === 'INVALID_STATE'
+              ? 'Set your handle first (Pay → Your handle).'
+              : (ae.fieldErrors[0]?.message ?? errorMessage(ae)),
+          )
         },
       },
     )
@@ -123,9 +150,25 @@ function CreateGroup({ onClose }: { onClose: () => void }) {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="New group" description="You’re added automatically.">
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <FormField label="Name" placeholder="Goa trip" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
-          <FormField label="People (handles)" placeholder="priya@qg, meera@qg" value={members} onChange={(e) => setMembers(e.target.value)} hint="Separate with commas or spaces." />
-          {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+          <FormField
+            label="Name"
+            placeholder="Goa trip"
+            maxLength={40}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <FormField
+            label="People (handles)"
+            placeholder="priya@qg, meera@qg"
+            value={members}
+            onChange={(e) => setMembers(e.target.value)}
+            hint="Separate with commas or spaces."
+          />
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel
@@ -149,7 +192,11 @@ export function SplitGroupPage() {
   const settle = useMutation({
     mutationFn: () => payApi.settleGroup(id),
     onSuccess: (reqs) => {
-      toast.success(reqs.length ? `Sent ${reqs.length} payment request${reqs.length === 1 ? '' : 's'}` : 'Nothing to settle for you')
+      toast.success(
+        reqs.length
+          ? `Sent ${reqs.length} payment request${reqs.length === 1 ? '' : 's'}`
+          : 'Nothing to settle for you',
+      )
       void invalidate()
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -168,7 +215,10 @@ export function SplitGroupPage() {
             <Button variant="secondary" onClick={() => setAdding(true)} disabled={!g}>
               <Plus aria-hidden="true" /> Add expense
             </Button>
-            <Button onClick={() => settle.mutate()} disabled={!mine || !toDecimal(mine.balance).gt(0) || settle.isPending}>
+            <Button
+              onClick={() => settle.mutate()}
+              disabled={!mine || !toDecimal(mine.balance).gt(0) || settle.isPending}
+            >
               <Split aria-hidden="true" /> Settle up
             </Button>
           </>
@@ -185,16 +235,29 @@ export function SplitGroupPage() {
               {g.members.map((m) => {
                 const b = toDecimal(m.balance)
                 return (
-                  <li key={m.handle} className="flex items-center gap-3 rounded-xl bg-surface-2/50 p-3 hairline">
+                  <li
+                    key={m.handle}
+                    className="flex items-center gap-3 rounded-xl bg-surface-2/50 p-3 hairline"
+                  >
                     <Avatar name={m.displayName} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {m.displayName} {m.handle === me.data?.handle && <span className="text-xs text-muted">(you)</span>}
+                        {m.displayName}{' '}
+                        {m.handle === me.data?.handle && (
+                          <span className="text-xs text-muted">(you)</span>
+                        )}
                       </p>
                       <p className="num text-xs text-muted">{m.handle}</p>
                     </div>
-                    <span className={cn('text-right text-sm', b.gt(0) ? 'text-gain' : b.lt(0) ? 'text-warn' : 'text-muted')}>
-                      <span className="block text-[0.6875rem]">{b.gt(0) ? 'is owed' : b.lt(0) ? 'owes' : 'settled'}</span>
+                    <span
+                      className={cn(
+                        'text-right text-sm',
+                        b.gt(0) ? 'text-gain' : b.lt(0) ? 'text-warn' : 'text-muted',
+                      )}
+                    >
+                      <span className="block text-[0.6875rem]">
+                        {b.gt(0) ? 'is owed' : b.lt(0) ? 'owes' : 'settled'}
+                      </span>
                       <Money value={b.abs()} />
                     </span>
                   </li>
@@ -212,7 +275,8 @@ export function SplitGroupPage() {
                     <div>
                       <p className="text-sm font-medium">{e.description}</p>
                       <p className="text-xs text-muted">
-                        {e.paidByHandle} paid · {e.splitType.toLowerCase()} split · {formatRelative(e.createdAt)}
+                        {e.paidByHandle} paid · {e.splitType.toLowerCase()} split ·{' '}
+                        {formatRelative(e.createdAt)}
                       </p>
                     </div>
                     <Money value={e.amount} />
@@ -223,12 +287,22 @@ export function SplitGroupPage() {
           </Panel>
         </div>
       )}
-      {adding && g && <AddExpense group={g} myHandle={me.data?.handle ?? ''} onClose={() => setAdding(false)} />}
+      {adding && g && (
+        <AddExpense group={g} myHandle={me.data?.handle ?? ''} onClose={() => setAdding(false)} />
+      )}
     </div>
   )
 }
 
-function AddExpense({ group, myHandle, onClose }: { group: GroupDto; myHandle: string; onClose: () => void }) {
+function AddExpense({
+  group,
+  myHandle,
+  onClose,
+}: {
+  group: GroupDto
+  myHandle: string
+  onClose: () => void
+}) {
   const invalidate = useInvalidatePayments()
   const [paidBy, setPaidBy] = useState(myHandle)
   const [amount, setAmount] = useState('')
@@ -236,19 +310,24 @@ function AddExpense({ group, myHandle, onClose }: { group: GroupDto; myHandle: s
   const [type, setType] = useState<SplitType>('EQUAL')
   const [shares, setShares] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const add = useMutation({ mutationFn: (b: Parameters<typeof payApi.addExpense>[1]) => payApi.addExpense(group.id, b) })
+  const add = useMutation({
+    mutationFn: (b: Parameters<typeof payApi.addExpense>[1]) => payApi.addExpense(group.id, b),
+  })
 
   function submit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     if (!description.trim()) return setError('What was it for?')
-    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1)) return setError('Enter at least ₹1.')
+    if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1))
+      return setError('Enter at least ₹1.')
     let split: Parameters<typeof payApi.addExpense>[1]['split'] = { type }
     if (type !== 'EQUAL') {
       const list = group.members.map((m) => ({ handle: m.handle, value: shares[m.handle] || '0' }))
-      if (list.some((s) => !/^\d{1,9}(\.\d{1,2})?$/.test(s.value))) return setError('Shares must be numbers.')
+      if (list.some((s) => !/^\d{1,9}(\.\d{1,2})?$/.test(s.value)))
+        return setError('Shares must be numbers.')
       const total = sumMoney(list.map((s) => s.value))
-      if (type === 'EXACT' && !total.eq(amount)) return setError('Exact shares must add up to the amount.')
+      if (type === 'EXACT' && !total.eq(amount))
+        return setError('Exact shares must add up to the amount.')
       if (type === 'PERCENT' && !total.eq(100)) return setError('Percentages must add up to 100.')
       split = { type, shares: list }
     }
@@ -269,27 +348,66 @@ function AddExpense({ group, myHandle, onClose }: { group: GroupDto; myHandle: s
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Add an expense" className="max-w-lg">
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <FormField label="What for" maxLength={60} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <FormField
+            label="What for"
+            maxLength={60}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
           <AmountInput label="Amount" value={amount} onValueChange={setAmount} />
           <div className="space-y-1.5">
             <Label>Paid by</Label>
-            <Select aria-label="Paid by" value={paidBy} onValueChange={setPaidBy} options={group.members.map((m) => ({ value: m.handle, label: m.displayName, text: m.displayName }))} />
+            <Select
+              aria-label="Paid by"
+              value={paidBy}
+              onValueChange={setPaidBy}
+              options={group.members.map((m) => ({
+                value: m.handle,
+                label: m.displayName,
+                text: m.displayName,
+              }))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Split</Label>
-            <Segmented label="Split type" value={type} onValueChange={setType} options={[{ value: 'EQUAL', label: 'Equally' }, { value: 'EXACT', label: 'Exact ₹' }, { value: 'PERCENT', label: 'By %' }]} />
+            <Segmented
+              label="Split type"
+              value={type}
+              onValueChange={setType}
+              options={[
+                { value: 'EQUAL', label: 'Equally' },
+                { value: 'EXACT', label: 'Exact ₹' },
+                { value: 'PERCENT', label: 'By %' },
+              ]}
+            />
           </div>
           {type !== 'EQUAL' && (
             <ul className="space-y-2">
               {group.members.map((m) => (
                 <li key={m.handle} className="grid grid-cols-[1fr_8rem] items-center gap-2 text-sm">
                   <span>{m.displayName}</span>
-                  <FormField label={`${m.displayName} share`} className="h-9" inputMode="decimal" value={shares[m.handle] ?? ''} onChange={(e) => setShares((s) => ({ ...s, [m.handle]: e.target.value.replace(/[^\d.]/g, '') }))} aria-label={`${m.displayName} share`} />
+                  <FormField
+                    label={`${m.displayName} share`}
+                    className="h-9"
+                    inputMode="decimal"
+                    value={shares[m.handle] ?? ''}
+                    onChange={(e) =>
+                      setShares((s) => ({
+                        ...s,
+                        [m.handle]: e.target.value.replace(/[^\d.]/g, ''),
+                      }))
+                    }
+                    aria-label={`${m.displayName} share`}
+                  />
                 </li>
               ))}
             </ul>
           )}
-          {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel

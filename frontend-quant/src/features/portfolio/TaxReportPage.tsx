@@ -46,7 +46,11 @@ export function TaxReportPage() {
         actions={
           report.data && report.data.rows.length > 0 ? (
             <Button variant="secondary" onClick={() => void download()} disabled={downloading}>
-              {downloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+              {downloading ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Download aria-hidden="true" />
+              )}
               Download CSV
             </Button>
           ) : undefined
@@ -80,7 +84,9 @@ export function TaxReportPage() {
           </dl>
           <Panel title="Sales" eyebrow={`FY ${report.data.fy}`}>
             {report.data.rows.length === 0 ? (
-              <p className="text-sm text-muted">You didn’t sell any shares in this financial year.</p>
+              <p className="text-sm text-muted">
+                You didn’t sell any shares in this financial year.
+              </p>
             ) : (
               <div
                 className="scroll-thin -mx-1 overflow-x-auto rounded-md px-1 focus-visible:outline-2 focus-visible:outline-accent"
@@ -92,28 +98,55 @@ export function TaxReportPage() {
                   <caption className="sr-only">Realized gains by sale</caption>
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted">
-                      <th scope="col" className="py-2 pr-3 font-normal">Symbol</th>
-                      <th scope="col" className="py-2 pr-3 font-normal">Bought</th>
-                      <th scope="col" className="py-2 pr-3 font-normal">Sold</th>
-                      <th scope="col" className="py-2 pr-3 text-right font-normal">Qty</th>
-                      <th scope="col" className="py-2 pr-3 text-right font-normal">Cost</th>
-                      <th scope="col" className="py-2 pr-3 text-right font-normal">Proceeds</th>
-                      <th scope="col" className="py-2 pr-3 text-right font-normal">Gain</th>
-                      <th scope="col" className="py-2 text-right font-normal">Term</th>
+                      <th scope="col" className="py-2 pr-3 font-normal">
+                        Symbol
+                      </th>
+                      <th scope="col" className="py-2 pr-3 font-normal">
+                        Bought
+                      </th>
+                      <th scope="col" className="py-2 pr-3 font-normal">
+                        Sold
+                      </th>
+                      <th scope="col" className="py-2 pr-3 text-right font-normal">
+                        Qty
+                      </th>
+                      <th scope="col" className="py-2 pr-3 text-right font-normal">
+                        Cost
+                      </th>
+                      <th scope="col" className="py-2 pr-3 text-right font-normal">
+                        Proceeds
+                      </th>
+                      <th scope="col" className="py-2 pr-3 text-right font-normal">
+                        Gain
+                      </th>
+                      <th scope="col" className="py-2 text-right font-normal">
+                        Term
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.data.rows.map((r, i) => (
-                      <tr key={`${r.symbol}-${r.sellDate}-${i}`} className="border-b border-border last:border-0">
+                      <tr
+                        key={`${r.symbol}-${r.sellDate}-${i}`}
+                        className="border-b border-border last:border-0"
+                      >
                         <td className="py-2.5 pr-3 font-semibold">{r.symbol}</td>
                         <td className="py-2.5 pr-3 text-muted">{formatDate(r.buyDate)}</td>
                         <td className="py-2.5 pr-3 text-muted">{formatDate(r.sellDate)}</td>
                         <td className="num py-2.5 pr-3 text-right">{r.quantity}</td>
-                        <td className="py-2.5 pr-3 text-right"><Money value={r.cost} /></td>
-                        <td className="py-2.5 pr-3 text-right"><Money value={r.proceeds} /></td>
-                        <td className="py-2.5 pr-3 text-right"><Money value={r.gain} tone="pnl" /></td>
+                        <td className="py-2.5 pr-3 text-right">
+                          <Money value={r.cost} />
+                        </td>
+                        <td className="py-2.5 pr-3 text-right">
+                          <Money value={r.proceeds} />
+                        </td>
+                        <td className="py-2.5 pr-3 text-right">
+                          <Money value={r.gain} tone="pnl" />
+                        </td>
                         <td className="py-2.5 text-right">
-                          <Badge tone={r.term === 'LONG' ? 'cyan' : 'neutral'}>{r.term === 'LONG' ? 'Long' : 'Short'}</Badge>
+                          <Badge tone={r.term === 'LONG' ? 'cyan' : 'neutral'}>
+                            {r.term === 'LONG' ? 'Long' : 'Short'}
+                          </Badge>
                         </td>
                       </tr>
                     ))}
@@ -123,7 +156,8 @@ export function TaxReportPage() {
             )}
           </Panel>
           <p className="text-xs text-muted">
-            For your records only, not tax advice. Figures are based on simulated prices and average cost.
+            For your records only, not tax advice. Figures are based on simulated prices and average
+            cost.
           </p>
         </div>
       )}

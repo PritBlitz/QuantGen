@@ -1,4 +1,13 @@
-import type { AccountDto, FieldError, RuleAction, RuleAmount, RuleDsl, RuleRunOutcome, RuleTrigger, Weekday } from '@/api/types'
+import type {
+  AccountDto,
+  FieldError,
+  RuleAction,
+  RuleAmount,
+  RuleDsl,
+  RuleRunOutcome,
+  RuleTrigger,
+  Weekday,
+} from '@/api/types'
 import { backendHas } from '@/api/capabilities'
 import type { BadgeTone } from '@/components/ui/badge'
 import { AMOUNT_INPUT_RE, toDecimal } from '@/lib/money'
@@ -27,7 +36,9 @@ export const ACTION_LABEL: Record<RuleAction['type'], string> = {
  */
 const EXTENDED = backendHas('V2-M5-extended')
 const BILLS = backendHas('V2-M5-bills')
-export const TRIGGER_OPTIONS = (Object.keys(TRIGGER_LABEL) as Array<RuleTrigger['type']>).filter((t) => EXTENDED || t !== 'BUDGET_THRESHOLD')
+export const TRIGGER_OPTIONS = (Object.keys(TRIGGER_LABEL) as Array<RuleTrigger['type']>).filter(
+  (t) => EXTENDED || t !== 'BUDGET_THRESHOLD',
+)
 export const ACTION_OPTIONS = (Object.keys(ACTION_LABEL) as Array<RuleAction['type']>).filter(
   (a) => (EXTENDED || a !== 'ROUND_UP_SWEEP') && (BILLS || a !== 'PAY_BILL'),
 )
@@ -52,7 +63,8 @@ export const OUTCOME: Record<RuleRunOutcome, { label: string; tone: BadgeTone }>
 /** Accounts money can leave from (an Autopilot source). */
 export const spendable = (accounts: AccountDto[]) =>
   accounts.filter((a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'))
-export const goals = (accounts: AccountDto[]) => accounts.filter((a) => a.status === 'ACTIVE' && a.type === 'GOAL')
+export const goals = (accounts: AccountDto[]) =>
+  accounts.filter((a) => a.status === 'ACTIVE' && a.type === 'GOAL')
 
 /** A starting rule for "build it myself": ₹5,000 into a goal on the 1st of each month. */
 export function blankRule(accounts: AccountDto[]): RuleDsl {
@@ -62,7 +74,14 @@ export function blankRule(accounts: AccountDto[]): RuleDsl {
     dslVersion: 1,
     trigger: { type: 'SCHEDULE', frequency: 'MONTHLY', dayOfMonth: 1 },
     conditions: [],
-    actions: [{ type: 'TRANSFER', fromAccountId: from, toAccountId: to, amount: { mode: 'FIXED', value: '5000.00' } }],
+    actions: [
+      {
+        type: 'TRANSFER',
+        fromAccountId: from,
+        toAccountId: to,
+        amount: { mode: 'FIXED', value: '5000.00' },
+      },
+    ],
     caps: { perRun: '5000.00', perMonth: '5000.00' },
   }
 }
@@ -88,29 +107,46 @@ export function defaultAction(type: RuleAction['type'], accounts: AccountDto[]):
   const goal = goals(accounts)[0]?.id ?? ''
   switch (type) {
     case 'TRANSFER':
-      return { type, fromAccountId: from, toAccountId: goal || undefined, amount: { mode: 'FIXED', value: '1000.00' } }
+      return {
+        type,
+        fromAccountId: from,
+        toAccountId: goal || undefined,
+        amount: { mode: 'FIXED', value: '1000.00' },
+      }
     case 'BUY':
       return { type, accountId: from, symbol: 'QGEN', amount: { mode: 'FIXED', value: '5000.00' } }
     case 'PAY_BILL':
       return { type, savedBillerId: '', fromAccountId: from }
     case 'ROUND_UP_SWEEP':
-      return { type, fromAccountId: from, toAccountId: goal || (spendable(accounts)[1]?.id ?? ''), roundTo: 10 }
+      return {
+        type,
+        fromAccountId: from,
+        toAccountId: goal || (spendable(accounts)[1]?.id ?? ''),
+        roundTo: 10,
+      }
     case 'NOTIFY':
       return { type, message: '' }
   }
 }
 
 /** Which amount modes make sense for a trigger (the server re-checks). */
-export function amountModes(trigger: RuleTrigger): Array<{ value: RuleAmount['mode']; text: string }> {
+export function amountModes(
+  trigger: RuleTrigger,
+): Array<{ value: RuleAmount['mode']; text: string }> {
   return [
     { value: 'FIXED', text: 'A fixed amount' },
-    ...(trigger.type === 'MONEY_RECEIVED' ? [{ value: 'PERCENT_OF_TRIGGER' as const, text: '% of the money received' }] : []),
-    ...(trigger.type === 'BALANCE_ABOVE' ? [{ value: 'EXCESS_ABOVE' as const, text: 'Everything above the threshold' }] : []),
+    ...(trigger.type === 'MONEY_RECEIVED'
+      ? [{ value: 'PERCENT_OF_TRIGGER' as const, text: '% of the money received' }]
+      : []),
+    ...(trigger.type === 'BALANCE_ABOVE'
+      ? [{ value: 'EXCESS_ABOVE' as const, text: 'Everything above the threshold' }]
+      : []),
   ]
 }
 
 /** "5000" → "5000.00" for money fields the user typed; anything invalid is left for the server to reject. */
-const money2 = (v: string | undefined) => (v !== undefined && AMOUNT_INPUT_RE.test(v) ? toDecimal(v).toFixed(2) : v)
+const money2 = (v: string | undefined) =>
+  v !== undefined && AMOUNT_INPUT_RE.test(v) ? toDecimal(v).toFixed(2) : v
 
 /** Canonical form before sending: money with 2 decimals, empty optionals removed. Pure. */
 export function normalizeRule(r: RuleDsl): RuleDsl {
@@ -121,7 +157,9 @@ export function normalizeRule(r: RuleDsl): RuleDsl {
           type: t.type,
           accountId: t.accountId,
           ...(t.minAmount ? { minAmount: money2(t.minAmount) } : {}),
-          ...(t.counterpartyContains?.trim() ? { counterpartyContains: t.counterpartyContains.trim() } : {}),
+          ...(t.counterpartyContains?.trim()
+            ? { counterpartyContains: t.counterpartyContains.trim() }
+            : {}),
           ...(t.transactionType ? { transactionType: t.transactionType } : {}),
         }
       : t.type === 'BALANCE_ABOVE'
@@ -133,11 +171,16 @@ export function normalizeRule(r: RuleDsl): RuleDsl {
               ? { type: t.type, frequency: t.frequency, dayOfMonth: t.dayOfMonth ?? 1 }
               : { type: t.type, frequency: t.frequency, weekday: t.weekday ?? 'MON' }
             : t
-  const amount = (a: RuleAmount): RuleAmount => (a.mode === 'PERCENT_OF_TRIGGER' ? a : { ...a, value: money2(a.value) ?? '' })
+  const amount = (a: RuleAmount): RuleAmount =>
+    a.mode === 'PERCENT_OF_TRIGGER' ? a : { ...a, value: money2(a.value) ?? '' }
   const actions = r.actions.map((a): RuleAction => {
     if (a.type === 'TRANSFER') {
       const { toAccountId, toBeneficiaryId, ...rest } = a
-      return { ...rest, ...(toBeneficiaryId ? { toBeneficiaryId } : { toAccountId }), amount: amount(a.amount) }
+      return {
+        ...rest,
+        ...(toBeneficiaryId ? { toBeneficiaryId } : { toAccountId }),
+        amount: amount(a.amount),
+      }
     }
     if (a.type === 'BUY') return { ...a, amount: amount(a.amount) }
     if (a.type === 'NOTIFY') return { ...a, message: a.message.trim() }
@@ -160,7 +203,8 @@ export function fieldErrorIndex(errors: FieldError[]) {
   const norm = (f: string) => f.replace(/^rule\./, '')
   const list = errors.map((e) => ({ path: norm(e.field), message: e.message }))
   return {
-    at: (path: string) => list.find((e) => e.path === path || e.path.startsWith(`${path}.`))?.message,
+    at: (path: string) =>
+      list.find((e) => e.path === path || e.path.startsWith(`${path}.`))?.message,
     all: list,
   }
 }

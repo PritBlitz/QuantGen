@@ -159,7 +159,9 @@ export function AdminAnalyticsPage() {
         title={
           heroTotal ? (
             <span className="num text-3xl font-medium sm:text-4xl">
-              {formatMetric(heroTotal.value, heroTotal.unit, { compact: heroTotal.unit === 'MONEY' })}
+              {formatMetric(heroTotal.value, heroTotal.unit, {
+                compact: heroTotal.unit === 'MONEY',
+              })}
             </span>
           ) : (
             <Skeleton className="h-9 w-40" />
@@ -177,7 +179,8 @@ export function AdminAnalyticsPage() {
         }
       >
         <div className="mb-3 lg:hidden">
-          <Select aria-label="Metric"
+          <Select
+            aria-label="Metric"
             value={metric}
             onValueChange={(v) => setMetric(v as AnalyticsMetric)}
             options={HERO_METRICS.map((m) => ({ value: m.value, label: m.label, text: m.label }))}
@@ -188,7 +191,9 @@ export function AdminAnalyticsPage() {
         ) : !hero.data ? (
           <Skeleton className="h-[300px] w-full rounded-xl" />
         ) : !hero.data.available ? (
-          <p className="py-16 text-center text-sm text-muted">This metric arrives with its milestone.</p>
+          <p className="py-16 text-center text-sm text-muted">
+            This metric arrives with its milestone.
+          </p>
         ) : (
           <TrendChart
             ariaLabel={`${hero.data.label} over the selected period`}
@@ -209,7 +214,12 @@ export function AdminAnalyticsPage() {
       </Panel>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel className="lg:col-span-7" eyebrow="Acquisition" title="From sign-up to first trade" description="People who registered in this period, and how far they got.">
+        <Panel
+          className="lg:col-span-7"
+          eyebrow="Acquisition"
+          title="From sign-up to first trade"
+          description="People who registered in this period, and how far they got."
+        >
           {funnel.isError ? (
             <PanelError what="the funnel" onRetry={() => void funnel.refetch()} />
           ) : funnel.data ? (
@@ -225,12 +235,16 @@ export function AdminAnalyticsPage() {
             <Donut
               ariaLabel="Share of money moved by transaction type"
               size={170}
-              slices={mix.data.rows.filter((r) => !r.suppressed && r.value).map((r) => ({ key: r.key, label: r.label, value: r.value ?? '0' }))}
+              slices={mix.data.rows
+                .filter((r) => !r.suppressed && r.value)
+                .map((r) => ({ key: r.key, label: r.label, value: r.value ?? '0' }))}
               formatValue={(s) => formatINR(s.value, { compact: true })}
               center={(a) => (
                 <>
                   <p className="text-[0.6875rem] text-muted">{a ? a.label : 'Total moved'}</p>
-                  <p className="num text-lg font-medium">{formatINR(a ? a.value : mix.data.total, { compact: true })}</p>
+                  <p className="num text-lg font-medium">
+                    {formatINR(a ? a.value : mix.data.total, { compact: true })}
+                  </p>
                 </>
               )}
             />
@@ -241,7 +255,12 @@ export function AdminAnalyticsPage() {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel className="lg:col-span-7" eyebrow="Retention" title="Do customers keep using QuantGen?" description="Share of each signup month still moving money N months later.">
+        <Panel
+          className="lg:col-span-7"
+          eyebrow="Retention"
+          title="Do customers keep using QuantGen?"
+          description="Share of each signup month still moving money N months later."
+        >
           {cohorts.isError ? (
             <PanelError what="cohorts" onRetry={() => void cohorts.refetch()} />
           ) : cohorts.data ? (
@@ -250,16 +269,36 @@ export function AdminAnalyticsPage() {
             <Skeleton className="h-56 w-full" />
           )}
         </Panel>
-        <Panel className="lg:col-span-5" eyebrow="Credit" title="Loan book" action={book.data && <Badge tone={toDecimal(book.data.overdueRatePct).gte(5) ? 'warn' : 'gain'} dot>{formatPercent(book.data.overdueRatePct)} overdue</Badge>}>
+        <Panel
+          className="lg:col-span-5"
+          eyebrow="Credit"
+          title="Loan book"
+          action={
+            book.data && (
+              <Badge tone={toDecimal(book.data.overdueRatePct).gte(5) ? 'warn' : 'gain'} dot>
+                {formatPercent(book.data.overdueRatePct)} overdue
+              </Badge>
+            )
+          }
+        >
           {book.isError ? (
             <PanelError what="the loan book" onRetry={() => void book.refetch()} />
           ) : book.data ? (
             <div className="space-y-5">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <Stat label="Outstanding" value={formatINR(book.data.outstandingPrincipal, { compact: true })} />
-                <Stat label="Interest earned" value={formatINR(book.data.interestEarned, { compact: true })} />
+                <Stat
+                  label="Outstanding"
+                  value={formatINR(book.data.outstandingPrincipal, { compact: true })}
+                />
+                <Stat
+                  label="Interest earned"
+                  value={formatINR(book.data.interestEarned, { compact: true })}
+                />
                 <Stat label="Approval rate" value={formatPercent(book.data.approvalRatePct)} />
-                <Stat label="Average ticket" value={formatINR(book.data.avgTicket, { compact: true })} />
+                <Stat
+                  label="Average ticket"
+                  value={formatINR(book.data.avgTicket, { compact: true })}
+                />
               </dl>
               <div>
                 <p className="eyebrow mb-3">Overdue ageing</p>
@@ -287,7 +326,8 @@ export function AdminAnalyticsPage() {
           eyebrow="Explore"
           title="Breakdown"
           action={
-            <Select aria-label="Break down by"
+            <Select
+              aria-label="Break down by"
               value={dimension}
               onValueChange={(v) => setDimension(v as BreakdownDimension)}
               options={DIMENSIONS.map((d) => ({ value: d.value, label: d.text, text: d.text }))}
@@ -306,7 +346,10 @@ export function AdminAnalyticsPage() {
                 value: r.value,
                 sharePct: r.sharePct,
                 suppressed: r.suppressed,
-                sub: r.count !== null && explorer.data.unit === 'MONEY' ? `${formatCount(String(r.count))} transactions` : undefined,
+                sub:
+                  r.count !== null && explorer.data.unit === 'MONEY'
+                    ? `${formatCount(String(r.count))} transactions`
+                    : undefined,
               }))}
             />
           ) : (
@@ -315,32 +358,86 @@ export function AdminAnalyticsPage() {
         </Panel>
 
         <div className="flex flex-col gap-4 lg:col-span-5">
-          <Panel eyebrow="v2 features" title="Product adoption" tone="violet" description="Share of active users who use each feature.">
+          <Panel
+            eyebrow="v2 features"
+            title="Product adoption"
+            tone="violet"
+            description="Share of active users who use each feature."
+          >
             {adoption.isError ? (
               <PanelError what="adoption" onRetry={() => void adoption.refetch()} />
             ) : adoption.data ? (
               <div className="space-y-5">
                 <ShareBars
                   format={(v) => formatCount(v)}
-                  rows={adoption.data.features.map((f) => ({ key: f.key, label: f.available ? f.label : `${f.label} (soon)`, value: f.users, sharePct: f.pct }))}
+                  rows={adoption.data.features.map((f) => ({
+                    key: f.key,
+                    label: f.available ? f.label : `${f.label} (soon)`,
+                    value: f.users,
+                    sharePct: f.pct,
+                  }))}
                 />
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <MiniStat icon={<Bot />} label="AI per active user" value={adoption.data.ai.available ? `$${adoption.data.ai.costPerActiveUser}` : '—'} />
-                  <MiniStat icon={<Workflow />} label="Autopilot success" value={adoption.data.autopilot.available ? formatPercent(adoption.data.autopilot.successPct) : '—'} />
-                  <MiniStat icon={<ShieldAlert />} label="Fraud released" value={adoption.data.fraud.available ? formatPercent(adoption.data.fraud.releasedPct) : '—'} />
+                  <MiniStat
+                    icon={<Bot />}
+                    label="AI per active user"
+                    value={
+                      adoption.data.ai.available ? `$${adoption.data.ai.costPerActiveUser}` : '—'
+                    }
+                  />
+                  <MiniStat
+                    icon={<Workflow />}
+                    label="Autopilot success"
+                    value={
+                      adoption.data.autopilot.available
+                        ? formatPercent(adoption.data.autopilot.successPct)
+                        : '—'
+                    }
+                  />
+                  <MiniStat
+                    icon={<ShieldAlert />}
+                    label="Fraud released"
+                    value={
+                      adoption.data.fraud.available
+                        ? formatPercent(adoption.data.fraud.releasedPct)
+                        : '—'
+                    }
+                  />
                 </div>
               </div>
             ) : (
               <Skeleton className="h-64 w-full" />
             )}
           </Panel>
-          <Panel eyebrow="Platform" title="Health" action={<Gauge aria-hidden="true" className="size-4 text-muted" />}>
+          <Panel
+            eyebrow="Platform"
+            title="Health"
+            action={<Gauge aria-hidden="true" className="size-4 text-muted" />}
+          >
             {health.data ? (
               <ul className="space-y-2.5 text-sm">
-                <HealthRow ok={health.data.reconcileBalanced} label="Ledger reconciled" detail={`checked ${formatRelative(health.data.checkedAt)}`} />
-                {health.data.sealLagSeconds != null && <HealthRow ok label="Seal lag" detail={`${health.data.sealLagSeconds}s`} />}
-                {health.data.outboxLag != null && <HealthRow ok={health.data.outboxLag === '0'} label="Outbox backlog" detail={`${health.data.outboxLag} events`} />}
-                {health.data.moneyErrorRatePct != null && <HealthRow ok label="Money endpoint errors" detail={formatPercent(health.data.moneyErrorRatePct, 2)} />}
+                <HealthRow
+                  ok={health.data.reconcileBalanced}
+                  label="Ledger reconciled"
+                  detail={`checked ${formatRelative(health.data.checkedAt)}`}
+                />
+                {health.data.sealLagSeconds != null && (
+                  <HealthRow ok label="Seal lag" detail={`${health.data.sealLagSeconds}s`} />
+                )}
+                {health.data.outboxLag != null && (
+                  <HealthRow
+                    ok={health.data.outboxLag === '0'}
+                    label="Outbox backlog"
+                    detail={`${health.data.outboxLag} events`}
+                  />
+                )}
+                {health.data.moneyErrorRatePct != null && (
+                  <HealthRow
+                    ok
+                    label="Money endpoint errors"
+                    detail={formatPercent(health.data.moneyErrorRatePct, 2)}
+                  />
+                )}
               </ul>
             ) : health.isError ? (
               <PanelError what="health" onRetry={() => void health.refetch()} />
@@ -366,7 +463,10 @@ function KpiCell({
   big: boolean
 }) {
   const sparkMetric = SPARK.includes(kpi.key) ? (kpi.key as AnalyticsMetric) : null
-  const series = useSeries({ ...range, metric: sparkMetric ?? 'NEW_USERS', granularity }, big && !!sparkMetric)
+  const series = useSeries(
+    { ...range, metric: sparkMetric ?? 'NEW_USERS', granularity },
+    big && !!sparkMetric,
+  )
   const Icon = KPI_ICON[kpi.key]
   return (
     <KpiTile
@@ -403,7 +503,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl bg-surface-2/70 p-3 hairline">
-      <span className="mx-auto grid size-7 place-items-center rounded-lg bg-violet/14 text-violet [&_svg]:size-3.5">{icon}</span>
+      <span className="mx-auto grid size-7 place-items-center rounded-lg bg-violet/14 text-violet [&_svg]:size-3.5">
+        {icon}
+      </span>
       <p className="num mt-2 text-sm font-medium">{value}</p>
       <p className="mt-0.5 text-[0.6875rem] leading-tight text-muted">{label}</p>
     </div>

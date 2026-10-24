@@ -55,15 +55,31 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Overview',
     items: [
       { to: '/dashboard', label: 'Home', icon: LayoutDashboard, mobile: true },
-      { to: '/insights', label: 'Insights', icon: LineChart, hint: 'Spending, cash flow, net worth' },
+      {
+        to: '/insights',
+        label: 'Insights',
+        icon: LineChart,
+        hint: 'Spending, cash flow, net worth',
+      },
     ],
   },
   {
     label: 'Money',
     items: [
       { to: '/accounts', label: 'Accounts', icon: Wallet },
-      { to: '/pay', label: 'Pay', icon: ArrowLeftRight, mobile: true, hint: 'Send, request, bills, split' },
-      { to: '/savings', label: 'Savings', icon: PiggyBank, hint: 'Goals, round-ups, fixed deposits' },
+      {
+        to: '/pay',
+        label: 'Pay',
+        icon: ArrowLeftRight,
+        mobile: true,
+        hint: 'Send, request, bills, split',
+      },
+      {
+        to: '/savings',
+        label: 'Savings',
+        icon: PiggyBank,
+        hint: 'Goals, round-ups, fixed deposits',
+      },
       { to: '/cards', label: 'Cards', icon: CreditCard, flag: 'cards' },
     ],
   },
@@ -83,13 +99,28 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Automate',
     items: [
-      { to: '/autopilot', label: 'Autopilot', icon: Workflow, flag: 'autopilot', hint: 'Money rules in plain English' },
-      { to: '/copilot', label: 'Copilot', icon: Sparkles, flag: 'ai', mobile: true, hint: 'Ask about your money' },
+      {
+        to: '/autopilot',
+        label: 'Autopilot',
+        icon: Workflow,
+        flag: 'autopilot',
+        hint: 'Money rules in plain English',
+      },
+      {
+        to: '/copilot',
+        label: 'Copilot',
+        icon: Sparkles,
+        flag: 'ai',
+        mobile: true,
+        hint: 'Ask about your money',
+      },
     ],
   },
   {
     label: 'Trust',
-    items: [{ to: '/proof', label: 'Proof of Balance', icon: ShieldCheck, hint: 'Verify your balance' }],
+    items: [
+      { to: '/proof', label: 'Proof of Balance', icon: ShieldCheck, hint: 'Verify your balance' },
+    ],
   },
 ]
 
@@ -108,7 +139,9 @@ export const ADMIN_GROUPS: NavGroup[] = [
       { to: '/admin/users', label: 'Users', icon: Users, mobile: true },
       { to: '/admin/loans', label: 'Loan queue', icon: Inbox },
       { to: '/admin/fraud', label: 'Fraud cases', icon: ShieldAlert, mobile: true },
-      ...(backendHas('F-CARD-4') ? [{ to: '/admin/disputes', label: 'Card disputes', icon: Scale }] : []),
+      ...(backendHas('F-CARD-4')
+        ? [{ to: '/admin/disputes', label: 'Card disputes', icon: Scale }]
+        : []),
     ],
   },
   {

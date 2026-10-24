@@ -38,7 +38,9 @@ export function ProgressRing({
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center" aria-hidden="true">
         <div>
-          <p className={size < 100 ? 'num text-base font-semibold' : 'num text-xl font-semibold'}>{Math.round(value * 100)}%</p>
+          <p className={size < 100 ? 'num text-base font-semibold' : 'num text-xl font-semibold'}>
+            {Math.round(value * 100)}%
+          </p>
           <p className="text-[0.6875rem] text-muted">{caption}</p>
         </div>
       </div>

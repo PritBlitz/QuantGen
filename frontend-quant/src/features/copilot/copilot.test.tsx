@@ -12,8 +12,14 @@ import { createSseParser } from './stream'
 function spyOnApprovals() {
   const calls: Array<{ key: string | null; stepUp: string | null }> = []
   server.events.on('request:start', ({ request }) => {
-    if (request.method === 'POST' && /\/intents\/[^/]+\/approve$/.test(new URL(request.url).pathname))
-      calls.push({ key: request.headers.get('Idempotency-Key'), stepUp: request.headers.get('X-Step-Up-Token') })
+    if (
+      request.method === 'POST' &&
+      /\/intents\/[^/]+\/approve$/.test(new URL(request.url).pathname)
+    )
+      calls.push({
+        key: request.headers.get('Idempotency-Key'),
+        stepUp: request.headers.get('X-Step-Up-Token'),
+      })
   })
   return calls
 }
@@ -32,10 +38,12 @@ describe('SSE parser', () => {
     const parse = createSseParser()
     expect(parse('event: tok')).toEqual([])
     expect(parse('en\r\ndata: {"text":"Hel')).toEqual([])
-    expect(parse('lo"}\r\n\r\n: keep-alive\n\nevent: ping\ndata: {}\n\n')).toEqual([{ type: 'token', text: 'Hello' }])
-    expect(parse('event: error\ndata: {"code":"BUDGET_EXHAUSTED",\ndata: "message":"x"}\n\n')).toEqual([
-      { type: 'error', code: 'BUDGET_EXHAUSTED', message: 'x' },
+    expect(parse('lo"}\r\n\r\n: keep-alive\n\nevent: ping\ndata: {}\n\n')).toEqual([
+      { type: 'token', text: 'Hello' },
     ])
+    expect(
+      parse('event: error\ndata: {"code":"BUDGET_EXHAUSTED",\ndata: "message":"x"}\n\n'),
+    ).toEqual([{ type: 'error', code: 'BUDGET_EXHAUSTED', message: 'x' }])
     expect(parse('event: token\ndata: not json\n\n')).toEqual([])
   })
 })
@@ -60,7 +68,11 @@ describe('Copilot', () => {
     const calls = spyOnApprovals()
     const user = await ask('Pay Meera 500 for dinner')
 
-    const card = await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Pay ₹500.00 to Meera Iyer/ }, { timeout: 8000 })
+    const card = await within(screen.getByRole('log')).findByRole(
+      'article',
+      { name: /Proposed action: Pay ₹500.00 to Meera Iyer/ },
+      { timeout: 8000 },
+    )
     expect(within(card).getByText(/Copilot’s reasoning/)).toBeInTheDocument()
     expect(within(card).getByText(`Meera Iyer · ${PEOPLE.meera.handle}`)).toBeInTheDocument()
     // Proposed, not executed: no money has moved.
@@ -77,7 +89,11 @@ describe('Copilot', () => {
     signInAs('CUSTOMER')
     const calls = spyOnApprovals()
     const user = await ask('Move 2000 to my goa goal')
-    const card = await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Move/ }, { timeout: 8000 })
+    const card = await within(screen.getByRole('log')).findByRole(
+      'article',
+      { name: /Proposed action: Move/ },
+      { timeout: 8000 },
+    )
 
     server.use(http.post('/api/v1/intents/:id/approve', () => HttpResponse.error(), { once: true }))
     await user.click(within(card).getByRole('button', { name: 'Approve' }))
@@ -93,7 +109,11 @@ describe('Copilot', () => {
     signInAs('CUSTOMER')
     const calls = spyOnApprovals()
     const user = await ask('Pay Meera 60000')
-    const card = await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Pay ₹60,000.00/ }, { timeout: 8000 })
+    const card = await within(screen.getByRole('log')).findByRole(
+      'article',
+      { name: /Proposed action: Pay ₹60,000.00/ },
+      { timeout: 8000 },
+    )
     expect(within(card).getByText(/confirm with your passkey or PIN/)).toBeInTheDocument()
 
     await user.click(within(card).getByRole('button', { name: 'Approve' }))
@@ -110,7 +130,11 @@ describe('Copilot', () => {
   it('keeps an approved card in "Waiting for you" with its confirmation, though it is no longer proposed', async () => {
     signInAs('CUSTOMER')
     await ask('Pay Meera 500 for dinner')
-    await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Pay ₹500.00/ }, { timeout: 8000 })
+    await within(screen.getByRole('log')).findByRole(
+      'article',
+      { name: /Proposed action: Pay ₹500.00/ },
+      { timeout: 8000 },
+    )
     // Leave and come back so the panel loads the proposal from GET /intents?status=PROPOSED.
     const user = userEvent.setup()
     renderApp('/copilot')
@@ -128,7 +152,11 @@ describe('Copilot', () => {
     signInAs('CUSTOMER')
     const before = balance(DEMO_SAVINGS)
     const user = await ask('Pay Meera 700')
-    const card = await within(screen.getByRole('log')).findByRole('article', { name: /Proposed action: Pay ₹700.00/ }, { timeout: 8000 })
+    const card = await within(screen.getByRole('log')).findByRole(
+      'article',
+      { name: /Proposed action: Pay ₹700.00/ },
+      { timeout: 8000 },
+    )
     await user.click(within(card).getByRole('button', { name: /Not now/ }))
     expect(await within(card).findByText(/You declined this/)).toBeInTheDocument()
     expect(balance(DEMO_SAVINGS)).toBe(before)

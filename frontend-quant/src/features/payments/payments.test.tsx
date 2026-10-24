@@ -22,7 +22,11 @@ function spyOnTransfers() {
   return calls
 }
 
-async function payByHandle(user: ReturnType<typeof userEvent.setup>, handle: string, amount: string) {
+async function payByHandle(
+  user: ReturnType<typeof userEvent.setup>,
+  handle: string,
+  amount: string,
+) {
   renderApp(`/transfer?from=${SAVINGS}`)
   await user.click(await screen.findByRole('radio', { name: 'Handle' }))
   await user.type(screen.getByLabelText('QuantGen handle'), handle)
@@ -61,7 +65,9 @@ describe('pay by handle with step-up (F-PAY-5, F-SEC-2)', () => {
     await screen.findByRole('group', { name: 'Transaction PIN' })
     await user.keyboard('{Escape}')
 
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Transaction PIN' })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Transaction PIN' })).not.toBeInTheDocument(),
+    )
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(calls).toHaveLength(1)
     expect(db.accounts.get(SAVINGS)!.balance).toBe(before)
@@ -88,7 +94,9 @@ describe('payment requests (F-PAY-8)', () => {
     const user = userEvent.setup()
     renderApp('/pay/requests')
     await user.click(await screen.findByRole('button', { name: 'Decline and block meera@qg' }))
-    await waitFor(() => expect(db.v2.requests.find((r) => r.id === MEERA_REQUEST)?.status).toBe('DECLINED'))
+    await waitFor(() =>
+      expect(db.v2.requests.find((r) => r.id === MEERA_REQUEST)?.status).toBe('DECLINED'),
+    )
     expect(db.v2.blocked).toContainEqual(expect.objectContaining({ blockedHandle: 'meera@qg' }))
   })
 })
@@ -101,7 +109,10 @@ describe('saved billers (F-PAY-11)', () => {
     await user.click(await screen.findByRole('button', { name: /BESCOM/ }))
     await user.type(screen.getByLabelText('Account ID'), '1234567890')
     await user.click(screen.getByRole('button', { name: /Fetch bill/ }))
-    await user.type(await screen.findByLabelText('Save as (optional)', {}, { timeout: 5000 }), 'Home power')
+    await user.type(
+      await screen.findByLabelText('Save as (optional)', {}, { timeout: 5000 }),
+      'Home power',
+    )
     await user.click(screen.getByRole('button', { name: /Save biller/ }))
     expect(await screen.findByText(/Saved\. It’s under “Your billers”/)).toBeInTheDocument()
 

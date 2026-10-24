@@ -39,7 +39,9 @@ export function AdminAiPage() {
         actions={<RangePicker value={preset} onChange={setPreset} />}
       />
       {!on && (
-        <p className="mb-4 rounded-[var(--radius-control)] bg-warn/10 px-3 py-2 text-sm text-warn">The AI flag is off, so no new runs are happening. History is still shown.</p>
+        <p className="mb-4 rounded-[var(--radius-control)] bg-warn/10 px-3 py-2 text-sm text-warn">
+          The AI flag is off, so no new runs are happening. History is still shown.
+        </p>
       )}
       {usage.isError ? (
         <PanelError what="AI usage" onRetry={() => void usage.refetch()} />
@@ -48,7 +50,14 @@ export function AdminAiPage() {
       ) : (
         <div className={cn('grid gap-4 lg:grid-cols-12', usage.isPlaceholderData && 'opacity-60')}>
           <div className="grid grid-cols-2 gap-3 lg:col-span-12 lg:grid-cols-4">
-            <Tile label="Cost" value={new Decimal(u.costUsd).isZero() ? `${formatUsd(u.costUsd)} · free tier` : formatUsd(u.costUsd)} />
+            <Tile
+              label="Cost"
+              value={
+                new Decimal(u.costUsd).isZero()
+                  ? `${formatUsd(u.costUsd)} · free tier`
+                  : formatUsd(u.costUsd)
+              }
+            />
             <Tile label="Input tokens" value={formatCount(String(u.tokens.input), true)} />
             <Tile label="Output tokens" value={formatCount(String(u.tokens.output), true)} />
             <Tile
@@ -68,7 +77,14 @@ export function AdminAiPage() {
                 unit="MONEY"
                 currency="USD"
                 rows={u.byDay.map((d) => ({ t: d.date, values: { cost: d.costUsd } }))}
-                series={[{ key: 'cost', label: 'Cost', color: CHART_COLORS[0] ?? 'var(--violet)', kind: 'bar' }]}
+                series={[
+                  {
+                    key: 'cost',
+                    label: 'Cost',
+                    color: CHART_COLORS[0] ?? 'var(--violet)',
+                    kind: 'bar',
+                  },
+                ]}
               />
             )}
           </Panel>
@@ -84,7 +100,9 @@ export function AdminAiPage() {
                     key: a.agent,
                     label: AGENT_LABEL[a.agent] ?? a.agent,
                     value: a.costUsd,
-                    sharePct: new Decimal(u.costUsd).isZero() ? '0' : new Decimal(a.costUsd).div(u.costUsd).times(100).toFixed(1),
+                    sharePct: new Decimal(u.costUsd).isZero()
+                      ? '0'
+                      : new Decimal(a.costUsd).div(u.costUsd).times(100).toFixed(1),
                     sub: `${formatCount(String(a.runs))} runs`,
                   }))}
               />
@@ -99,8 +117,16 @@ export function AdminAiPage() {
               }}
             >
               <div className="flex-1 space-y-1.5">
-                <Label htmlFor="run-id">Run id (from a fraud memo, a customer report or the logs)</Label>
-                <Input id="run-id" value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" className="num" />
+                <Label htmlFor="run-id">
+                  Run id (from a fraud memo, a customer report or the logs)
+                </Label>
+                <Input
+                  id="run-id"
+                  value={runId}
+                  onChange={(e) => setRunId(e.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                  className="num"
+                />
               </div>
               <Button type="submit" variant="secondary" disabled={!UUID.test(runId.trim())}>
                 <Search aria-hidden="true" /> Open trace
@@ -114,15 +140,41 @@ export function AdminAiPage() {
   )
 }
 
-function Tile({ label, value, sub, tone, bar }: { label: string; value: string; sub?: string; tone?: 'warn' | 'loss'; bar?: number }) {
+function Tile({
+  label,
+  value,
+  sub,
+  tone,
+  bar,
+}: {
+  label: string
+  value: string
+  sub?: string
+  tone?: 'warn' | 'loss'
+  bar?: number
+}) {
   return (
     <div className="rounded-[var(--radius-card)] bg-surface p-4 hairline">
       <p className="text-xs text-muted">{label}</p>
-      <p className={cn('mt-1 font-display text-2xl tabular-nums', tone === 'loss' && 'text-loss', tone === 'warn' && 'text-warn')}>{value}</p>
+      <p
+        className={cn(
+          'mt-1 font-display text-2xl tabular-nums',
+          tone === 'loss' && 'text-loss',
+          tone === 'warn' && 'text-warn',
+        )}
+      >
+        {value}
+      </p>
       {sub && <p className="text-xs text-muted">{sub}</p>}
       {bar !== undefined && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2" role="presentation">
-          <div className={cn('h-full rounded-full', tone === 'loss' ? 'bg-loss' : tone === 'warn' ? 'bg-warn' : 'bg-violet')} style={{ width: `${bar}%` }} />
+          <div
+            className={cn(
+              'h-full rounded-full',
+              tone === 'loss' ? 'bg-loss' : tone === 'warn' ? 'bg-warn' : 'bg-violet',
+            )}
+            style={{ width: `${bar}%` }}
+          />
         </div>
       )}
     </div>

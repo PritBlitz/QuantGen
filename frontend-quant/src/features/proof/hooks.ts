@@ -7,4 +7,9 @@ export const proofKeys = {
 }
 
 export const useProofRoots = () =>
-  useQuery({ queryKey: proofKeys.roots, queryFn: proofApi.roots, staleTime: 5 * 60_000, retry: false })
+  useQuery({
+    queryKey: proofKeys.roots,
+    queryFn: proofApi.roots,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })

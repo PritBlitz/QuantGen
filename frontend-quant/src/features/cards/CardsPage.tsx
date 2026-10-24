@@ -74,11 +74,19 @@ export function CardsPage() {
             </Card>
           )}
           {cards.data.map((c) => (
-            <CardBlock key={c.id} card={c} account={accounts.data.find((a) => a.id === c.accountId)} />
+            <CardBlock
+              key={c.id}
+              card={c}
+              account={accounts.data.find((a) => a.id === c.accountId)}
+            />
           ))}
           {DISPUTES && <MyDisputes />}
           {withoutCard.length > 0 && (
-            <Panel title="Issue a card" eyebrow="New" description="One virtual card per account. It works immediately for online payments.">
+            <Panel
+              title="Issue a card"
+              eyebrow="New"
+              description="One virtual card per account. It works immediately for online payments."
+            >
               <ul className="divide-y divide-border">
                 {withoutCard.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 py-3 text-sm">
@@ -94,7 +102,9 @@ export function CardsPage() {
                         })
                       }
                     >
-                      {issue.isPending && issue.variables === a.id && <Loader2 className="animate-spin" aria-hidden="true" />}
+                      {issue.isPending && issue.variables === a.id && (
+                        <Loader2 className="animate-spin" aria-hidden="true" />
+                      )}
                       Issue card
                     </Button>
                   </li>
@@ -193,7 +203,9 @@ function CardBlock({ card, account }: { card: CardDto; account?: AccountDto }) {
           </p>
           <div className="num mt-4 flex gap-8 text-sm">
             <span>
-              <span className="block text-[10px] uppercase tracking-wider text-white/60">Expires</span>
+              <span className="block text-[10px] uppercase tracking-wider text-white/60">
+                Expires
+              </span>
               {card.expiry}
             </span>
             <span>
@@ -202,7 +214,10 @@ function CardBlock({ card, account }: { card: CardDto; account?: AccountDto }) {
             </span>
           </div>
           {r.details && (
-            <span className="num absolute bottom-4 right-5 text-xs text-white/70" aria-hidden="true">
+            <span
+              className="num absolute bottom-4 right-5 text-xs text-white/70"
+              aria-hidden="true"
+            >
               hides in {r.left}s
             </span>
           )}
@@ -229,14 +244,24 @@ function CardBlock({ card, account }: { card: CardDto; account?: AccountDto }) {
               </span>
             </>
           ) : (
-            <Button variant="secondary" size="sm" onClick={() => void r.reveal()} disabled={r.pending || frozen}>
-              {r.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void r.reveal()}
+              disabled={r.pending || frozen}
+            >
+              {r.pending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Eye aria-hidden="true" />
+              )}
               Show card details
             </Button>
           )}
         </div>
         <p className="flex items-center gap-1.5 text-xs text-muted">
-          <Lock aria-hidden="true" className="size-3" /> Showing details asks for your PIN. The CVV changes every 30 seconds.
+          <Lock aria-hidden="true" className="size-3" /> Showing details asks for your PIN. The CVV
+          changes every 30 seconds.
         </p>
       </div>
       <div className="space-y-4 lg:col-span-7">
@@ -291,17 +316,28 @@ function Controls({ card, account }: { card: CardDto; account?: AccountDto }) {
   const [limitError, setLimitError] = useState<string>()
   const c = card.controls
   const apply = (body: Parameters<typeof save.mutate>[0], ok: string) =>
-    save.mutate(body, { onSuccess: () => toast.success(ok), onError: (e) => toast.error(errorMessage(e)) })
+    save.mutate(body, {
+      onSuccess: () => toast.success(ok),
+      onError: (e) => toast.error(errorMessage(e)),
+    })
 
   function saveLimit() {
-    if (!/^\d{1,6}(\.\d{1,2})?$/.test(limit) || toDecimal(limit).lt(1) || toDecimal(limit).gt(200000))
+    if (
+      !/^\d{1,6}(\.\d{1,2})?$/.test(limit) ||
+      toDecimal(limit).lt(1) ||
+      toDecimal(limit).gt(200000)
+    )
       return setLimitError('Between ₹1 and ₹2,00,000')
     setLimitError(undefined)
     apply({ perTxnLimit: toDecimal(limit).toFixed(2) }, 'Limit updated.')
   }
   const toggleCategory = (cat: MerchantCategory) =>
     apply(
-      { blockedCategories: c.blockedCategories.includes(cat) ? c.blockedCategories.filter((x) => x !== cat) : [...c.blockedCategories, cat] },
+      {
+        blockedCategories: c.blockedCategories.includes(cat)
+          ? c.blockedCategories.filter((x) => x !== cat)
+          : [...c.blockedCategories, cat],
+      },
       'Blocked categories updated.',
     )
 
@@ -309,7 +345,11 @@ function Controls({ card, account }: { card: CardDto; account?: AccountDto }) {
     <Panel
       title={`Card •••• ${card.last4}`}
       eyebrow={account ? accountLabel(account) : 'Controls'}
-      action={<Badge tone={card.status === 'ACTIVE' ? 'gain' : 'neutral'} dot>{card.status === 'ACTIVE' ? 'Active' : 'Frozen'}</Badge>}
+      action={
+        <Badge tone={card.status === 'ACTIVE' ? 'gain' : 'neutral'} dot>
+          {card.status === 'ACTIVE' ? 'Active' : 'Frozen'}
+        </Badge>
+      }
     >
       {account && (
         <p className="-mt-2 mb-2 text-sm text-muted">

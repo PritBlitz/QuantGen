@@ -50,17 +50,35 @@ export function RequestsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Pay" title="Requests" description="Ask for money with a handle. Requests expire after 7 days and you can block anyone." />
+      <PageHeader
+        eyebrow="Pay"
+        title="Requests"
+        description="Ask for money with a handle. Requests expire after 7 days and you can block anyone."
+      />
       <PayTabs />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-5">{me.data && !me.data.handle ? <NoHandle /> : <NewRequest onSent={() => void invalidate()} />}</div>
+        <div className="lg:col-span-5">
+          {me.data && !me.data.handle ? (
+            <NoHandle />
+          ) : (
+            <NewRequest onSent={() => void invalidate()} />
+          )}
+        </div>
         <div className="lg:col-span-7">
           <Tabs
             label="Requests"
             value={tab}
             onValueChange={setTab}
             tabs={[
-              { value: 'in', label: 'To pay', badge: incoming.data?.content.filter((r) => r.status === 'OPEN').length ? <Badge tone="accent">{incoming.data.content.filter((r) => r.status === 'OPEN').length}</Badge> : undefined },
+              {
+                value: 'in',
+                label: 'To pay',
+                badge: incoming.data?.content.filter((r) => r.status === 'OPEN').length ? (
+                  <Badge tone="accent">
+                    {incoming.data.content.filter((r) => r.status === 'OPEN').length}
+                  </Badge>
+                ) : undefined,
+              },
               { value: 'out', label: 'You asked' },
             ]}
           >
@@ -75,10 +93,22 @@ export function RequestsPage() {
                       <Button size="sm" onClick={() => setPaying(r)}>
                         Pay
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => decline.mutate({ id: r.id, block: false })} disabled={decline.isPending}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => decline.mutate({ id: r.id, block: false })}
+                        disabled={decline.isPending}
+                      >
                         Decline
                       </Button>
-                      <Button size="icon-sm" variant="ghost" aria-label={`Decline and block ${r.fromHandle}`} title="Decline and block" onClick={() => decline.mutate({ id: r.id, block: true })} disabled={decline.isPending}>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Decline and block ${r.fromHandle}`}
+                        title="Decline and block"
+                        onClick={() => decline.mutate({ id: r.id, block: true })}
+                        disabled={decline.isPending}
+                      >
                         <Ban />
                       </Button>
                     </div>
@@ -93,7 +123,12 @@ export function RequestsPage() {
                 empty="You haven’t asked anyone for money."
                 actions={(r) =>
                   r.status === 'OPEN' && (
-                    <Button size="sm" variant="ghost" onClick={() => decline.mutate({ id: r.id, block: false })} disabled={decline.isPending}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => decline.mutate({ id: r.id, block: false })}
+                      disabled={decline.isPending}
+                    >
                       Cancel
                     </Button>
                   )
@@ -103,7 +138,13 @@ export function RequestsPage() {
           </Tabs>
         </div>
       </div>
-      {paying && accounts.data && <PayRequestDialog request={paying} accounts={accounts.data} onClose={() => setPaying(null)} />}
+      {paying && accounts.data && (
+        <PayRequestDialog
+          request={paying}
+          accounts={accounts.data}
+          onClose={() => setPaying(null)}
+        />
+      )}
     </div>
   )
 }
@@ -125,7 +166,10 @@ function RequestList({
   return (
     <ul className="space-y-2">
       {q.data.content.map((r) => (
-        <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-surface p-4 hairline">
+        <li
+          key={r.id}
+          className="flex flex-wrap items-center gap-3 rounded-2xl bg-surface p-4 hairline"
+        >
           <Avatar name={who(r)} />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-sm font-medium">
@@ -153,7 +197,9 @@ function NewRequest({ onSent }: { onSent: () => void }) {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    const handle = to.trim().toLowerCase().includes('@') ? to.trim().toLowerCase() : `${to.trim().toLowerCase()}@qg`
+    const handle = to.trim().toLowerCase().includes('@')
+      ? to.trim().toLowerCase()
+      : `${to.trim().toLowerCase()}@qg`
     const next: Record<string, string> = {}
     if (!/^[a-z0-9.]{3,30}@qg$/.test(handle)) next.toHandle = 'Handles look like name@qg'
     if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lt(1)) next.amount = 'Enter at least ₹1'
@@ -172,8 +218,10 @@ function NewRequest({ onSent }: { onSent: () => void }) {
         },
         onError: (err) => {
           const ae = toApiError(err)
-          if (ae.fieldErrors.length) setErrors(Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message])))
-          else if (ae.code === 'INVALID_STATE') toast.error('Set your handle first, so people know who’s asking.')
+          if (ae.fieldErrors.length)
+            setErrors(Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message])))
+          else if (ae.code === 'INVALID_STATE')
+            toast.error('Set your handle first, so people know who’s asking.')
           else toast.error(errorMessage(ae))
         },
       },
@@ -183,9 +231,27 @@ function NewRequest({ onSent }: { onSent: () => void }) {
   return (
     <Panel eyebrow="Ask" title="Request money" tone="cyan">
       <form onSubmit={submit} className="space-y-4" noValidate>
-        <FormField label="From (handle)" placeholder="meera@qg" autoCapitalize="none" spellCheck={false} value={to} onChange={(e) => setTo(e.target.value.replace(/\s/g, ''))} error={errors.toHandle} />
-        <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={errors.amount} />
-        <FormField label="What’s it for? (optional)" maxLength={80} value={note} onChange={(e) => setNote(e.target.value)} />
+        <FormField
+          label="From (handle)"
+          placeholder="meera@qg"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={to}
+          onChange={(e) => setTo(e.target.value.replace(/\s/g, ''))}
+          error={errors.toHandle}
+        />
+        <AmountInput
+          label="Amount"
+          value={amount}
+          onValueChange={setAmount}
+          error={errors.amount}
+        />
+        <FormField
+          label="What’s it for? (optional)"
+          maxLength={80}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
         <Button type="submit" className="w-full" disabled={send.isPending}>
           <Send aria-hidden="true" /> {send.isPending ? 'Sending…' : 'Send request'}
         </Button>
@@ -197,7 +263,9 @@ function NewRequest({ onSent }: { onSent: () => void }) {
 function NoHandle() {
   return (
     <Panel eyebrow="Ask" title="Request money">
-      <p className="text-sm text-muted">Claim your handle on the Pay overview first, so people know who’s asking.</p>
+      <p className="text-sm text-muted">
+        Claim your handle on the Pay overview first, so people know who’s asking.
+      </p>
     </Panel>
   )
 }

@@ -21,7 +21,9 @@ export function LedgerSealChip() {
       className="group flex items-center gap-2.5 rounded-[12px] bg-gain/[0.06] px-3 py-2 text-xs transition-colors hover:bg-gain/10"
     >
       <span className="relative grid size-6 place-items-center rounded-full bg-gain/15 text-gain">
-        {latest && <span className="absolute inset-0 rounded-full border border-gain/50 animate-pulse-ring" />}
+        {latest && (
+          <span className="absolute inset-0 rounded-full border border-gain/50 animate-pulse-ring" />
+        )}
         <ShieldCheck aria-hidden="true" className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1">

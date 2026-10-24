@@ -99,7 +99,10 @@ function DockLink({ item }: { item: NavItem }) {
         <>
           <item.icon
             aria-hidden="true"
-            className={cn('size-5', isActive && (item.flag === 'ai' ? 'text-violet' : 'text-accent'))}
+            className={cn(
+              'size-5',
+              isActive && (item.flag === 'ai' ? 'text-violet' : 'text-accent'),
+            )}
           />
           {item.label}
         </>

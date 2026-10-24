@@ -32,7 +32,10 @@ export function AdminDisputesPage() {
   const [page, setPage] = useState(0)
   const list = useAdminDisputes(filter, page)
   const resolve = useResolveDispute()
-  const [deciding, setDeciding] = useState<{ d: AdminCardDisputeDto; outcome: 'REFUNDED' | 'REJECTED' } | null>(null)
+  const [deciding, setDeciding] = useState<{
+    d: AdminCardDisputeDto
+    outcome: 'REFUNDED' | 'REJECTED'
+  } | null>(null)
   usePageClamp(list.data, page, setPage)
 
   return (
@@ -59,7 +62,10 @@ export function AdminDisputesPage() {
         </Card>
       ) : list.data.content.length === 0 ? (
         <Card>
-          <EmptyState icon={<Scale />} title={filter === 'OPEN' ? 'No open disputes' : 'No disputes here'} />
+          <EmptyState
+            icon={<Scale />}
+            title={filter === 'OPEN' ? 'No open disputes' : 'No disputes here'}
+          />
         </Card>
       ) : (
         <Card className="p-0 sm:p-0">
@@ -74,19 +80,33 @@ export function AdminDisputesPage() {
                       <Badge tone={s.tone}>{s.label}</Badge>
                     </span>
                     <span className="block text-sm text-muted">
-                      {DISPUTE_REASON[d.reason] ?? d.reason} · •••• {d.last4} · {formatRelative(d.createdAt)}
+                      {DISPUTE_REASON[d.reason] ?? d.reason} · •••• {d.last4} ·{' '}
+                      {formatRelative(d.createdAt)}
                     </span>
                     {/* The customer's note is untrusted text: rendered as plain text, never as HTML. */}
                     {d.note && <span className="mt-1 block text-sm">“{d.note}”</span>}
-                    {d.resolutionReason && <span className="mt-1 block text-xs text-muted">Decision: {d.resolutionReason}</span>}
+                    {d.resolutionReason && (
+                      <span className="mt-1 block text-xs text-muted">
+                        Decision: {d.resolutionReason}
+                      </span>
+                    )}
                   </span>
                   <Money value={d.amount} className="font-medium" />
                   {d.status === 'OPEN' && (
                     <span className="flex gap-2">
-                      <Button size="sm" onClick={() => setDeciding({ d, outcome: 'REFUNDED' })} aria-label={`Refund ${d.merchant} dispute`}>
+                      <Button
+                        size="sm"
+                        onClick={() => setDeciding({ d, outcome: 'REFUNDED' })}
+                        aria-label={`Refund ${d.merchant} dispute`}
+                      >
                         Refund
                       </Button>
-                      <Button size="sm" variant="secondary" onClick={() => setDeciding({ d, outcome: 'REJECTED' })} aria-label={`Reject ${d.merchant} dispute`}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setDeciding({ d, outcome: 'REJECTED' })}
+                        aria-label={`Reject ${d.merchant} dispute`}
+                      >
                         Reject
                       </Button>
                     </span>
@@ -96,7 +116,13 @@ export function AdminDisputesPage() {
             })}
           </ul>
           <div className="px-5 pb-4">
-            <Pagination page={list.data.page} totalPages={list.data.totalPages} totalElements={list.data.totalElements} onPage={setPage} label="disputes" />
+            <Pagination
+              page={list.data.page}
+              totalPages={list.data.totalPages}
+              totalElements={list.data.totalElements}
+              onPage={setPage}
+              label="disputes"
+            />
           </div>
         </Card>
       )}
@@ -113,19 +139,28 @@ export function AdminDisputesPage() {
         summary={
           deciding && (
             <p className="text-sm">
-              <Money value={deciding.d.amount} className="font-medium" /> at {deciding.d.merchant} · •••• {deciding.d.last4}
+              <Money value={deciding.d.amount} className="font-medium" /> at {deciding.d.merchant} ·
+              •••• {deciding.d.last4}
             </p>
           )
         }
         reasonRequired
         maxLength={280}
-        placeholder={deciding?.outcome === 'REFUNDED' ? 'e.g. Merchant confirmed the order was never shipped.' : 'e.g. Delivery proof matches the customer’s address.'}
+        placeholder={
+          deciding?.outcome === 'REFUNDED'
+            ? 'e.g. Merchant confirmed the order was never shipped.'
+            : 'e.g. Delivery proof matches the customer’s address.'
+        }
         confirmLabel={deciding?.outcome === 'REFUNDED' ? 'Refund' : 'Reject'}
         destructive={deciding?.outcome === 'REJECTED'}
         onConfirm={async (reason) => {
           if (!deciding) return
           await resolve.mutateAsync({ id: deciding.d.id, outcome: deciding.outcome, reason })
-          toast.success(deciding.outcome === 'REFUNDED' ? 'Refunded. The customer has the money back.' : 'Rejected. No money moved.')
+          toast.success(
+            deciding.outcome === 'REFUNDED'
+              ? 'Refunded. The customer has the money back.'
+              : 'Rejected. No money moved.',
+          )
           setDeciding(null)
         }}
       />

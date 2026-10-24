@@ -31,7 +31,9 @@ function AlertRow({ a, showSymbol }: { a: PriceAlertDto; showSymbol?: boolean })
         )}
         {verb} <Money value={a.price} />
         {a.triggeredAt && (
-          <span className="block text-xs text-muted">Triggered {formatRelative(a.triggeredAt)}</span>
+          <span className="block text-xs text-muted">
+            Triggered {formatRelative(a.triggeredAt)}
+          </span>
         )}
       </span>
       <Badge tone={a.status === 'ACTIVE' ? 'accent' : 'neutral'}>
@@ -89,7 +91,9 @@ export function PriceAlertsCard({ symbol, price }: { symbol: string; price: Mone
         onError: (err) => {
           const ae = toApiError(err)
           setServerError(
-            ae.code === 'LIMIT_EXCEEDED' ? 'You can have up to 20 active alerts.' : errorMessage(ae),
+            ae.code === 'LIMIT_EXCEEDED'
+              ? 'You can have up to 20 active alerts.'
+              : errorMessage(ae),
           )
         },
       },

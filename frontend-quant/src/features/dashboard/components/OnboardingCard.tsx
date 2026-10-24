@@ -32,12 +32,36 @@ export function OnboardingCard({ className }: { className?: string }) {
 
   if (hidden || !me.data || !accounts.data) return null
   const steps: Step[] = [
-    { key: 'passkey', label: 'Add a passkey', hint: 'Sign in with your fingerprint or face, no password.', to: '/settings/security', done: !!me.data.hasPasskey },
-    { key: 'handle', label: 'Claim your handle', hint: 'Get paid at name@qg instead of an account number.', to: '/pay', done: !!me.data.handle },
-    { key: 'goal', label: 'Start a savings goal', hint: 'Put money aside for something specific.', to: '/savings', done: accounts.data.some((a) => a.type === 'GOAL') },
+    {
+      key: 'passkey',
+      label: 'Add a passkey',
+      hint: 'Sign in with your fingerprint or face, no password.',
+      to: '/settings/security',
+      done: !!me.data.hasPasskey,
+    },
+    {
+      key: 'handle',
+      label: 'Claim your handle',
+      hint: 'Get paid at name@qg instead of an account number.',
+      to: '/pay',
+      done: !!me.data.handle,
+    },
+    {
+      key: 'goal',
+      label: 'Start a savings goal',
+      hint: 'Put money aside for something specific.',
+      to: '/savings',
+      done: accounts.data.some((a) => a.type === 'GOAL'),
+    },
   ]
   if (autopilot && !rules.isError)
-    steps.push({ key: 'rule', label: 'Switch on your first rule', hint: 'Let Autopilot move money for you, on your terms.', to: '/autopilot/new', done: (rules.data ?? []).length > 0 })
+    steps.push({
+      key: 'rule',
+      label: 'Switch on your first rule',
+      hint: 'Let Autopilot move money for you, on your terms.',
+      to: '/autopilot/new',
+      done: (rules.data ?? []).length > 0,
+    })
   const done = steps.filter((s) => s.done).length
   if (done === steps.length) return null
 
@@ -62,9 +86,15 @@ export function OnboardingCard({ className }: { className?: string }) {
     >
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3 sm:w-40 sm:flex-col sm:items-start">
-          <ProgressRing value={done / steps.length} size={64} caption="set up" label={`${done} of ${steps.length} done`} />
+          <ProgressRing
+            value={done / steps.length}
+            size={64}
+            caption="set up"
+            label={`${done} of ${steps.length} done`}
+          />
           <p className="text-sm text-muted">
-            <span className="num text-text">{done}</span> of <span className="num">{steps.length}</span> done
+            <span className="num text-text">{done}</span> of{' '}
+            <span className="num">{steps.length}</span> done
           </p>
         </div>
         <ol className="grid flex-1 gap-2 sm:grid-cols-2">
@@ -93,7 +123,12 @@ export function OnboardingCard({ className }: { className?: string }) {
                   </span>
                   <span className="block text-xs text-muted">{s.hint}</span>
                 </span>
-                {!s.done && <ArrowRight aria-hidden="true" className="mt-0.5 size-4 text-muted transition-transform group-hover:translate-x-0.5" />}
+                {!s.done && (
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 text-muted transition-transform group-hover:translate-x-0.5"
+                  />
+                )}
               </Link>
             </li>
           ))}

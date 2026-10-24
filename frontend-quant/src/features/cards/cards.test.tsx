@@ -42,7 +42,12 @@ describe('virtual cards', () => {
     signInAs('CUSTOMER')
     server.use(
       http.post(`/api/v1/cards/${CARD}/reveal`, () =>
-        HttpResponse.json({ pan: '9100 4521 7783 4417', cvv: '123', expiry: '09/30', hideAfterSeconds: 1 }),
+        HttpResponse.json({
+          pan: '9100 4521 7783 4417',
+          cvv: '123',
+          expiry: '09/30',
+          hideAfterSeconds: 1,
+        }),
       ),
     )
     const user = userEvent.setup()
@@ -50,7 +55,9 @@ describe('virtual cards', () => {
     const card = await screen.findByRole('group', { name: 'Virtual card ending 4417' })
     await user.click(screen.getByRole('button', { name: 'Show card details' }))
     expect(await within(card).findByText('123')).toBeInTheDocument()
-    await waitFor(() => expect(within(card).queryByText('123')).not.toBeInTheDocument(), { timeout: 3000 })
+    await waitFor(() => expect(within(card).queryByText('123')).not.toBeInTheDocument(), {
+      timeout: 3000,
+    })
     expect(within(card).getByText('•••')).toBeInTheDocument()
   })
 
@@ -59,7 +66,9 @@ describe('virtual cards', () => {
     const user = userEvent.setup()
     renderApp('/cards')
     await user.click(await screen.findByRole('switch', { name: 'Freeze card' }))
-    expect(await screen.findByRole('group', { name: 'Virtual card ending 4417, frozen' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('group', { name: 'Virtual card ending 4417, frozen' }),
+    ).toBeInTheDocument()
     expect(db.v2.cards[0]).toMatchObject({ status: 'FROZEN', controls: { frozen: true } })
     expect(screen.getByRole('button', { name: 'Show card details' })).toBeDisabled()
   })
@@ -90,7 +99,11 @@ describe('merchant sandbox', () => {
     await user.click(screen.getByRole('button', { name: /^Pay/ }))
 
     expect(await screen.findByText('Authorized · on hold')).toBeInTheDocument()
-    expect(db.v2.holds.some((h) => h.reason === 'CARD_AUTH' && h.amount === '649.0000' && h.status === 'ACTIVE')).toBe(true)
+    expect(
+      db.v2.holds.some(
+        (h) => h.reason === 'CARD_AUTH' && h.amount === '649.0000' && h.status === 'ACTIVE',
+      ),
+    ).toBe(true)
     expect(screen.getByLabelText('CVV')).toHaveValue('')
 
     expect(await screen.findByText('Paid', {}, { timeout: 8000 })).toBeInTheDocument()
@@ -116,7 +129,10 @@ describe('merchant sandbox', () => {
     signInAs('CUSTOMER')
     const keys: Array<string | null> = []
     server.events.on('request:start', ({ request }) => {
-      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/sandbox/merchant/authorize'))
+      if (
+        request.method === 'POST' &&
+        new URL(request.url).pathname.endsWith('/sandbox/merchant/authorize')
+      )
         keys.push(request.headers.get('Idempotency-Key'))
     })
     const user = userEvent.setup()
@@ -124,7 +140,9 @@ describe('merchant sandbox', () => {
     await user.click(await screen.findByRole('radio', { name: /Filter coffee beans/ }))
     await fillCard(user)
 
-    server.use(http.post('/api/v1/sandbox/merchant/authorize', () => HttpResponse.error(), { once: true }))
+    server.use(
+      http.post('/api/v1/sandbox/merchant/authorize', () => HttpResponse.error(), { once: true }),
+    )
     await user.click(screen.getByRole('button', { name: /^Pay/ }))
     await waitFor(() => expect(keys).toHaveLength(1))
     await waitFor(() => expect(screen.getByRole('button', { name: /^Pay/ })).toBeEnabled())
@@ -165,15 +183,35 @@ describe('card disputes (F-CARD-4)', () => {
     expect(await screen.findByText('Disputed')).toBeInTheDocument()
     const mine = (await screen.findByText('Your disputes')).closest('section') as HTMLElement
     expect(within(mine).getByText('Under review')).toBeInTheDocument()
-    expect(db.v2.cardDisputes[0]).toMatchObject({ authId: STORE_AUTH, amount: expect.stringMatching(/^2499\.00(00)?$/), reason: 'NOT_RECEIVED', note: '<b>never</b> arrived' })
+    expect(db.v2.cardDisputes[0]).toMatchObject({
+      authId: STORE_AUTH,
+      amount: expect.stringMatching(/^2499\.00(00)?$/),
+      reason: 'NOT_RECEIVED',
+      note: '<b>never</b> arrived',
+    })
     expect(db.accounts.get(DEMO_CHECKING)!.balance).toBe(before)
   })
 
   it('an admin refunds it once, with one Idempotency-Key per dispute and outcome', async () => {
-    db.v2.cardDisputes.unshift({ id: 'd1000000-0000-4000-8000-000000000001', userId: db.v2.cards[0]!.userId, cardId: CARD, authId: STORE_AUTH, last4: '4417', merchant: 'QuantGen Store', amount: '2499.00', reason: 'NOT_RECEIVED', note: '<img src=x onerror=alert(1)>', status: 'OPEN', resolutionReason: null, createdAt: new Date().toISOString(), resolvedAt: null })
+    db.v2.cardDisputes.unshift({
+      id: 'd1000000-0000-4000-8000-000000000001',
+      userId: db.v2.cards[0]!.userId,
+      cardId: CARD,
+      authId: STORE_AUTH,
+      last4: '4417',
+      merchant: 'QuantGen Store',
+      amount: '2499.00',
+      reason: 'NOT_RECEIVED',
+      note: '<img src=x onerror=alert(1)>',
+      status: 'OPEN',
+      resolutionReason: null,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    })
     const keys: Array<string | null> = []
     server.events.on('request:start', ({ request }) => {
-      if (request.method === 'POST' && request.url.includes('/admin/card-disputes/')) keys.push(request.headers.get('Idempotency-Key'))
+      if (request.method === 'POST' && request.url.includes('/admin/card-disputes/'))
+        keys.push(request.headers.get('Idempotency-Key'))
     })
     const before = db.accounts.get(DEMO_CHECKING)!.balance
     signInAs('ADMIN')
@@ -190,6 +228,10 @@ describe('card disputes (F-CARD-4)', () => {
     expect(keys).toHaveLength(1)
     expect(keys[0]).toBeTruthy()
     expect(db.accounts.get(DEMO_CHECKING)!.balance).not.toBe(before)
-    expect(db.transactions[0]).toMatchObject({ type: 'REFUND', amount: expect.stringMatching(/^2499\.00(00)?$/), description: 'Dispute refund QuantGen Store' })
+    expect(db.transactions[0]).toMatchObject({
+      type: 'REFUND',
+      amount: expect.stringMatching(/^2499\.00(00)?$/),
+      description: 'Dispute refund QuantGen Store',
+    })
   })
 })

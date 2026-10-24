@@ -35,7 +35,8 @@ export function HandleDialog({
     e.preventDefault()
     setError(null)
     const handle = `${name.trim().toLowerCase()}@qg`
-    if (!HANDLE_RE.test(handle)) return setError('Use 3–30 letters, digits or dots, not starting or ending with a dot.')
+    if (!HANDLE_RE.test(handle))
+      return setError('Use 3–30 letters, digits or dots, not starting or ending with a dot.')
     setBusy(true)
     try {
       await payApi.setHandle(handle, accountId)
@@ -58,7 +59,10 @@ export function HandleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={current ? 'Change your handle' : 'Claim your handle'} description="People can pay you with it instead of your account number. You can change it once every 30 days.">
+      <DialogContent
+        title={current ? 'Change your handle' : 'Claim your handle'}
+        description="People can pay you with it instead of your account number. You can change it once every 30 days."
+      >
         <form onSubmit={(e) => void submit(e)} className="space-y-4" noValidate>
           <FormField
             label="Handle"
@@ -66,12 +70,28 @@ export function HandleDialog({
             autoFocus
             autoCapitalize="none"
             spellCheck={false}
-            onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 30))}
+            onChange={(e) =>
+              setName(
+                e.target.value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9.]/g, '')
+                  .slice(0, 30),
+              )
+            }
             trailing={<span className="pr-3 text-sm text-muted">@qg</span>}
           />
           <div className="space-y-1.5">
             <Label>Money paid to your handle lands in</Label>
-            <Select aria-label="Money paid to your handle lands in" value={accountId} onValueChange={setAccountId} options={cash.map((a) => ({ value: a.id, label: accountLabel(a), text: accountLabel(a) }))} />
+            <Select
+              aria-label="Money paid to your handle lands in"
+              value={accountId}
+              onValueChange={setAccountId}
+              options={cash.map((a) => ({
+                value: a.id,
+                label: accountLabel(a),
+                text: accountLabel(a),
+              }))}
+            />
           </div>
           {error && (
             <p role="alert" className="text-sm text-loss">

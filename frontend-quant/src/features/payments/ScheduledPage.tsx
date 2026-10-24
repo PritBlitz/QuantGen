@@ -30,13 +30,19 @@ import { useInvalidatePayments, useScheduled, useScheduledAction } from './hooks
 const FREQ_LABEL: Record<Frequency, string> = { ONCE: 'Once', WEEKLY: 'Weekly', MONTHLY: 'Monthly' }
 
 function tomorrowIst() {
-  const d = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()) + 'T00:00:00Z')
+  const d = new Date(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()) +
+      'T00:00:00Z',
+  )
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
 }
 /** The backend accepts a start date at most one year ahead (PRD §12.4 notes). */
 function inAYearIst() {
-  const d = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()) + 'T00:00:00Z')
+  const d = new Date(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()) +
+      'T00:00:00Z',
+  )
   d.setUTCFullYear(d.getUTCFullYear() + 1)
   return d.toISOString().slice(0, 10)
 }
@@ -49,14 +55,21 @@ export function ScheduledPage() {
     act.mutate(
       { id, action },
       {
-        onSuccess: () => toast.success(action === 'pause' ? 'Paused' : action === 'resume' ? 'Resumed' : 'Cancelled'),
+        onSuccess: () =>
+          toast.success(
+            action === 'pause' ? 'Paused' : action === 'resume' ? 'Resumed' : 'Cancelled',
+          ),
         onError: (e) => toast.error(errorMessage(e)),
       },
     )
 
   return (
     <div>
-      <PageHeader eyebrow="Pay" title="Scheduled" description="Set it once: rent on the 1st, a weekly allowance, a one-off payment next Friday. If money’s short we retry the next day, then tell you." />
+      <PageHeader
+        eyebrow="Pay"
+        title="Scheduled"
+        description="Set it once: rent on the 1st, a weekly allowance, a one-off payment next Friday. If money’s short we retry the next day, then tell you."
+      />
       <PayTabs />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="lg:col-span-5">
@@ -68,7 +81,9 @@ export function ScheduledPage() {
           ) : !list.data ? (
             <Skeleton className="h-48 w-full" />
           ) : list.data.length === 0 ? (
-            <EmptyState icon={<CalendarClock />} title="Nothing scheduled">Create your first schedule on the left.</EmptyState>
+            <EmptyState icon={<CalendarClock />} title="Nothing scheduled">
+              Create your first schedule on the left.
+            </EmptyState>
           ) : (
             <ul className="space-y-2">
               {list.data.map((s) => (
@@ -82,27 +97,48 @@ export function ScheduledPage() {
   )
 }
 
-function ScheduleRow({ s, busy, onAction }: { s: ScheduledTransferDto; busy: boolean; onAction: (a: 'pause' | 'resume' | 'cancel') => void }) {
+function ScheduleRow({
+  s,
+  busy,
+  onAction,
+}: {
+  s: ScheduledTransferDto
+  busy: boolean
+  onAction: (a: 'pause' | 'resume' | 'cancel') => void
+}) {
   const done = s.status === 'CANCELLED' || s.status === 'COMPLETED'
   return (
-    <li className={`flex flex-wrap items-center gap-3 rounded-2xl bg-surface-2/50 p-4 hairline ${done ? 'opacity-60' : ''}`}>
+    <li
+      className={`flex flex-wrap items-center gap-3 rounded-2xl bg-surface-2/50 p-4 hairline ${done ? 'opacity-60' : ''}`}
+    >
       <Avatar name={s.toName} />
       {/* min width: on a phone the amount and actions wrap below instead of crushing the text */}
       <div className="min-w-[11rem] flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
           {s.note ?? `To ${s.toName}`}
-          <Badge tone={s.status === 'ACTIVE' ? 'gain' : s.status === 'PAUSED' ? 'warn' : 'neutral'} dot>
+          <Badge
+            tone={s.status === 'ACTIVE' ? 'gain' : s.status === 'PAUSED' ? 'warn' : 'neutral'}
+            dot
+          >
             {s.status.toLowerCase()}
           </Badge>
         </p>
         <p className="text-xs text-muted">
-          {s.toName} <span className="num">{s.toAccountNumberMasked}</span> · {FREQ_LABEL[s.frequency]}
+          {s.toName} <span className="num">{s.toAccountNumberMasked}</span> ·{' '}
+          {FREQ_LABEL[s.frequency]}
           {s.nextRunDate && ` · next ${formatDate(s.nextRunDate)}`}
           {s.remainingCount !== null && s.frequency !== 'ONCE' && ` · ${s.remainingCount} left`}
         </p>
         {s.lastRun && (
-          <p className={`mt-1 text-xs ${s.lastRun.outcome === 'SUCCEEDED' ? 'text-muted' : 'text-warn'}`}>
-            Last run {formatDate(s.lastRun.date)}: {s.lastRun.outcome === 'SUCCEEDED' ? 'sent' : s.lastRun.outcome === 'RETRYING' ? 'retrying tomorrow (low balance)' : 'missed (low balance)'}
+          <p
+            className={`mt-1 text-xs ${s.lastRun.outcome === 'SUCCEEDED' ? 'text-muted' : 'text-warn'}`}
+          >
+            Last run {formatDate(s.lastRun.date)}:{' '}
+            {s.lastRun.outcome === 'SUCCEEDED'
+              ? 'sent'
+              : s.lastRun.outcome === 'RETRYING'
+                ? 'retrying tomorrow (low balance)'
+                : 'missed (low balance)'}
           </p>
         )}
       </div>
@@ -110,15 +146,33 @@ function ScheduleRow({ s, busy, onAction }: { s: ScheduledTransferDto; busy: boo
       {!done && (
         <div className="flex gap-1">
           {s.status === 'ACTIVE' ? (
-            <Button size="icon-sm" variant="ghost" aria-label="Pause" onClick={() => onAction('pause')} disabled={busy}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Pause"
+              onClick={() => onAction('pause')}
+              disabled={busy}
+            >
               <Pause />
             </Button>
           ) : (
-            <Button size="icon-sm" variant="ghost" aria-label="Resume" onClick={() => onAction('resume')} disabled={busy}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Resume"
+              onClick={() => onAction('resume')}
+              disabled={busy}
+            >
               <Play />
             </Button>
           )}
-          <Button size="icon-sm" variant="ghost" aria-label="Cancel schedule" onClick={() => onAction('cancel')} disabled={busy}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Cancel schedule"
+            onClick={() => onAction('cancel')}
+            disabled={busy}
+          >
             <Trash2 />
           </Button>
         </div>
@@ -131,7 +185,9 @@ function NewSchedule() {
   const accounts = useAccounts()
   const beneficiaries = useBeneficiaries()
   const invalidate = useInvalidatePayments()
-  const senders = (accounts.data ?? []).filter((a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'))
+  const senders = (accounts.data ?? []).filter(
+    (a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'),
+  )
   const [fromId, setFromId] = useState('')
   const [toBen, setToBen] = useState('')
   const [amount, setAmount] = useState('')
@@ -151,7 +207,8 @@ function NewSchedule() {
     else if (toDecimal(amount).gt(200000)) e.amount = 'At most ₹2,00,000 per transfer'
     if (!start || start < tomorrowIst()) e.start = 'Pick a date from tomorrow on'
     else if (start > inAYearIst()) e.start = 'Pick a date within the next year'
-    else if (frequency === 'MONTHLY' && Number(start.slice(8)) > 28) e.start = 'Monthly schedules run on day 1–28'
+    else if (frequency === 'MONTHLY' && Number(start.slice(8)) > 28)
+      e.start = 'Monthly schedules run on day 1–28'
     if (count && !/^\d{1,3}$/.test(count)) e.count = 'A whole number'
     setErrors(e)
     if (!Object.keys(e).length) action.review()
@@ -161,7 +218,9 @@ function NewSchedule() {
     return (
       <Panel eyebrow="Scheduled" title="All set" tone="cyan">
         <p className="text-sm text-muted">
-          <Money value={action.result.amount} className="text-text" /> to {action.result.toName}, {FREQ_LABEL[action.result.frequency].toLowerCase()}, starting {action.result.nextRunDate ? formatDate(action.result.nextRunDate) : '—'}.
+          <Money value={action.result.amount} className="text-text" /> to {action.result.toName},{' '}
+          {FREQ_LABEL[action.result.frequency].toLowerCase()}, starting{' '}
+          {action.result.nextRunDate ? formatDate(action.result.nextRunDate) : '—'}.
         </p>
         <Button
           className="mt-4"
@@ -184,7 +243,8 @@ function NewSchedule() {
           <ReviewAmount value={amount} caption={`${FREQ_LABEL[frequency]} transfer`} />
           <ReviewRows>
             <ReviewRow label="To" emphasis>
-              {ben.holderName} <span className="num text-xs text-muted">{maskShort(ben.accountNumber)}</span>
+              {ben.holderName}{' '}
+              <span className="num text-xs text-muted">{maskShort(ben.accountNumber)}</span>
             </ReviewRow>
             <ReviewRow label="From">{accountLabel(from)}</ReviewRow>
             <ReviewRow label="First run">{formatDate(start)} · 07:00 IST</ReviewRow>
@@ -218,7 +278,8 @@ function NewSchedule() {
                   .then((r) => r.ok && void invalidate())
               }
             >
-              {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null} Confirm schedule
+              {action.pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}{' '}
+              Confirm schedule
             </Button>
           </div>
         </div>
@@ -226,23 +287,79 @@ function NewSchedule() {
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>To</Label>
-            <Select aria-label="To" value={toBen} onValueChange={setToBen} placeholder="Choose a saved payee" invalid={!!errors.to} options={(beneficiaries.data ?? []).map((b) => ({ value: b.id, text: b.nickname, label: `${b.nickname} · ${b.holderName}` }))} />
+            <Select
+              aria-label="To"
+              value={toBen}
+              onValueChange={setToBen}
+              placeholder="Choose a saved payee"
+              invalid={!!errors.to}
+              options={(beneficiaries.data ?? []).map((b) => ({
+                value: b.id,
+                text: b.nickname,
+                label: `${b.nickname} · ${b.holderName}`,
+              }))}
+            />
             {errors.to && <p className="text-xs text-loss">{errors.to}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>From</Label>
-            <Select aria-label="From" value={from?.id ?? ''} onValueChange={setFromId} options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: accountLabel(a) }))} />
+            <Select
+              aria-label="From"
+              value={from?.id ?? ''}
+              onValueChange={setFromId}
+              options={senders.map((a) => ({
+                value: a.id,
+                text: accountLabel(a),
+                label: accountLabel(a),
+              }))}
+            />
           </div>
-          <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={errors.amount} />
+          <AmountInput
+            label="Amount"
+            value={amount}
+            onValueChange={setAmount}
+            error={errors.amount}
+          />
           <div className="space-y-1.5">
             <Label>How often</Label>
-            <Segmented label="Frequency" className="flex w-full *:flex-1" value={frequency} onValueChange={setFrequency} options={(['ONCE', 'WEEKLY', 'MONTHLY'] as const).map((f) => ({ value: f, label: FREQ_LABEL[f] }))} />
+            <Segmented
+              label="Frequency"
+              className="flex w-full *:flex-1"
+              value={frequency}
+              onValueChange={setFrequency}
+              options={(['ONCE', 'WEEKLY', 'MONTHLY'] as const).map((f) => ({
+                value: f,
+                label: FREQ_LABEL[f],
+              }))}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label={frequency === 'ONCE' ? 'On' : 'Starting'} type="date" min={tomorrowIst()} value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
-            {frequency !== 'ONCE' && <FormField label="Times (optional)" inputMode="numeric" placeholder="Forever" value={count} onChange={(e) => setCount(e.target.value.replace(/\D/g, '').slice(0, 3))} error={errors.count} />}
+            <FormField
+              label={frequency === 'ONCE' ? 'On' : 'Starting'}
+              type="date"
+              min={tomorrowIst()}
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              error={errors.start}
+            />
+            {frequency !== 'ONCE' && (
+              <FormField
+                label="Times (optional)"
+                inputMode="numeric"
+                placeholder="Forever"
+                value={count}
+                onChange={(e) => setCount(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                error={errors.count}
+              />
+            )}
           </div>
-          <FormField label="Note (optional)" maxLength={80} placeholder="Rent" value={note} onChange={(e) => setNote(e.target.value)} />
+          <FormField
+            label="Note (optional)"
+            maxLength={80}
+            placeholder="Rent"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
           <Button className="w-full" onClick={review}>
             Review
           </Button>

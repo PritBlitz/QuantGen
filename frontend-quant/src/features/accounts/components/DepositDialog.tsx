@@ -61,7 +61,11 @@ function AddMoney({ account, onDone }: { account: AccountDto; onDone: () => void
           { value: 'razorpay', label: 'Razorpay (test)' },
         ]}
       />
-      {method === 'demo' ? <DepositFlow account={account} onDone={onDone} /> : <TopupFlow account={account} onDone={onDone} />}
+      {method === 'demo' ? (
+        <DepositFlow account={account} onDone={onDone} />
+      ) : (
+        <TopupFlow account={account} onDone={onDone} />
+      )}
     </div>
   )
 }

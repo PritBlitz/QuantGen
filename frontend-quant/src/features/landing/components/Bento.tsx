@@ -1,4 +1,12 @@
-import { CandlestickChart, CreditCard, HandCoins, LineChart, PiggyBank, Scale, Send } from 'lucide-react'
+import {
+  CandlestickChart,
+  CreditCard,
+  HandCoins,
+  LineChart,
+  PiggyBank,
+  Scale,
+  Send,
+} from 'lucide-react'
 import { Money } from '@/components/Money'
 import { SpotlightCard } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -160,7 +168,11 @@ export function Bento() {
             </p>
             <div className="mt-6 flex items-end gap-1.5" aria-hidden="true">
               {[30, 46, 28, 54, 40, 62, 48, 36, 58, 44, 50, 66].map((h, i) => (
-                <span key={i} style={{ height: `${h}px` }} className="flex-1 rounded-sm bg-cyan/60" />
+                <span
+                  key={i}
+                  style={{ height: `${h}px` }}
+                  className="flex-1 rounded-sm bg-cyan/60"
+                />
               ))}
             </div>
           </SpotlightCard>

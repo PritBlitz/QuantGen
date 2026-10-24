@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { copilotApi } from '@/api/endpoints.v2'
 import { ApiError, toApiError } from '@/api/errors'
-import type { AgentName, CitationDto, ConversationDetailDto, IntentDto, IntentStatus } from '@/api/types'
+import type {
+  AgentName,
+  CitationDto,
+  ConversationDetailDto,
+  IntentDto,
+  IntentStatus,
+} from '@/api/types'
 import { streamMessage } from './stream'
 import { useCopilotUi } from './uiStore'
 
@@ -91,8 +97,21 @@ export function useCopilotChat() {
       abortRef.current = ctrl
       const patch = (fn: (t: LiveTurn) => LiveTurn) => setLive((t) => (t ? fn(t) : t))
       let id = useCopilotUi.getState().conversationId
-      const baseCount = id ? (qc.getQueryData<ConversationDetailDto>(copilotKeys.conversation(id))?.messages.length ?? 0) : 0
-      setLive({ userText: text, text: '', tools: [], intents: [], citations: [], runId: null, status: 'streaming', error: null, baseCount })
+      const baseCount = id
+        ? (qc.getQueryData<ConversationDetailDto>(copilotKeys.conversation(id))?.messages.length ??
+          0)
+        : 0
+      setLive({
+        userText: text,
+        text: '',
+        tools: [],
+        intents: [],
+        citations: [],
+        runId: null,
+        status: 'streaming',
+        error: null,
+        baseCount,
+      })
       try {
         if (!id) {
           id = (await copilotApi.createConversation()).id
@@ -114,7 +133,10 @@ export function useCopilotChat() {
                 patch((t) => {
                   const i = t.tools.findIndex((x) => x.agent === e.agent && x.tool === e.tool)
                   const next = { agent: e.agent, tool: e.tool, status: e.status }
-                  return { ...t, tools: i < 0 ? [...t.tools, next] : t.tools.map((x, j) => (j === i ? next : x)) }
+                  return {
+                    ...t,
+                    tools: i < 0 ? [...t.tools, next] : t.tools.map((x, j) => (j === i ? next : x)),
+                  }
                 })
                 break
               case 'intent':
@@ -128,7 +150,11 @@ export function useCopilotChat() {
                 break
               case 'error':
                 // Mid-stream failure (e.g. BUDGET_EXHAUSTED); the HTTP status was already 200.
-                failed = new ApiError({ status: 200, code: e.code as ApiError['code'], message: e.message })
+                failed = new ApiError({
+                  status: 200,
+                  code: e.code as ApiError['code'],
+                  message: e.message,
+                })
                 break
             }
           },

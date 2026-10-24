@@ -169,7 +169,10 @@ function Security() {
               Each journal entry carries the hash of the one before it, and a daily Merkle root of
               every balance is published, so tampering is detectable by anyone.
             </p>
-            <Link to="/proof" className="mt-3 inline-flex items-center gap-1 text-sm text-cyan hover:underline">
+            <Link
+              to="/proof"
+              className="mt-3 inline-flex items-center gap-1 text-sm text-cyan hover:underline"
+            >
               Verify your balance <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
             <p aria-hidden="true" className="num mt-4 truncate text-xs text-muted">

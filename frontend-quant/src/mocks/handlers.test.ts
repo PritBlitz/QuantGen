@@ -89,7 +89,10 @@ describe('mock M2 rules', () => {
     // v2: >₹50,000 to others needs step-up (answered with the demo PIN), and the mock fraud
     // rule is switched off so this test only exercises the v1 daily limit.
     db.v2.riskReviewAbove = null
-    setStepUpHandler(async (c) => (await securityApi.stepUpVerify({ action: c.action, pin: '246810' })).stepUpToken)
+    setStepUpHandler(
+      async (c) =>
+        (await securityApi.stepUpVerify({ action: c.action, pin: '246810' })).stepUpToken,
+    )
     const send = (amount: string, to = '777788889999') =>
       transfer({ fromAccountId: SAVINGS, toAccountNumber: to, amount }, crypto.randomUUID())
     await send('200000.00')

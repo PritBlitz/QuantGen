@@ -78,7 +78,14 @@ export function ChatView({
                 m.role === 'USER' ? (
                   <UserBubble key={`t${i}`} text={m.text} />
                 ) : (
-                  <AssistantTurn key={`t${i}`} text={m.text} intents={m.intents} citations={m.citations} runId={m.runId} onTrace={setTraceRun} />
+                  <AssistantTurn
+                    key={`t${i}`}
+                    text={m.text}
+                    intents={m.intents}
+                    citations={m.citations}
+                    runId={m.runId}
+                    onTrace={setTraceRun}
+                  />
                 ),
               ),
               ...(showLive
@@ -98,7 +105,11 @@ export function ChatView({
               // Failed after the server stored the question: keep the error visible.
               ...(live?.error && live.status === 'error' && messages.length > live.baseCount
                 ? [
-                    <p key="live-error" role="alert" className="rounded-[var(--radius-control)] border border-warn/40 bg-warn/10 p-3 text-sm">
+                    <p
+                      key="live-error"
+                      role="alert"
+                      className="rounded-[var(--radius-control)] border border-warn/40 bg-warn/10 p-3 text-sm"
+                    >
                       {errorMessage(live.error)}
                     </p>,
                   ]
@@ -121,8 +132,8 @@ function Welcome({ onPick }: { onPick: (prompt: string) => void }) {
       </span>
       <p className="mt-4 font-medium">Ask about your money</p>
       <p className="mt-1 max-w-xs text-sm text-muted">
-        Copilot can read your accounts and prepare payments, orders and transfers. It never moves money by
-        itself: you approve every action.
+        Copilot can read your accounts and prepare payments, orders and transfers. It never moves
+        money by itself: you approve every action.
       </p>
       <ul className="mt-5 flex w-full flex-col gap-2">
         {SUGGESTIONS.map((s) => (
@@ -153,7 +164,10 @@ function UserBubble({ text }: { text: string }) {
 
 function Avatar() {
   return (
-    <span aria-hidden="true" className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-xl bg-violet/15 text-violet">
+    <span
+      aria-hidden="true"
+      className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-xl bg-violet/15 text-violet"
+    >
       <Sparkles className="size-3.5" />
     </span>
   )
@@ -179,7 +193,12 @@ function AssistantBody({
       {text && (
         <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-relaxed">
           {text}
-          {streaming && <span aria-hidden="true" className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-violet align-middle" />}
+          {streaming && (
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-violet align-middle"
+            />
+          )}
         </p>
       )}
       {intents.map((i) => (
@@ -207,7 +226,8 @@ function AssistantBody({
 
 function Citation({ c }: { c: CitationDto }) {
   const href = citationHref(c)
-  const cls = 'inline-flex max-w-full items-center truncate rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted hairline'
+  const cls =
+    'inline-flex max-w-full items-center truncate rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted hairline'
   return href ? (
     <Link to={href} className={cn(cls, 'hover:border-violet/50 hover:text-text')}>
       {c.label}
@@ -244,9 +264,19 @@ function AssistantTurn({
             <Loader2 aria-hidden="true" className="size-4 animate-spin" /> Thinking…
           </p>
         )}
-        <AssistantBody text={text} intents={intents} citations={citations} runId={runId} onTrace={onTrace} streaming={streaming} />
+        <AssistantBody
+          text={text}
+          intents={intents}
+          citations={citations}
+          runId={runId}
+          onTrace={onTrace}
+          streaming={streaming}
+        />
         {live?.error && (
-          <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-control)] border border-warn/40 bg-warn/10 p-3 text-sm">
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-[var(--radius-control)] border border-warn/40 bg-warn/10 p-3 text-sm"
+          >
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warn" />
             {errorMessage(live.error)}
           </p>
@@ -275,7 +305,8 @@ function ToolTrail({ tools, done }: { tools: ToolProgress[]; done: boolean }) {
           ) : (
             <Check aria-hidden="true" className="size-3 text-gain" />
           )}
-          <span className="font-medium text-text">{AGENT_LABEL[t.agent] ?? t.agent}</span> {toolLabel(t.tool)}
+          <span className="font-medium text-text">{AGENT_LABEL[t.agent] ?? t.agent}</span>{' '}
+          {toolLabel(t.tool)}
         </li>
       ))}
     </ol>
@@ -337,11 +368,23 @@ function Composer({
           className="max-h-36 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[0.9375rem] outline-none [field-sizing:content] placeholder:text-muted/70"
         />
         {busy ? (
-          <Button type="button" size="icon-sm" variant="secondary" aria-label="Stop" onClick={onStop}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="secondary"
+            aria-label="Stop"
+            onClick={onStop}
+          >
             <Square aria-hidden="true" className="fill-current" />
           </Button>
         ) : (
-          <Button type="submit" size="icon-sm" variant="violet" aria-label="Send" disabled={!text.trim() || over}>
+          <Button
+            type="submit"
+            size="icon-sm"
+            variant="violet"
+            aria-label="Send"
+            disabled={!text.trim() || over}
+          >
             <ArrowUp aria-hidden="true" />
           </Button>
         )}
@@ -355,8 +398,8 @@ function Composer({
       </p>
       {/* PRD §11.5 AI privacy + D-044: the provider's data use is stated where people type. */}
       <p className="mt-1 px-1 text-[0.6875rem] text-muted">
-        Runs on Google’s Gemini free tier, which may use messages to improve Google’s products. Account numbers are
-        masked before anything is sent. Conversations are deleted after 30 days.
+        Runs on Google’s Gemini free tier, which may use messages to improve Google’s products.
+        Account numbers are masked before anything is sent. Conversations are deleted after 30 days.
       </p>
     </form>
   )

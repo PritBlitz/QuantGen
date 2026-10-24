@@ -65,7 +65,8 @@ export function AutopilotPage() {
               </Button>
             }
           >
-            Try “When my salary arrives, move 20% to my Goa goal.” You’ll see what it would have done over the last 90 days before it’s switched on.
+            Try “When my salary arrives, move 20% to my Goa goal.” You’ll see what it would have
+            done over the last 90 days before it’s switched on.
           </EmptyState>
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
@@ -88,15 +89,25 @@ function RuleCard({ rule: r }: { rule: RuleDto }) {
   const toggle = () => {
     const m = r.status === 'ACTIVE' ? pause : resume
     m.mutate(r.id, {
-      onSuccess: (res) => toast.success(res.status === 'ACTIVE' ? `“${r.name}” is running again.` : `“${r.name}” is paused.`),
+      onSuccess: (res) =>
+        toast.success(
+          res.status === 'ACTIVE' ? `“${r.name}” is running again.` : `“${r.name}” is paused.`,
+        ),
       onError: (e) => {
         const ae = toApiError(e)
-        toast.error(ae.code === 'STEP_UP_CANCELLED' ? 'Verification was cancelled, so the rule stays paused.' : errorMessage(ae))
+        toast.error(
+          ae.code === 'STEP_UP_CANCELLED'
+            ? 'Verification was cancelled, so the rule stays paused.'
+            : errorMessage(ae),
+        )
       },
     })
   }
   return (
-    <SpotlightCard tone={r.status === 'ACTIVE' ? 'violet' : undefined} className="flex h-full flex-col">
+    <SpotlightCard
+      tone={r.status === 'ACTIVE' ? 'violet' : undefined}
+      className="flex h-full flex-col"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate font-medium tracking-tight">
@@ -111,7 +122,9 @@ function RuleCard({ rule: r }: { rule: RuleDto }) {
         </Badge>
       </div>
       <p className="mt-3 flex-1 text-sm">{r.rendering}</p>
-      {r.status === 'PAUSED' && r.pausedReason && <p className="mt-2 text-xs text-warn">{r.pausedReason}</p>}
+      {r.status === 'PAUSED' && r.pausedReason && (
+        <p className="mt-2 text-xs text-warn">{r.pausedReason}</p>
+      )}
       <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs">
         <div>
           <dt className="text-muted">Runs</dt>
@@ -125,7 +138,9 @@ function RuleCard({ rule: r }: { rule: RuleDto }) {
         </div>
         <div>
           <dt className="text-muted">Last run</dt>
-          <dd className="mt-0.5 font-medium">{r.lastRunAt ? formatRelative(r.lastRunAt) : 'Not yet'}</dd>
+          <dd className="mt-0.5 font-medium">
+            {r.lastRunAt ? formatRelative(r.lastRunAt) : 'Not yet'}
+          </dd>
         </div>
       </dl>
       <div className="mt-4 flex items-center gap-2">

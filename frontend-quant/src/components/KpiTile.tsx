@@ -22,7 +22,16 @@ export function ChangePill({
   className?: string
 }) {
   if (changePct === null)
-    return <span className={cn('rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6875rem] text-muted', className)}>new</span>
+    return (
+      <span
+        className={cn(
+          'rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6875rem] text-muted',
+          className,
+        )}
+      >
+        new
+      </span>
+    )
   const d = toDecimal(changePct)
   const up = d.gt(0)
   const flat = d.toDecimalPlaces(1).isZero()
@@ -32,7 +41,11 @@ export function ChangePill({
     <span
       className={cn(
         'num inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[0.6875rem] font-medium',
-        good === null ? 'bg-surface-2 text-muted' : good ? 'bg-gain/12 text-gain' : 'bg-loss/12 text-loss',
+        good === null
+          ? 'bg-surface-2 text-muted'
+          : good
+            ? 'bg-gain/12 text-gain'
+            : 'bg-loss/12 text-loss',
         className,
       )}
     >
@@ -51,7 +64,9 @@ export function KpiTile({
   className,
   footer,
 }: {
-  kpi: Pick<KpiDto, 'label' | 'unit' | 'value' | 'changePct' | 'goodDirection'> & { previous?: DecimalString }
+  kpi: Pick<KpiDto, 'label' | 'unit' | 'value' | 'changePct' | 'goodDirection'> & {
+    previous?: DecimalString
+  }
   spark?: Array<DecimalString | null>
   icon?: ReactNode
   currency?: 'INR' | 'USD'
@@ -72,11 +87,19 @@ export function KpiTile({
         {formatMetric(kpi.value, kpi.unit, { compact: kpi.unit === 'MONEY', currency })}
       </p>
       {spark && spark.length > 1 ? (
-        <Sparkline values={spark} color={`var(--${tone === 'accent' ? 'chart-1' : tone === 'violet' ? 'chart-2' : 'chart-3'})`} height={34} />
+        <Sparkline
+          values={spark}
+          color={`var(--${tone === 'accent' ? 'chart-1' : tone === 'violet' ? 'chart-2' : 'chart-3'})`}
+          height={34}
+        />
       ) : null}
       {kpi.previous !== undefined && (
         <p className="text-xs text-muted">
-          vs <span className="num">{formatMetric(kpi.previous, kpi.unit, { compact: true, currency })}</span> before
+          vs{' '}
+          <span className="num">
+            {formatMetric(kpi.previous, kpi.unit, { compact: true, currency })}
+          </span>{' '}
+          before
         </p>
       )}
       {footer}

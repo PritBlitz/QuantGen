@@ -23,4 +23,3 @@ export function rangeFor(preset: RangePreset): Required<DateRangeQuery> {
 
 export const granularityFor = (preset: RangePreset) =>
   preset === '12M' ? ('MONTH' as const) : preset === '90D' ? ('WEEK' as const) : ('DAY' as const)
-

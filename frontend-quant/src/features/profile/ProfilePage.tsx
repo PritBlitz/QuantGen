@@ -48,7 +48,9 @@ export function ProfilePage({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <div className="max-w-3xl">
-      {!embedded && <PageHeader title="Profile" description="Your details, preferences and session." />}
+      {!embedded && (
+        <PageHeader title="Profile" description="Your details, preferences and session." />
+      )}
       <div className="space-y-4">
         <Card>
           <div className="flex items-center gap-4">

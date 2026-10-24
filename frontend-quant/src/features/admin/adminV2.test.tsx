@@ -17,18 +17,24 @@ describe('fraud queue (Admin v2)', () => {
     renderApp('/admin/fraud')
     const scores = await screen.findAllByLabelText(/Risk score \d+ of 100/)
     expect(scores.map((s) => s.textContent)).toEqual(['86', '74'])
-    expect(screen.getByRole('link', { name: /Priya Nair/ })).toHaveAttribute('href', `/admin/fraud/${PRIYA_CASE}`)
+    expect(screen.getByRole('link', { name: /Priya Nair/ })).toHaveAttribute(
+      'href',
+      `/admin/fraud/${PRIYA_CASE}`,
+    )
   })
 
   it('releases a held transfer only with a reason, with an Idempotency-Key, and audits it', async () => {
     signInAs('ADMIN')
     const keys: Array<string | null> = []
     server.events.on('request:start', ({ request }) => {
-      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/release')) keys.push(request.headers.get('Idempotency-Key'))
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/release'))
+        keys.push(request.headers.get('Idempotency-Key'))
     })
     const user = userEvent.setup()
     renderApp(`/admin/fraud/${PRIYA_CASE}`)
-    expect(await screen.findByText(/matches a common "urgent help" scam pattern/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/matches a common "urgent help" scam pattern/),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Release transfer/ }))
     const dialog = await screen.findByRole('dialog', { name: 'Release this transfer?' })
@@ -71,7 +77,9 @@ describe('fraud queue (Admin v2)', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(await screen.findByText('Released by a colleague.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Reject and return money/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Reject and return money/ }),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -80,7 +88,8 @@ describe('feature flags (Admin v2)', () => {
     signInAs('ADMIN')
     let customerFlagReads = 0
     server.events.on('request:start', ({ request }) => {
-      if (request.method === 'GET' && new URL(request.url).pathname === '/api/v1/feature-flags') customerFlagReads++
+      if (request.method === 'GET' && new URL(request.url).pathname === '/api/v1/feature-flags')
+        customerFlagReads++
     })
     const user = userEvent.setup()
     renderApp('/admin/flags')
@@ -106,7 +115,13 @@ describe('loan documents and underwriting (Admin v2)', () => {
     server.use(
       http.post(`/api/v1/loans/${DEMO_LOAN}/documents`, async ({ request }) => {
         bodies.push(await request.text())
-        const doc = { id: crypto.randomUUID(), fileName: 'salary-aug.pdf', contentType: 'application/pdf', sizeBytes: 9, uploadedAt: new Date().toISOString() }
+        const doc = {
+          id: crypto.randomUUID(),
+          fileName: 'salary-aug.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 9,
+          uploadedAt: new Date().toISOString(),
+        }
         db.v2.loanDocs.set(DEMO_LOAN, [doc])
         return HttpResponse.json(doc, { status: 201 })
       }),
@@ -141,7 +156,9 @@ describe('loan documents and underwriting (Admin v2)', () => {
     const toggle = within(card).getByRole('button', { name: /Underwriting memo/ })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await user.click(toggle)
-    expect(await within(card).findByText(/Salary slips show a net monthly income/)).toBeInTheDocument()
+    expect(
+      await within(card).findByText(/Salary slips show a net monthly income/),
+    ).toBeInTheDocument()
     expect(within(card).getByText(/AI-written, advisory/)).toBeInTheDocument()
     expect(within(card).getByText('Employer')).toBeInTheDocument()
     expect(within(card).getAllByText(/^p\. \d$/).length).toBeGreaterThan(0)

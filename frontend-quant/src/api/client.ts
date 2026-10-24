@@ -19,7 +19,13 @@ export const api = axios.create({
  * token, and a 401 from them must not trigger a refresh. Other /auth/* calls (step-up, passkey
  * management, v2) need the signed-in user's bearer token like any API call.
  */
-const PUBLIC_AUTH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/passkeys/login']
+const PUBLIC_AUTH = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/passkeys/login',
+]
 const isAuthPath = (url: string | undefined) =>
   !!url && PUBLIC_AUTH.some((p) => url === p || url.startsWith(`${p}/`))
 

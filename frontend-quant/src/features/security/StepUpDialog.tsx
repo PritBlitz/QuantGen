@@ -117,7 +117,9 @@ export function StepUpDialog() {
 
   const allowsPin = pending?.challenge.methods.includes('PIN') ?? false
   const allowsPasskey =
-    (pending?.challenge.methods.includes('PASSKEY') ?? false) && webauthnSupported() && !!passkeyOptions
+    (pending?.challenge.methods.includes('PASSKEY') ?? false) &&
+    webauthnSupported() &&
+    !!passkeyOptions
 
   return (
     <Dialog open={pending !== null} onOpenChange={(open) => !open && !busy && finish(null)}>
@@ -133,7 +135,12 @@ export function StepUpDialog() {
 
           {method === 'PASSKEY' && allowsPasskey ? (
             <>
-              <Button size="lg" className="w-full" onClick={() => void signWithPasskey()} disabled={busy}>
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => void signWithPasskey()}
+                disabled={busy}
+              >
                 <Fingerprint aria-hidden="true" />
                 {busy ? 'Verifying…' : 'Use passkey'}
               </Button>
@@ -178,8 +185,8 @@ export function StepUpDialog() {
           ) : (
             <>
               <p className="text-sm text-muted">
-                You haven’t set up a transaction PIN or passkey yet. Set one up (it takes a
-                minute), then try again. Nothing has been sent.
+                You haven’t set up a transaction PIN or passkey yet. Set one up (it takes a minute),
+                then try again. Nothing has been sent.
               </p>
               <Button
                 className="w-full"

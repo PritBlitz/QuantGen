@@ -47,7 +47,10 @@ export function AdminFlagsPage() {
   const [pending, setPending] = useState<AdminFeatureFlagDto | null>(null)
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Feature flags" description="Switch v2 features on or off for everyone, instantly. Turning one off never affects balances or the ledger." />
+      <PageHeader
+        title="Feature flags"
+        description="Switch v2 features on or off for everyone, instantly. Turning one off never affects balances or the ledger."
+      />
       {flags.isError ? (
         <Card>
           <PanelError what="feature flags" onRetry={() => void flags.refetch()} />
@@ -64,7 +67,10 @@ export function AdminFlagsPage() {
             {flags.data.map((f) => {
               const about = ABOUT[f.name] ?? { name: f.name, on: '', off: '' }
               return (
-                <li key={f.name} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
+                <li
+                  key={f.name}
+                  className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center"
+                >
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {about.name}
@@ -80,7 +86,12 @@ export function AdminFlagsPage() {
                       </p>
                     )}
                   </div>
-                  <Button variant={f.enabled ? 'outline' : 'primary'} size="sm" onClick={() => setPending(f)} aria-label={`${f.enabled ? 'Turn off' : 'Turn on'} ${about.name}`}>
+                  <Button
+                    variant={f.enabled ? 'outline' : 'primary'}
+                    size="sm"
+                    onClick={() => setPending(f)}
+                    aria-label={`${f.enabled ? 'Turn off' : 'Turn on'} ${about.name}`}
+                  >
                     {f.enabled ? 'Turn off' : 'Turn on'}
                   </Button>
                 </li>
@@ -100,13 +111,18 @@ function ConfirmFlag({ flag, onClose }: { flag: AdminFeatureFlagDto; onClose: ()
   const next = !flag.enabled
   return (
     <Dialog open onOpenChange={(o) => !o && !set.isPending && onClose()}>
-      <DialogContent title={`${next ? 'Turn on' : 'Turn off'} ${about.name}?`} description={next ? about.on : about.off}>
+      <DialogContent
+        title={`${next ? 'Turn on' : 'Turn off'} ${about.name}?`}
+        description={next ? about.on : about.off}
+      >
         {set.error && (
           <p role="alert" className="mb-3 text-sm text-loss">
             {errorMessage(set.error)}
           </p>
         )}
-        <p className="mb-4 text-xs text-muted">This applies to every customer at once and is recorded in the audit log.</p>
+        <p className="mb-4 text-xs text-muted">
+          This applies to every customer at once and is recorded in the audit log.
+        </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" disabled={set.isPending} onClick={onClose}>
             Cancel

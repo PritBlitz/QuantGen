@@ -8,7 +8,15 @@ import { formatDate } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Reveal } from './SplitReveal'
 
-function Eyebrow({ icon, tone, children }: { icon: ReactNode; tone: 'violet' | 'cyan'; children: string }) {
+function Eyebrow({
+  icon,
+  tone,
+  children,
+}: {
+  icon: ReactNode
+  tone: 'violet' | 'cyan'
+  children: string
+}) {
   return (
     <p
       className={cn(
@@ -59,7 +67,9 @@ function AutopilotDemo() {
           </div>
         </dl>
       </div>
-      <p className="mt-auto pt-6 text-xs text-muted">Runs exactly once per trigger, even on retries.</p>
+      <p className="mt-auto pt-6 text-xs text-muted">
+        Runs exactly once per trigger, even on retries.
+      </p>
     </SpotlightCard>
   )
 }
@@ -102,7 +112,12 @@ const short = (h: string) => `${h.slice(0, 6)}…${h.slice(-4)}`
 
 function ProofDemo() {
   // Public, unauthenticated endpoint. If it isn't live (or fails), the sample stays.
-  const roots = useQuery({ queryKey: ['public', 'proof-roots'], queryFn: proofApi.roots, retry: false, staleTime: 5 * 60_000 })
+  const roots = useQuery({
+    queryKey: ['public', 'proof-roots'],
+    queryFn: proofApi.roots,
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
   const latest = roots.data?.[0]
   return (
     <SpotlightCard tone="cyan" className="flex h-full flex-col">
@@ -118,7 +133,13 @@ function ProofDemo() {
         <g stroke="var(--border-strong)" strokeWidth="1.5" fill="none">
           <path d="M120 20 L60 55 M120 20 L180 55 M60 55 L30 90 M60 55 L90 90 M180 55 L150 90 M180 55 L210 90" />
         </g>
-        <path d="M120 20 L60 55 L90 90" stroke="var(--cyan)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        <path
+          d="M120 20 L60 55 L90 90"
+          stroke="var(--cyan)"
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+        />
         {[
           [120, 20, true],
           [60, 55, true],
@@ -128,7 +149,13 @@ function ProofDemo() {
           [150, 90, false],
           [210, 90, false],
         ].map(([x, y, on]) => (
-          <circle key={`${x}-${y}`} cx={x as number} cy={y as number} r={on ? 7 : 5.5} fill={on ? 'var(--cyan)' : 'var(--surface-3)'} />
+          <circle
+            key={`${x}-${y}`}
+            cx={x as number}
+            cy={y as number}
+            r={on ? 7 : 5.5}
+            fill={on ? 'var(--cyan)' : 'var(--surface-3)'}
+          />
         ))}
       </svg>
       <div className="mt-6 flex items-center gap-3 rounded-[var(--radius-control)] bg-surface-2/70 p-3 text-sm hairline">
@@ -137,7 +164,9 @@ function ProofDemo() {
         </span>
         <span className="min-w-0">
           <span className="block font-medium">Your balance is included</span>
-          <span className="num block truncate text-xs text-muted">root {latest ? short(latest.root) : '9f2c4e…a71e'}</span>
+          <span className="num block truncate text-xs text-muted">
+            root {latest ? short(latest.root) : '9f2c4e…a71e'}
+          </span>
           <span className="block truncate text-xs text-muted">
             {latest ? `${formatDate(latest.date)} · ${latest.leafCount} accounts` : 'Sample'}
           </span>
@@ -154,7 +183,8 @@ export function Signature() {
       <Reveal className="max-w-2xl">
         <p className="eyebrow">New in QuantGen 2</p>
         <h2 className="mt-4 font-display text-4xl sm:text-5xl">
-          A bank that does the busywork, <span className="italic text-muted">and shows its working.</span>
+          A bank that does the busywork,{' '}
+          <span className="italic text-muted">and shows its working.</span>
         </h2>
       </Reveal>
       <div className="mt-14 grid grid-cols-1 gap-4 lg:grid-cols-12">

@@ -13,13 +13,18 @@ export { Decimal }
 export type Acc = AccountDto & { userId: string }
 
 /** 401 response or the signed-in user. */
-export function requireUser(request: Request): { user: UserDto; res: null } | { user: null; res: Response } {
+export function requireUser(
+  request: Request,
+): { user: UserDto; res: null } | { user: null; res: Response } {
   const user = userFrom(request)
-  if (!user) return { user: null, res: error(401, 'UNAUTHORIZED', 'Authentication required', request) }
+  if (!user)
+    return { user: null, res: error(401, 'UNAUTHORIZED', 'Authentication required', request) }
   return { user, res: null }
 }
 
-export function requireAdmin(request: Request): { user: UserDto; res: null } | { user: null; res: Response } {
+export function requireAdmin(
+  request: Request,
+): { user: UserDto; res: null } | { user: null; res: Response } {
   const r = requireUser(request)
   if (!r.user) return r
   if (r.user.role !== 'ADMIN')
@@ -41,7 +46,8 @@ export function ownAccount(userId: string, id: unknown): Acc | null {
   return a && a.userId === userId ? a : null
 }
 
-export const userById = (id: string) => [...db.users.values()].find((u) => u.user.id === id)?.user ?? null
+export const userById = (id: string) =>
+  [...db.users.values()].find((u) => u.user.id === id)?.user ?? null
 
 export { stepUpGate } from '../handlers'
 

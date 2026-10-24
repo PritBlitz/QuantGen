@@ -25,7 +25,9 @@ export function PayTabs() {
           className={({ isActive }) =>
             cn(
               'shrink-0 rounded-full px-4 py-1.5 text-sm transition-colors hairline',
-              isActive ? 'bg-text text-bg' : 'text-muted hover:border-border-strong hover:text-text',
+              isActive
+                ? 'bg-text text-bg'
+                : 'text-muted hover:border-border-strong hover:text-text',
             )
           }
         >
@@ -37,7 +39,15 @@ export function PayTabs() {
 }
 
 /** Renders a QR code to a canvas (no data: URLs, no network). Colours follow the theme. */
-export function QrCanvas({ value, size = 220, className }: { value: string; size?: number; className?: string }) {
+export function QrCanvas({
+  value,
+  size = 220,
+  className,
+}: {
+  value: string
+  size?: number
+  className?: string
+}) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current
@@ -50,7 +60,16 @@ export function QrCanvas({ value, size = 220, className }: { value: string; size
       color: { dark: css.getPropertyValue('--text').trim() || '#000000', light: '#00000000' },
     })
   }, [value, size])
-  return <canvas ref={ref} width={size} height={size} className={className} aria-label="Payment QR code" role="img" />
+  return (
+    <canvas
+      ref={ref}
+      width={size}
+      height={size}
+      className={className}
+      aria-label="Payment QR code"
+      role="img"
+    />
+  )
 }
 
 /** Initials avatar used across payments. */

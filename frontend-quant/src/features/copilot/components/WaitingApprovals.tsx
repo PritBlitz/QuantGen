@@ -23,15 +23,26 @@ export function WaitingApprovals({
   const intents = useIntents('PROPOSED')
   // Keep every card shown during this visit mounted: once approved it leaves the PROPOSED list, and
   // unmounting it would also throw away its "Approved and carried out" confirmation. New ones go on top.
-  const [seen, setSeen] = useState<{ from: IntentDto[] | undefined; list: IntentDto[] }>({ from: undefined, list: [] })
+  const [seen, setSeen] = useState<{ from: IntentDto[] | undefined; list: IntentDto[] }>({
+    from: undefined,
+    list: [],
+  })
   if (intents.data && intents.data !== seen.from) {
     const known = new Set(seen.list.map((i) => i.id))
-    const fresh = intents.data.filter((i) => !known.has(i.id) && (!agent || i.proposedBy.agent === agent))
+    const fresh = intents.data.filter(
+      (i) => !known.has(i.id) && (!agent || i.proposedBy.agent === agent),
+    )
     setSeen({ from: intents.data, list: [...fresh, ...seen.list] })
   }
   const shown = seen.list
   return (
-    <Panel title="Waiting for you" eyebrow="Approvals" tone="violet" className={className} bodyClassName="mt-3">
+    <Panel
+      title="Waiting for you"
+      eyebrow="Approvals"
+      tone="violet"
+      className={className}
+      bodyClassName="mt-3"
+    >
       {intents.isPending ? (
         <Skeleton className="h-40" />
       ) : intents.isError ? (

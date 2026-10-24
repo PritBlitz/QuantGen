@@ -194,18 +194,38 @@ export function AdminReconcilePage() {
  * customer balances. Both run on demand (the chain check walks every seal).
  */
 function IntegrityChecks() {
-  const chain = useQuery({ queryKey: ['admin', 'verify-chain'], queryFn: proofApi.verifyChain, enabled: false, retry: false })
-  const solvency = useQuery({ queryKey: ['admin', 'solvency'], queryFn: proofApi.solvency, retry: false })
+  const chain = useQuery({
+    queryKey: ['admin', 'verify-chain'],
+    queryFn: proofApi.verifyChain,
+    enabled: false,
+    retry: false,
+  })
+  const solvency = useQuery({
+    queryKey: ['admin', 'solvency'],
+    queryFn: proofApi.solvency,
+    retry: false,
+  })
   return (
     <section aria-label="Ledger integrity" className="mt-6 grid gap-4 md:grid-cols-2">
       <Card className="flex flex-col">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-medium">Hash chain</h2>
-            <p className="mt-1 text-sm text-muted">Re-hashes every sealed journal entry and checks each link.</p>
+            <p className="mt-1 text-sm text-muted">
+              Re-hashes every sealed journal entry and checks each link.
+            </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => void chain.refetch()} disabled={chain.isFetching}>
-            {chain.isFetching ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void chain.refetch()}
+            disabled={chain.isFetching}
+          >
+            {chain.isFetching ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Link2 aria-hidden="true" />
+            )}
             {chain.data ? 'Verify again' : 'Verify chain'}
           </Button>
         </div>
@@ -215,11 +235,13 @@ function IntegrityChecks() {
           ) : chain.data ? (
             chain.data.intact ? (
               <p className="flex items-center gap-2 text-gain">
-                <CircleCheck aria-hidden="true" className="size-4" /> Intact through seal #{chain.data.checkedUpTo.toLocaleString('en-IN')}
+                <CircleCheck aria-hidden="true" className="size-4" /> Intact through seal #
+                {chain.data.checkedUpTo.toLocaleString('en-IN')}
               </p>
             ) : (
               <p role="alert" className="flex items-center gap-2 text-loss">
-                <CircleAlert aria-hidden="true" className="size-4" /> Broken at seal #{chain.data.firstBrokenPosition?.toLocaleString('en-IN')}. Stop and investigate.
+                <CircleAlert aria-hidden="true" className="size-4" /> Broken at seal #
+                {chain.data.firstBrokenPosition?.toLocaleString('en-IN')}. Stop and investigate.
               </p>
             )
           ) : (
@@ -231,7 +253,11 @@ function IntegrityChecks() {
         <h2 className="font-medium">Solvency</h2>
         <p className="mt-1 text-sm text-muted">Assets held against what customers are owed.</p>
         {solvency.isError ? (
-          <p className="mt-4 text-sm text-muted">{toApiError(solvency.error).code === 'NOT_FOUND' ? 'Not available until Proof of Balance ships.' : errorMessage(solvency.error)}</p>
+          <p className="mt-4 text-sm text-muted">
+            {toApiError(solvency.error).code === 'NOT_FOUND'
+              ? 'Not available until Proof of Balance ships.'
+              : errorMessage(solvency.error)}
+          </p>
         ) : !solvency.data ? (
           <Skeleton className="mt-4 h-16" />
         ) : (
@@ -250,7 +276,12 @@ function IntegrityChecks() {
             </div>
             <div>
               <dt className="text-xs text-muted">Ratio</dt>
-              <dd className={cn('num mt-0.5', new Decimal(solvency.data.ratio).lt(1) ? 'text-loss' : 'text-gain')}>
+              <dd
+                className={cn(
+                  'num mt-0.5',
+                  new Decimal(solvency.data.ratio).lt(1) ? 'text-loss' : 'text-gain',
+                )}
+              >
                 {new Decimal(solvency.data.ratio).toFixed(2)}×
               </dd>
             </div>

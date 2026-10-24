@@ -165,7 +165,9 @@ export function AppShell() {
               <Button variant="ghost" size="icon" asChild>
                 <Link
                   to="/notifications"
-                  aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                  aria-label={
+                    unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'
+                  }
                   className="relative"
                 >
                   <Bell />
@@ -219,7 +221,10 @@ export function AppShell() {
           </div>
         </header>
 
-        <main id="main" className="flex-1 px-4 pb-32 pt-8 sm:px-6 lg:pb-16 lg:pl-3 lg:pr-8 lg:pt-10">
+        <main
+          id="main"
+          className="flex-1 px-4 pb-32 pt-8 sm:px-6 lg:pb-16 lg:pl-3 lg:pr-8 lg:pt-10"
+        >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
@@ -272,7 +277,6 @@ export function AppShell() {
 
 const menuItem =
   'flex cursor-pointer items-center gap-2.5 rounded-[11px] px-3 py-2 text-sm outline-none data-[highlighted]:bg-surface-2 [&_svg]:size-4 [&_svg]:text-muted'
-
 
 function initials(name?: string) {
   if (!name) return '·'

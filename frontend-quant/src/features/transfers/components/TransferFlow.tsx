@@ -125,7 +125,9 @@ export function TransferFlow({
         : null
 
   const from = accounts.find((a) => a.id === fromId)
-  const ownTargets = accounts.filter((a) => a.id !== fromId && a.status !== 'CLOSED' && a.type !== 'FIXED_DEPOSIT')
+  const ownTargets = accounts.filter(
+    (a) => a.id !== fromId && a.status !== 'CLOSED' && a.type !== 'FIXED_DEPOSIT',
+  )
 
   const recipient: Recipient | null = useMemo(() => {
     if (mode === 'saved') {
@@ -160,7 +162,18 @@ export function TransferFlow({
     return n
       ? { accountNumber: n, name: resolved?.holderNameMasked ?? null, verified: !!resolved }
       : null
-  }, [mode, savedId, ownId, newNumber, handle, handleQ, numberQ, payee.data, beneficiaries, accounts])
+  }, [
+    mode,
+    savedId,
+    ownId,
+    newNumber,
+    handle,
+    handleQ,
+    numberQ,
+    payee.data,
+    beneficiaries,
+    accounts,
+  ])
 
   const draft: TransferDraft = {
     fromAccountId: fromId,
@@ -184,7 +197,9 @@ export function TransferFlow({
     const errs = validateTransfer(draft, spendable)
     if (mode === 'handle' && !errs.toAccountNumber && payee.isError)
       errs.toAccountNumber =
-        payeeErr?.code === 'RATE_LIMITED' ? errorMessage(payeeErr) : 'We couldn’t find anyone with that handle.'
+        payeeErr?.code === 'RATE_LIMITED'
+          ? errorMessage(payeeErr)
+          : 'We couldn’t find anyone with that handle.'
     if (recipient && !recipient.handle && recipient.accountNumber === from?.accountNumber)
       errs.toAccountNumber = 'You can’t send to the same account'
     setErrors(errs)
@@ -460,7 +475,8 @@ export function TransferFlow({
 
         {mode === 'saved' &&
           (beneficiaries.length ? (
-            <Select aria-label="Saved recipient"
+            <Select
+              aria-label="Saved recipient"
               value={savedId}
               onValueChange={edited(setSavedId)}
               placeholder="Choose a saved recipient"
@@ -485,7 +501,8 @@ export function TransferFlow({
 
         {mode === 'own' &&
           (ownTargets.length ? (
-            <Select aria-label="Your account"
+            <Select
+              aria-label="Your account"
               value={ownId}
               onValueChange={edited(setOwnId)}
               placeholder="Choose one of your accounts"

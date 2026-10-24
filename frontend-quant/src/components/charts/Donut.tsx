@@ -44,7 +44,12 @@ export function Donut({
 
   return (
     <div className={cn('flex flex-col items-center gap-5 sm:flex-row', className)}>
-      <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={ariaLabel}>
+      <div
+        className="relative shrink-0"
+        style={{ width: size, height: size }}
+        role="img"
+        aria-label={ariaLabel}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

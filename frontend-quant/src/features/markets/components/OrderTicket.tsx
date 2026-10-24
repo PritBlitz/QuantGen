@@ -123,7 +123,9 @@ export function OrderTicket({
               ...base,
               orderType,
               validity,
-              ...(orderType === 'LIMIT' ? { limitPrice: orderPrice } : { triggerPrice: orderPrice }),
+              ...(orderType === 'LIMIT'
+                ? { limitPrice: orderPrice }
+                : { triggerPrice: orderPrice }),
             },
             key,
           ),
@@ -160,8 +162,8 @@ export function OrderTicket({
         {open ? (
           <div>
             <p className="text-sm text-muted">
-              {o.side === 'BUY' ? 'Buy' : 'Sell'} <span className="num text-text">{o.quantity}</span>{' '}
-              {o.symbol}{' '}
+              {o.side === 'BUY' ? 'Buy' : 'Sell'}{' '}
+              <span className="num text-text">{o.quantity}</span> {o.symbol}{' '}
               {o.orderType === 'STOP_LOSS' ? (
                 <>
                   at market if the price falls to{' '}

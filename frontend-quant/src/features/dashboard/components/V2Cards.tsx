@@ -48,7 +48,9 @@ export function CopilotStrip({ className }: { className?: string }) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         <div className="flex items-center gap-3 lg:w-72 lg:shrink-0">
           <span className="relative grid size-11 place-items-center rounded-2xl bg-violet text-violet-ink">
-            {!reduce && <span className="absolute inset-0 rounded-2xl border border-violet animate-pulse-ring" />}
+            {!reduce && (
+              <span className="absolute inset-0 rounded-2xl border border-violet animate-pulse-ring" />
+            )}
             <Sparkles aria-hidden="true" className="size-5" />
           </span>
           <div>
@@ -58,7 +60,12 @@ export function CopilotStrip({ className }: { className?: string }) {
         </div>
         <ul className="flex flex-1 flex-wrap gap-2">
           {PROMPTS.map((p, i) => (
-            <motion.li key={p} initial={reduce ? false : { opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.06 * i, duration: 0.4, ease: EASE_OUT_EXPO }}>
+            <motion.li
+              key={p}
+              initial={reduce ? false : { opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.06 * i, duration: 0.4, ease: EASE_OUT_EXPO }}
+            >
               <button
                 type="button"
                 onClick={() => open(p)}
@@ -98,7 +105,13 @@ export function SpendingCard({ className }: { className?: string }) {
         <div className="flex flex-1 flex-col">
           <p className="num text-3xl font-medium">{formatINR(s.spending, { compact: true })}</p>
           <p className="mt-1 text-xs text-muted">
-            Saved <span className="text-text">{s.savingsRatePct ? `${toDecimal(s.savingsRatePct).toDecimalPlaces(0).toString()}%` : '—'}</span> of what came in
+            Saved{' '}
+            <span className="text-text">
+              {s.savingsRatePct
+                ? `${toDecimal(s.savingsRatePct).toDecimalPlaces(0).toString()}%`
+                : '—'}
+            </span>{' '}
+            of what came in
           </p>
           <ul className="mt-5 space-y-3">
             {(budgets.data ?? []).slice(0, 3).map((b) => {
@@ -111,12 +124,21 @@ export function SpendingCard({ className }: { className?: string }) {
                     <span className="flex items-center gap-1.5 text-muted">
                       <c.icon aria-hidden="true" className="size-3.5" /> {c.label}
                     </span>
-                    <span className={cn('num', over ? 'text-loss' : warn ? 'text-warn' : 'text-muted')}>
-                      {formatINR(b.spent, { compact: true })} / {formatINR(b.monthlyLimit, { compact: true })}
+                    <span
+                      className={cn('num', over ? 'text-loss' : warn ? 'text-warn' : 'text-muted')}
+                    >
+                      {formatINR(b.spent, { compact: true })} /{' '}
+                      {formatINR(b.monthlyLimit, { compact: true })}
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <div className={cn('h-full rounded-full', over ? 'bg-loss' : warn ? 'bg-warn' : 'bg-gain')} style={{ width: `${Math.min(100, ratio(b.spent, b.monthlyLimit) * 100)}%` }} />
+                    <div
+                      className={cn(
+                        'h-full rounded-full',
+                        over ? 'bg-loss' : warn ? 'bg-warn' : 'bg-gain',
+                      )}
+                      style={{ width: `${Math.min(100, ratio(b.spent, b.monthlyLimit) * 100)}%` }}
+                    />
                   </div>
                 </li>
               )
@@ -136,12 +158,34 @@ export function UpcomingCard({ className }: { className?: string }) {
   if (isUnavailable(scheduled.error) && !loans.data?.some((l) => l.status === 'ACTIVE')) return null
   const items = [
     ...(scheduled.data ?? [])
-      .flatMap((s) => (s.status === 'ACTIVE' && s.nextRunDate ? [{ ...s, nextRunDate: s.nextRunDate }] : []))
-      .map((s) => ({ key: s.id, date: s.nextRunDate, label: s.note ?? `To ${s.toName}`, sub: `${s.frequency.toLowerCase()} · ${s.toAccountNumberMasked}`, amount: s.amount })),
+      .flatMap((s) =>
+        s.status === 'ACTIVE' && s.nextRunDate ? [{ ...s, nextRunDate: s.nextRunDate }] : [],
+      )
+      .map((s) => ({
+        key: s.id,
+        date: s.nextRunDate,
+        label: s.note ?? `To ${s.toName}`,
+        sub: `${s.frequency.toLowerCase()} · ${s.toAccountNumberMasked}`,
+        amount: s.amount,
+      })),
     ...(loans.data ?? [])
-      .flatMap((l) => (l.status === 'ACTIVE' && l.nextDueDate ? [{ ...l, nextDueDate: l.nextDueDate }] : []))
-      .map((l) => ({ key: l.id, date: l.nextDueDate, label: 'Loan EMI', sub: 'auto-debit at 06:00', amount: l.emi })),
-    ...(incoming.data?.content ?? []).map((r) => ({ key: r.id, date: r.expiresAt.slice(0, 10), label: `${r.fromHandle} asked you`, sub: r.note ? `“${r.note}” · pay by` : 'pay by', amount: r.amount })),
+      .flatMap((l) =>
+        l.status === 'ACTIVE' && l.nextDueDate ? [{ ...l, nextDueDate: l.nextDueDate }] : [],
+      )
+      .map((l) => ({
+        key: l.id,
+        date: l.nextDueDate,
+        label: 'Loan EMI',
+        sub: 'auto-debit at 06:00',
+        amount: l.emi,
+      })),
+    ...(incoming.data?.content ?? []).map((r) => ({
+      key: r.id,
+      date: r.expiresAt.slice(0, 10),
+      label: `${r.fromHandle} asked you`,
+      sub: r.note ? `“${r.note}” · pay by` : 'pay by',
+      amount: r.amount,
+    })),
   ]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5)
@@ -159,12 +203,17 @@ export function UpcomingCard({ className }: { className?: string }) {
       {scheduled.isPending && loans.isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : items.length === 0 ? (
-        <p className="py-6 text-sm text-muted">Nothing scheduled. Set up rent or a SIP so you never forget.</p>
+        <p className="py-6 text-sm text-muted">
+          Nothing scheduled. Set up rent or a SIP so you never forget.
+        </p>
       ) : (
         <ol className="relative space-y-4 pl-5 before:absolute before:inset-y-1 before:left-[5px] before:w-px before:bg-border">
           {items.map((it) => (
             <li key={it.key} className="relative">
-              <span className="absolute -left-5 top-1 size-[11px] rounded-full border-2 border-accent bg-bg" aria-hidden="true" />
+              <span
+                className="absolute -left-5 top-1 size-[11px] rounded-full border-2 border-accent bg-bg"
+                aria-hidden="true"
+              />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{it.label}</p>
@@ -191,7 +240,7 @@ export function AutopilotCard({ className }: { className?: string }) {
   const paused = rules.data?.filter((r) => r.status === 'PAUSED') ?? []
   const moved = sumMoney(active.map((r) => r.movedThisMonth))
   return (
-    <DashCard title="Autopilot" labelledBy="autopilot-title" className={cn(className)} >
+    <DashCard title="Autopilot" labelledBy="autopilot-title" className={cn(className)}>
       {!rules.data ? (
         <Skeleton className="h-36 w-full" />
       ) : (
@@ -202,7 +251,10 @@ export function AutopilotCard({ className }: { className?: string }) {
             </span>
             <div>
               <p className="text-2xl font-medium">
-                {active.length} <span className="text-sm font-normal text-muted">active rule{active.length === 1 ? '' : 's'}</span>
+                {active.length}{' '}
+                <span className="text-sm font-normal text-muted">
+                  active rule{active.length === 1 ? '' : 's'}
+                </span>
               </p>
               <p className="text-xs text-muted">
                 Moved <Money value={moved} className="text-text" /> this month
@@ -211,10 +263,15 @@ export function AutopilotCard({ className }: { className?: string }) {
           </div>
           {paused.length > 0 && (
             <p className="mt-4 rounded-xl border border-warn/30 bg-warn/[0.07] px-3 py-2 text-xs">
-              <Badge tone="warn">{paused.length} paused</Badge> <span className="ml-1 text-muted">{paused[0]?.pausedReason}</span>
+              <Badge tone="warn">{paused.length} paused</Badge>{' '}
+              <span className="ml-1 text-muted">{paused[0]?.pausedReason}</span>
             </p>
           )}
-          {active[0]?.lastRunAt && <p className="mt-3 text-xs text-muted">Last run {formatRelative(active[0].lastRunAt)} · “{active[0].name}”</p>}
+          {active[0]?.lastRunAt && (
+            <p className="mt-3 text-xs text-muted">
+              Last run {formatRelative(active[0].lastRunAt)} · “{active[0].name}”
+            </p>
+          )}
           <Button asChild variant="secondary" size="sm" className="mt-auto self-start">
             <Link to="/autopilot">
               Open Autopilot <ArrowRight aria-hidden="true" />
@@ -238,11 +295,15 @@ export function ProofCard({ className }: { className?: string }) {
             <ShieldCheck aria-hidden="true" className="size-5" />
           </span>
           <p className="text-sm text-muted">
-            Every night we publish one fingerprint of all balances. Check, in your own browser, that yours is in it and history wasn’t rewritten.
+            Every night we publish one fingerprint of all balances. Check, in your own browser, that
+            yours is in it and history wasn’t rewritten.
           </p>
         </div>
         {latest ? (
-          <p className="num mt-4 truncate rounded-xl bg-surface-2/70 px-3 py-2 text-xs text-muted hairline" title={latest.root}>
+          <p
+            className="num mt-4 truncate rounded-xl bg-surface-2/70 px-3 py-2 text-xs text-muted hairline"
+            title={latest.root}
+          >
             <CalendarClock aria-hidden="true" className="mr-1.5 inline size-3.5" />
             {formatDate(latest.date)} · {latest.root.slice(0, 20)}…
           </p>

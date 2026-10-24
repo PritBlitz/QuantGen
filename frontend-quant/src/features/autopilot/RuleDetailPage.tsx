@@ -47,7 +47,11 @@ export function RuleDetailPage() {
     m.mutate(r.id, {
       onError: (e) => {
         const ae = toApiError(e)
-        toast.error(ae.code === 'STEP_UP_CANCELLED' ? 'Verification was cancelled, so the rule stays paused.' : errorMessage(ae))
+        toast.error(
+          ae.code === 'STEP_UP_CANCELLED'
+            ? 'Verification was cancelled, so the rule stays paused.'
+            : errorMessage(ae),
+        )
       },
     })
   }
@@ -56,7 +60,9 @@ export function RuleDetailPage() {
     <>
       <PageHeader
         back={{ to: '/autopilot', label: 'Autopilot' }}
-        eyebrow={r ? `Version ${r.version} · created ${formatRelative(r.createdAt)}` : 'Autopilot rule'}
+        eyebrow={
+          r ? `Version ${r.version} · created ${formatRelative(r.createdAt)}` : 'Autopilot rule'
+        }
         title={r?.name ?? <Skeleton className="h-12 w-64" />}
         actions={
           r && (
@@ -89,9 +95,15 @@ export function RuleDetailPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-12">
           <div className="space-y-4 lg:col-span-5">
-            <Panel eyebrow="What it does" title={r.status === 'ACTIVE' ? 'Running' : 'Paused'} tone={r.status === 'ACTIVE' ? 'violet' : undefined}>
+            <Panel
+              eyebrow="What it does"
+              title={r.status === 'ACTIVE' ? 'Running' : 'Paused'}
+              tone={r.status === 'ACTIVE' ? 'violet' : undefined}
+            >
               <p className="font-display text-xl leading-snug">“{r.rendering}”</p>
-              {r.status === 'PAUSED' && r.pausedReason && <p className="mt-3 text-sm text-warn">{r.pausedReason}</p>}
+              {r.status === 'PAUSED' && r.pausedReason && (
+                <p className="mt-3 text-sm text-warn">{r.pausedReason}</p>
+              )}
               <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
                 <Stat label="Runs so far" value={String(r.runCount)} />
                 <Stat label="Moved this month" value={<Money value={r.movedThisMonth} />} />
@@ -106,9 +118,16 @@ export function RuleDetailPage() {
 
       {confirmDelete && r && (
         <Dialog open onOpenChange={(o) => !o && !remove.isPending && setConfirmDelete(false)}>
-          <DialogContent title={`Delete “${r.name}”?`} description="It stops at once and won’t run again. Its run history is kept for your records.">
+          <DialogContent
+            title={`Delete “${r.name}”?`}
+            description="It stops at once and won’t run again. Its run history is kept for your records."
+          >
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" disabled={remove.isPending} onClick={() => setConfirmDelete(false)}>
+              <Button
+                variant="ghost"
+                disabled={remove.isPending}
+                onClick={() => setConfirmDelete(false)}
+              >
                 Keep it
               </Button>
               <Button
@@ -124,7 +143,8 @@ export function RuleDetailPage() {
                   })
                 }
               >
-                {remove.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Delete rule
+                {remove.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Delete
+                rule
               </Button>
             </div>
           </DialogContent>
@@ -143,7 +163,15 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function Runs({ ruleId, ruleName, className }: { ruleId: string; ruleName: string; className?: string }) {
+function Runs({
+  ruleId,
+  ruleName,
+  className,
+}: {
+  ruleId: string
+  ruleName: string
+  className?: string
+}) {
   const [page, setPage] = useState(0)
   const runs = useRuleRuns(ruleId, page)
   const aiOn = useFlag('ai')
@@ -155,15 +183,34 @@ function Runs({ ruleId, ruleName, className }: { ruleId: string; ruleName: strin
       ) : runs.isError ? (
         <PanelError what="runs" onRetry={() => void runs.refetch()} />
       ) : runs.data.content.length === 0 ? (
-        <p className="py-6 text-sm text-muted">No runs yet. When the trigger happens, each run shows up here with exactly what moved.</p>
+        <p className="py-6 text-sm text-muted">
+          No runs yet. When the trigger happens, each run shows up here with exactly what moved.
+        </p>
       ) : (
         <>
           <ol className="space-y-2">
             {runs.data.content.map((run) => (
-              <RunRow key={run.id} run={run} onExplain={aiOn ? () => ask(`Explain the run of my Autopilot rule “${ruleName}” on ${formatAbsolute(run.startedAt)}: ${run.triggerSummary}`) : undefined} />
+              <RunRow
+                key={run.id}
+                run={run}
+                onExplain={
+                  aiOn
+                    ? () =>
+                        ask(
+                          `Explain the run of my Autopilot rule “${ruleName}” on ${formatAbsolute(run.startedAt)}: ${run.triggerSummary}`,
+                        )
+                    : undefined
+                }
+              />
             ))}
           </ol>
-          <Pagination page={runs.data.page} totalPages={runs.data.totalPages} totalElements={runs.data.totalElements} onPage={setPage} label="runs" />
+          <Pagination
+            page={runs.data.page}
+            totalPages={runs.data.totalPages}
+            totalElements={runs.data.totalElements}
+            onPage={setPage}
+            label="runs"
+          />
         </>
       )}
     </Panel>
@@ -171,7 +218,9 @@ function Runs({ ruleId, ruleName, className }: { ruleId: string; ruleName: strin
 }
 
 function RunRow({ run, onExplain }: { run: RuleRunDto; onExplain?: () => void }) {
-  const o = run.outcome ? (OUTCOME[run.outcome] ?? { label: run.outcome, tone: 'neutral' as const }) : { label: 'Running', tone: 'neutral' as const }
+  const o = run.outcome
+    ? (OUTCOME[run.outcome] ?? { label: run.outcome, tone: 'neutral' as const })
+    : { label: 'Running', tone: 'neutral' as const }
   return (
     <li className="rounded-[var(--radius-control)] bg-surface-2/50 p-3 hairline">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -191,13 +240,22 @@ function RunRow({ run, onExplain }: { run: RuleRunDto; onExplain?: () => void })
                 {ACTION_LABEL[a.type] ?? a.type}
                 {a.error && <span className="text-loss"> · {a.error}</span>}
               </span>
-              {a.amount && <Money value={a.amount} className={a.error ? 'text-muted line-through' : undefined} />}
+              {a.amount && (
+                <Money
+                  value={a.amount}
+                  className={a.error ? 'text-muted line-through' : undefined}
+                />
+              )}
             </li>
           ))}
         </ul>
       )}
       {onExplain && (
-        <button type="button" onClick={onExplain} className="mt-2 inline-flex items-center gap-1 text-xs text-muted hover:text-violet">
+        <button
+          type="button"
+          onClick={onExplain}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-muted hover:text-violet"
+        >
           <Sparkles aria-hidden="true" className="size-3.5" /> Explain this run
         </button>
       )}

@@ -1,10 +1,25 @@
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Calculator, PiggyBank, Target, TrendingUp, Wallet } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Calculator,
+  PiggyBank,
+  Target,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { analyticsApi } from '@/api/endpoints.v2'
 import { errorMessage } from '@/api/errors'
 import { useAccounts } from '@/api/queries'
-import type { DecimalString, HistoryRange, MoneyString, PortfolioRange, PrepaymentDto } from '@/api/types'
+import type {
+  DecimalString,
+  HistoryRange,
+  MoneyString,
+  PortfolioRange,
+  PrepaymentDto,
+} from '@/api/types'
 import { ShareBars } from '@/components/charts/Bits'
 import { Donut } from '@/components/charts/Donut'
 import { TrendChart } from '@/components/charts/TrendChart'
@@ -54,7 +69,11 @@ function change(now: DecimalString, before: DecimalString): DecimalString | null
  */
 export function InsightsPage() {
   const [params, setParams] = useSearchParams()
-  const tab = (['overview', 'spending', 'wealth', 'plan'].includes(params.get('tab') ?? '') ? params.get('tab') : 'overview') as Tab
+  const tab = (
+    ['overview', 'spending', 'wealth', 'plan'].includes(params.get('tab') ?? '')
+      ? params.get('tab')
+      : 'overview'
+  ) as Tab
   const [preset, setPreset] = useState<RangePreset>('30D')
   const range = useMemo(() => rangeFor(preset), [preset])
 
@@ -68,7 +87,11 @@ export function InsightsPage() {
           </>
         }
         description="Income, spending, savings rate and your wealth over time, computed from your ledger."
-        actions={tab === 'overview' || tab === 'spending' ? <RangePicker value={preset} onChange={setPreset} /> : undefined}
+        actions={
+          tab === 'overview' || tab === 'spending' ? (
+            <RangePicker value={preset} onChange={setPreset} />
+          ) : undefined
+        }
       />
       <Tabs
         label="Insights sections"
@@ -115,9 +138,39 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
         <section aria-label="This period" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {s ? (
             <>
-              <KpiTile icon={<ArrowDownLeft aria-hidden="true" />} kpi={{ label: 'Money in', unit: 'MONEY', value: s.income, changePct: change(s.income, s.previous.income), goodDirection: 'UP', previous: s.previous.income }} />
-              <KpiTile icon={<ArrowUpRight aria-hidden="true" />} kpi={{ label: 'Spent', unit: 'MONEY', value: s.spending, changePct: change(s.spending, s.previous.spending), goodDirection: 'DOWN', previous: s.previous.spending }} />
-              <KpiTile icon={<Wallet aria-hidden="true" />} kpi={{ label: 'Net', unit: 'MONEY', value: s.net, changePct: change(s.net, s.previous.net), goodDirection: 'UP', previous: s.previous.net }} />
+              <KpiTile
+                icon={<ArrowDownLeft aria-hidden="true" />}
+                kpi={{
+                  label: 'Money in',
+                  unit: 'MONEY',
+                  value: s.income,
+                  changePct: change(s.income, s.previous.income),
+                  goodDirection: 'UP',
+                  previous: s.previous.income,
+                }}
+              />
+              <KpiTile
+                icon={<ArrowUpRight aria-hidden="true" />}
+                kpi={{
+                  label: 'Spent',
+                  unit: 'MONEY',
+                  value: s.spending,
+                  changePct: change(s.spending, s.previous.spending),
+                  goodDirection: 'DOWN',
+                  previous: s.previous.spending,
+                }}
+              />
+              <KpiTile
+                icon={<Wallet aria-hidden="true" />}
+                kpi={{
+                  label: 'Net',
+                  unit: 'MONEY',
+                  value: s.net,
+                  changePct: change(s.net, s.previous.net),
+                  goodDirection: 'UP',
+                  previous: s.previous.net,
+                }}
+              />
               <KpiTile
                 tone="cyan"
                 icon={<PiggyBank aria-hidden="true" />}
@@ -125,7 +178,10 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
                   label: 'Savings rate',
                   unit: 'PERCENT',
                   value: s.savingsRatePct ?? '0',
-                  changePct: s.savingsRatePct && s.previous.savingsRatePct ? toDecimal(s.savingsRatePct).minus(s.previous.savingsRatePct).toFixed(2) : null,
+                  changePct:
+                    s.savingsRatePct && s.previous.savingsRatePct
+                      ? toDecimal(s.savingsRatePct).minus(s.previous.savingsRatePct).toFixed(2)
+                      : null,
                   goodDirection: 'UP',
                 }}
                 footer={<p className="text-xs text-muted">Change shown in percentage points.</p>}
@@ -147,15 +203,21 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
           )}
           {s.largestSpend && (
             <Callout icon={ArrowUpRight} title="Largest single spend">
-              <Money value={s.largestSpend.amount} className="text-text" /> · {s.largestSpend.description} on{' '}
-              {formatDate(s.largestSpend.date)}.
+              <Money value={s.largestSpend.amount} className="text-text" /> ·{' '}
+              {s.largestSpend.description} on {formatDate(s.largestSpend.date)}.
             </Callout>
           )}
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel className="lg:col-span-8" tone="cyan" eyebrow="Last 12 months" title="Cash flow" description="Money in vs spending each month. The line is what you kept.">
+        <Panel
+          className="lg:col-span-8"
+          tone="cyan"
+          eyebrow="Last 12 months"
+          title="Cash flow"
+          description="Money in vs spending each month. The line is what you kept."
+        >
           {cashflow.isError ? (
             <PanelError what="cash flow" onRetry={() => void cashflow.refetch()} />
           ) : cashflow.data ? (
@@ -164,7 +226,10 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
               height={280}
               unit="MONEY"
               monthAxis
-              rows={cashflow.data.points.map((p) => ({ t: p.month, values: { income: p.income, spending: p.spending, net: p.net } }))}
+              rows={cashflow.data.points.map((p) => ({
+                t: p.month,
+                values: { income: p.income, spending: p.spending, net: p.net },
+              }))}
               series={[
                 { key: 'income', label: 'Money in', color: 'var(--chart-5)', kind: 'bar' },
                 { key: 'spending', label: 'Spent', color: 'var(--chart-4)', kind: 'bar' },
@@ -184,9 +249,16 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
             ) : (
               <ul className="divide-y divide-border">
                 {people.data.map((p) => (
-                  <li key={p.label + p.accountNumberMasked} className="flex items-center gap-3 py-3">
+                  <li
+                    key={p.label + p.accountNumberMasked}
+                    className="flex items-center gap-3 py-3"
+                  >
                     <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet/30 to-cyan/20 text-xs font-semibold hairline">
-                      {p.label.split(/\s+/).map((w) => w[0]).slice(0, 2).join('')}
+                      {p.label
+                        .split(/\s+/)
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join('')}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.label}</p>
@@ -196,7 +268,9 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
                     </div>
                     <div className="text-right text-xs">
                       <Money value={p.sent} tone="debit" className="block" />
-                      {toDecimal(p.received).gt(0) && <Money value={p.received} tone="credit" className="block" />}
+                      {toDecimal(p.received).gt(0) && (
+                        <Money value={p.received} tone="credit" className="block" />
+                      )}
                     </div>
                   </li>
                 ))}
@@ -211,7 +285,15 @@ function OverviewTab({ range }: { range: { from: string; to: string } }) {
   )
 }
 
-function Callout({ icon: Icon, title, children }: { icon: typeof Wallet; title: string; children: React.ReactNode }) {
+function Callout({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof Wallet
+  title: string
+  children: React.ReactNode
+}) {
   return (
     <div className="flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-4 hairline">
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent">
@@ -240,17 +322,30 @@ function SpendingTab({ range }: { range: { from: string; to: string } }) {
           <PanelError what="spending" onRetry={() => void byCat.refetch()} />
         ) : byCat.data && total ? (
           byCat.data.length === 0 ? (
-            <EmptyState icon={<Wallet />} title="No spending yet">Payments, bills and card spends will show up here.</EmptyState>
+            <EmptyState icon={<Wallet />} title="No spending yet">
+              Payments, bills and card spends will show up here.
+            </EmptyState>
           ) : (
             <Donut
               ariaLabel="Spending by category"
-              slices={byCat.data.map((r) => ({ key: r.key, label: categoryOf(r.key).label, value: r.amount, color: categoryOf(r.key).color }))}
+              slices={byCat.data.map((r) => ({
+                key: r.key,
+                label: categoryOf(r.key).label,
+                value: r.amount,
+                color: categoryOf(r.key).color,
+              }))}
               formatValue={(sl) => formatINR(sl.value, { compact: true })}
               center={(a) => (
                 <>
                   <p className="text-[0.6875rem] text-muted">{a ? a.label : 'Total spent'}</p>
-                  <p className="num text-xl font-medium">{formatINR(a ? a.value : total, { compact: true })}</p>
-                  {a && <p className="num text-[0.6875rem] text-muted">{formatPercent(toDecimal(a.value).div(total).times(100).toFixed(2))}</p>}
+                  <p className="num text-xl font-medium">
+                    {formatINR(a ? a.value : total, { compact: true })}
+                  </p>
+                  {a && (
+                    <p className="num text-[0.6875rem] text-muted">
+                      {formatPercent(toDecimal(a.value).div(total).times(100).toFixed(2))}
+                    </p>
+                  )}
                 </>
               )}
             />
@@ -276,7 +371,15 @@ function SpendingTab({ range }: { range: { from: string; to: string } }) {
           <PanelError what="budgets" onRetry={() => void budgets.refetch()} />
         ) : budgets.data ? (
           budgets.data.length === 0 ? (
-            <EmptyState icon={<Target />} title="No budgets yet" action={<Button size="sm" onClick={() => setEditing(true)}>Set a budget</Button>}>
+            <EmptyState
+              icon={<Target />}
+              title="No budgets yet"
+              action={
+                <Button size="sm" onClick={() => setEditing(true)}>
+                  Set a budget
+                </Button>
+              }
+            >
               Pick a few categories and a monthly limit. We’ll warn you before you go over.
             </EmptyState>
           ) : (
@@ -293,7 +396,10 @@ function SpendingTab({ range }: { range: { from: string; to: string } }) {
                         {c.label}
                       </span>
                       <span className="num text-xs text-muted">
-                        <span className={cn(pct.gte(100) ? 'text-loss' : 'text-text')}>{formatINR(b.spent, { compact: true })}</span> / {formatINR(b.monthlyLimit, { compact: true })}
+                        <span className={cn(pct.gte(100) ? 'text-loss' : 'text-text')}>
+                          {formatINR(b.spent, { compact: true })}
+                        </span>{' '}
+                        / {formatINR(b.monthlyLimit, { compact: true })}
                       </span>
                     </div>
                     <div
@@ -302,9 +408,15 @@ function SpendingTab({ range }: { range: { from: string; to: string } }) {
                       aria-label={`${c.label} budget used`}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      aria-valuenow={Math.min(100, Math.round(ratio(b.spent, b.monthlyLimit) * 100))}
+                      aria-valuenow={Math.min(
+                        100,
+                        Math.round(ratio(b.spent, b.monthlyLimit) * 100),
+                      )}
                     >
-                      <div className={cn('h-full rounded-full', tone)} style={{ width: `${Math.min(100, ratio(b.spent, b.monthlyLimit) * 100)}%` }} />
+                      <div
+                        className={cn('h-full rounded-full', tone)}
+                        style={{ width: `${Math.min(100, ratio(b.spent, b.monthlyLimit) * 100)}%` }}
+                      />
                     </div>
                     {pct.gte(80) && (
                       <p className={cn('mt-1 text-xs', pct.gte(100) ? 'text-loss' : 'text-warn')}>
@@ -319,7 +431,9 @@ function SpendingTab({ range }: { range: { from: string; to: string } }) {
         ) : (
           <Skeleton className="h-56 w-full" />
         )}
-        {editing && budgets.data && <BudgetsDialog open onOpenChange={setEditing} budgets={budgets.data} />}
+        {editing && budgets.data && (
+          <BudgetsDialog open onOpenChange={setEditing} budgets={budgets.data} />
+        )}
       </Panel>
 
       <Panel className="lg:col-span-12" eyebrow="Last 6 months" title="Monthly spending">
@@ -355,7 +469,21 @@ function WealthTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Panel className="lg:col-span-8" tone="cyan" eyebrow="Net worth" title={net.data ? <span className="font-display text-5xl font-normal">{formatINR(net.data.current)}</span> : <Skeleton className="h-12 w-64" />} description="Cash + goals + fixed deposits + investments − loans.">
+        <Panel
+          className="lg:col-span-8"
+          tone="cyan"
+          eyebrow="Net worth"
+          title={
+            net.data ? (
+              <span className="font-display text-5xl font-normal">
+                {formatINR(net.data.current)}
+              </span>
+            ) : (
+              <Skeleton className="h-12 w-64" />
+            )
+          }
+          description="Cash + goals + fixed deposits + investments − loans."
+        >
           {net.data ? (
             <TrendChart
               ariaLabel="Net worth over the last 12 months"
@@ -410,16 +538,26 @@ function WealthTab() {
         title="End-of-day balance"
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Select aria-label="Account"
+            <Select
+              aria-label="Account"
               value={account}
               onValueChange={setAccount}
               className="h-9 w-48"
               options={[
                 { value: 'all', label: 'All cash accounts', text: 'All cash accounts' },
-                ...(accounts.data ?? []).map((a) => ({ value: a.id, label: accountLabel(a), text: accountLabel(a) })),
+                ...(accounts.data ?? []).map((a) => ({
+                  value: a.id,
+                  label: accountLabel(a),
+                  text: accountLabel(a),
+                })),
               ]}
             />
-            <Segmented label="Range" value={range} onValueChange={setRange} options={(['1M', '3M', '6M', '1Y'] as const).map((v) => ({ value: v, label: v }))} />
+            <Segmented
+              label="Range"
+              value={range}
+              onValueChange={setRange}
+              options={(['1M', '3M', '6M', '1Y'] as const).map((v) => ({ value: v, label: v }))}
+            />
           </div>
         }
       >
@@ -456,7 +594,17 @@ function WealthTab() {
               'Time-weighted return'
             )
           }
-          action={<Segmented label="Range" value={pRange} onValueChange={setPRange} options={(['1M', '3M', '6M', '1Y', 'ALL'] as const).map((v) => ({ value: v, label: v }))} />}
+          action={
+            <Segmented
+              label="Range"
+              value={pRange}
+              onValueChange={setPRange}
+              options={(['1M', '3M', '6M', '1Y', 'ALL'] as const).map((v) => ({
+                value: v,
+                label: v,
+              }))}
+            />
+          }
         >
           {portfolio.data ? (
             <TrendChart
@@ -464,7 +612,10 @@ function WealthTab() {
               yDomain="auto"
               height={240}
               unit="MONEY"
-              rows={portfolio.data.points.map((p) => ({ t: p.t, values: { mv: p.marketValue, inv: p.invested } }))}
+              rows={portfolio.data.points.map((p) => ({
+                t: p.t,
+                values: { mv: p.marketValue, inv: p.invested },
+              }))}
               series={[
                 { key: 'mv', label: 'Market value', color: 'var(--chart-2)' },
                 { key: 'inv', label: 'Invested', color: 'var(--text-muted)', kind: 'dashed' },
@@ -479,21 +630,38 @@ function WealthTab() {
         <Panel className="lg:col-span-4" eyebrow="Allocation" title="By sector">
           {portfolio.data ? (
             <div className="space-y-5">
-              <ShareBars format={(v) => formatINR(v, { compact: true })} rows={portfolio.data.allocation.map((a) => ({ key: a.sector, label: a.sector, value: a.value, sharePct: a.pct }))} />
+              <ShareBars
+                format={(v) => formatINR(v, { compact: true })}
+                rows={portfolio.data.allocation.map((a) => ({
+                  key: a.sector,
+                  label: a.sector,
+                  value: a.value,
+                  sharePct: a.pct,
+                }))}
+              />
               {(portfolio.data.best || portfolio.data.worst) && (
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {portfolio.data.best && (
                     <div className="rounded-xl bg-gain/[0.07] p-3 hairline">
                       <p className="text-xs text-muted">Best</p>
                       <p className="mt-1 font-medium">{portfolio.data.best.symbol}</p>
-                      <p className="num text-xs text-gain">{formatPercent(portfolio.data.best.pnlPct)}</p>
+                      <p className="num text-xs text-gain">
+                        {formatPercent(portfolio.data.best.pnlPct)}
+                      </p>
                     </div>
                   )}
                   {portfolio.data.worst && (
                     <div className="rounded-xl bg-loss/[0.07] p-3 hairline">
                       <p className="text-xs text-muted">Worst</p>
                       <p className="mt-1 font-medium">{portfolio.data.worst.symbol}</p>
-                      <p className={cn('num text-xs', toDecimal(portfolio.data.worst.pnlPct).lt(0) ? 'text-loss' : 'text-gain')}>{formatPercent(portfolio.data.worst.pnlPct)}</p>
+                      <p
+                        className={cn(
+                          'num text-xs',
+                          toDecimal(portfolio.data.worst.pnlPct).lt(0) ? 'text-loss' : 'text-gain',
+                        )}
+                      >
+                        {formatPercent(portfolio.data.worst.pnlPct)}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -516,14 +684,25 @@ function PlanTab() {
 
   return (
     <div className="space-y-4">
-      <Panel tone="cyan" eyebrow="Next 30 days" title="Cash-flow forecast" description="Known items only: salary pattern, EMIs, scheduled transfers and Autopilot schedules.">
+      <Panel
+        tone="cyan"
+        eyebrow="Next 30 days"
+        title="Cash-flow forecast"
+        description="Known items only: salary pattern, EMIs, scheduled transfers and Autopilot schedules."
+      >
         {forecast.data ? (
           <>
             {forecast.data.warnings.length > 0 && (
               <ul className="mb-4 space-y-2">
                 {forecast.data.warnings.map((w) => (
-                  <li key={w.date + w.code} className="flex items-start gap-2 rounded-xl border border-warn/30 bg-warn/[0.07] p-3 text-sm">
-                    <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warn" />
+                  <li
+                    key={w.date + w.code}
+                    className="flex items-start gap-2 rounded-xl border border-warn/30 bg-warn/[0.07] p-3 text-sm"
+                  >
+                    <AlertTriangle
+                      aria-hidden="true"
+                      className="mt-0.5 size-4 shrink-0 text-warn"
+                    />
                     {w.message}
                   </li>
                 ))}
@@ -549,7 +728,9 @@ function PlanTab() {
         <Panel eyebrow="Goals" title="Are you on track?">
           {goals.data ? (
             goals.data.length === 0 ? (
-              <EmptyState icon={<Target />} title="No goals yet">Create one in Savings and we’ll track your pace here.</EmptyState>
+              <EmptyState icon={<Target />} title="No goals yet">
+                Create one in Savings and we’ll track your pace here.
+              </EmptyState>
             ) : (
               <ul className="space-y-4">
                 {goals.data.map((g) => (
@@ -561,10 +742,15 @@ function PlanTab() {
                       </Badge>
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
-                      <div className="h-full rounded-full bg-gradient-to-r from-chart-5 to-chart-3" style={{ width: `${Math.min(100, ratio(g.saved, g.target) * 100)}%` }} />
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-chart-5 to-chart-3"
+                        style={{ width: `${Math.min(100, ratio(g.saved, g.target) * 100)}%` }}
+                      />
                     </div>
                     <p className="num mt-1.5 text-xs text-muted">
-                      {formatINR(g.saved, { compact: true })} of {formatINR(g.target, { compact: true })} · saving {formatINR(g.monthlyPace, { compact: true })}/month
+                      {formatINR(g.saved, { compact: true })} of{' '}
+                      {formatINR(g.target, { compact: true })} · saving{' '}
+                      {formatINR(g.monthlyPace, { compact: true })}/month
                       {g.projectedDate ? ` · done by ${formatDate(g.projectedDate)}` : ''}
                     </p>
                   </li>
@@ -577,29 +763,46 @@ function PlanTab() {
             <Skeleton className="h-48 w-full" />
           )}
         </Panel>
-        <Panel eyebrow="Loans" title="Paying it down" action={<Calculator aria-hidden="true" className="size-4 text-muted" />}>
+        <Panel
+          eyebrow="Loans"
+          title="Paying it down"
+          action={<Calculator aria-hidden="true" className="size-4 text-muted" />}
+        >
           {loans.data ? (
             loans.data.loans.length === 0 ? (
-              <EmptyState icon={<Wallet />} title="No active loans">You’re debt-free here.</EmptyState>
+              <EmptyState icon={<Wallet />} title="No active loans">
+                You’re debt-free here.
+              </EmptyState>
             ) : (
               <div className="space-y-5">
                 {loans.data.loans.map((l) => (
                   <div key={l.loanId}>
                     <div className="h-3 overflow-hidden rounded-full bg-surface-2">
-                      <div className="h-full rounded-full bg-chart-1" style={{ width: `${ratio(l.principalPaid, toDecimal(l.principalPaid).plus(l.remainingPrincipal)) * 100}%` }} />
+                      <div
+                        className="h-full rounded-full bg-chart-1"
+                        style={{
+                          width: `${ratio(l.principalPaid, toDecimal(l.principalPaid).plus(l.remainingPrincipal)) * 100}%`,
+                        }}
+                      />
                     </div>
                     <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
                       <div>
                         <dt className="text-xs text-muted">Principal paid</dt>
-                        <dd><Money value={l.principalPaid} /></dd>
+                        <dd>
+                          <Money value={l.principalPaid} />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-xs text-muted">Interest paid</dt>
-                        <dd><Money value={l.interestPaid} /></dd>
+                        <dd>
+                          <Money value={l.interestPaid} />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-xs text-muted">Left</dt>
-                        <dd><Money value={l.remainingPrincipal} /></dd>
+                        <dd>
+                          <Money value={l.remainingPrincipal} />
+                        </dd>
                       </div>
                     </dl>
                     <PrepaymentCalc loanId={l.loanId} remaining={l.remainingPrincipal} />
@@ -647,17 +850,31 @@ function PrepaymentCalc({ loanId, remaining }: { loanId: string; remaining: Mone
       <p className="text-sm font-medium">What if I prepay?</p>
       <div className="mt-3 flex items-end gap-2">
         <div className="flex-1">
-          <AmountInput label="Prepayment amount" className="h-11 [&_input]:text-base" value={amount} onValueChange={setAmount} hint={`Outstanding: ${formatINR(remaining)}`} />
+          <AmountInput
+            label="Prepayment amount"
+            className="h-11 [&_input]:text-base"
+            value={amount}
+            onValueChange={setAmount}
+            hint={`Outstanding: ${formatINR(remaining)}`}
+          />
         </div>
         <Button variant="secondary" className="mb-6" onClick={() => void run()} disabled={busy}>
           {busy ? 'Calculating…' : 'Calculate'}
         </Button>
       </div>
-      {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-loss">
+          {error}
+        </p>
+      )}
       {result && (
         <p className="text-sm" aria-live="polite">
-          You’d save <Money value={result.interestSaved} className="font-medium text-gain" /> in interest and finish{' '}
-          <span className="font-medium">{result.monthsSaved} month{result.monthsSaved === 1 ? '' : 's'}</span> earlier ({formatDate(result.newPayoffDate)}). Nothing has been paid.
+          You’d save <Money value={result.interestSaved} className="font-medium text-gain" /> in
+          interest and finish{' '}
+          <span className="font-medium">
+            {result.monthsSaved} month{result.monthsSaved === 1 ? '' : 's'}
+          </span>{' '}
+          earlier ({formatDate(result.newPayoffDate)}). Nothing has been paid.
         </p>
       )}
     </div>

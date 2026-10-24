@@ -28,13 +28,21 @@ export function Sparkline({
     const min = Math.min(...ys)
     const max = Math.max(...ys)
     const span = max - min || 1
-    const pts = ys.map((y, i) => [(i / (ys.length - 1)) * 100, 100 - ((y - min) / span) * 90 - 5] as const)
+    const pts = ys.map(
+      (y, i) => [(i / (ys.length - 1)) * 100, 100 - ((y - min) / span) * 90 - 5] as const,
+    )
     const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`).join(' ')
     return { line, area: `${line} L100,100 L0,100 Z` }
   }, [values])
   if (!path) return <div className={className} style={{ height }} />
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={cn('w-full', className)} style={{ height }} aria-hidden="true">
+    <svg
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      className={cn('w-full', className)}
+      style={{ height }}
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.28} />
@@ -42,7 +50,14 @@ export function Sparkline({
         </linearGradient>
       </defs>
       {fill && <path d={path.area} fill={`url(#${gid})`} />}
-      <path d={path.line} fill="none" stroke={color} strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <path
+        d={path.line}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.6}
+        vectorEffect="non-scaling-stroke"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -53,7 +68,14 @@ export function ShareBars({
   format,
   className,
 }: {
-  rows: Array<{ key: string; label: ReactNode; value: DecimalString | null; sharePct: DecimalString | null; suppressed?: boolean; sub?: ReactNode }>
+  rows: Array<{
+    key: string
+    label: ReactNode
+    value: DecimalString | null
+    sharePct: DecimalString | null
+    suppressed?: boolean
+    sub?: ReactNode
+  }>
   format: (v: DecimalString) => string
   className?: string
 }) {
@@ -66,7 +88,10 @@ export function ShareBars({
           <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
             <span className="min-w-0 truncate">{r.label}</span>
             {r.suppressed ? (
-              <span className="flex items-center gap-1 text-xs text-muted" title="Fewer than 5 people — hidden to protect privacy">
+              <span
+                className="flex items-center gap-1 text-xs text-muted"
+                title="Fewer than 5 people — hidden to protect privacy"
+              >
                 <Lock aria-hidden="true" className="size-3" /> hidden (&lt;5)
               </span>
             ) : (
@@ -98,22 +123,35 @@ export function ShareBars({
 export function Funnel({
   steps,
 }: {
-  steps: Array<{ key: string; label: string; users: DecimalString; conversionPct: DecimalString; stepConversionPct: DecimalString }>
+  steps: Array<{
+    key: string
+    label: string
+    users: DecimalString
+    conversionPct: DecimalString
+    stepConversionPct: DecimalString
+  }>
 }) {
   const reduce = useReducedMotion()
   return (
     <ol className="space-y-2.5">
       {steps.map((s, i) => (
-        <li key={s.key} className="grid grid-cols-[minmax(0,10rem)_1fr] items-center gap-3 sm:grid-cols-[12rem_1fr]">
+        <li
+          key={s.key}
+          className="grid grid-cols-[minmax(0,10rem)_1fr] items-center gap-3 sm:grid-cols-[12rem_1fr]"
+        >
           <div className="min-w-0">
             <p className="truncate text-sm">{s.label}</p>
-            {i > 0 && <p className="text-xs text-muted">{formatPercent(s.stepConversionPct)} of previous</p>}
+            {i > 0 && (
+              <p className="text-xs text-muted">{formatPercent(s.stepConversionPct)} of previous</p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="relative h-9 flex-1 overflow-hidden rounded-[10px] bg-surface-2">
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-[10px]"
-                style={{ background: `linear-gradient(90deg, var(--chart-${(i % 3) + 1}), color-mix(in oklab, var(--chart-${(i % 3) + 1}) 35%, transparent))` }}
+                style={{
+                  background: `linear-gradient(90deg, var(--chart-${(i % 3) + 1}), color-mix(in oklab, var(--chart-${(i % 3) + 1}) 35%, transparent))`,
+                }}
                 initial={reduce ? false : { width: 0 }}
                 animate={{ width: `${Math.max(plotValue(s.conversionPct), 2)}%` }}
                 transition={{ duration: 0.8, ease: EASE_OUT_EXPO, delay: i * 0.06 }}
@@ -138,16 +176,29 @@ export function CohortHeatmap({
 }) {
   const cols = Math.max(...cohorts.map((c) => c.retentionPct.length), 1)
   const fmtMonth = (c: string) =>
-    new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${c}-01T00:00:00Z`))
+    new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(
+      new Date(`${c}-01T00:00:00Z`),
+    )
   return (
     // Focusable so keyboard users can scroll it on narrow screens (WCAG 2.1.1).
-    <div className="scroll-thin overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-accent" tabIndex={0} role="region" aria-label="Retention by signup month">
+    <div
+      className="scroll-thin overflow-x-auto rounded-md focus-visible:outline-2 focus-visible:outline-accent"
+      tabIndex={0}
+      role="region"
+      aria-label="Retention by signup month"
+    >
       <table className="w-full border-separate border-spacing-1 text-xs">
-        <caption className="sr-only">Share of each signup month still moving money N months later</caption>
+        <caption className="sr-only">
+          Share of each signup month still moving money N months later
+        </caption>
         <thead>
           <tr className="text-muted">
-            <th scope="col" className="px-2 py-1 text-left font-normal">Cohort</th>
-            <th scope="col" className="px-2 py-1 text-right font-normal">Users</th>
+            <th scope="col" className="px-2 py-1 text-left font-normal">
+              Cohort
+            </th>
+            <th scope="col" className="px-2 py-1 text-right font-normal">
+              Users
+            </th>
             {Array.from({ length: cols }).map((_, i) => (
               <th key={i} scope="col" className="px-2 py-1 text-center font-normal">
                 M{i}
@@ -158,18 +209,28 @@ export function CohortHeatmap({
         <tbody>
           {cohorts.map((c) => (
             <tr key={c.cohort}>
-              <th scope="row" className="whitespace-nowrap px-2 py-1 text-left font-normal">{fmtMonth(c.cohort)}</th>
+              <th scope="row" className="whitespace-nowrap px-2 py-1 text-left font-normal">
+                {fmtMonth(c.cohort)}
+              </th>
               <td className="num px-2 py-1 text-right text-muted">{formatCount(c.size)}</td>
               {Array.from({ length: cols }).map((_, i) => {
                 const v = c.retentionPct[i]
                 if (v === undefined) return <td key={i} />
-                if (v === null) return <td key={i} className="rounded-md bg-surface-2 text-center text-muted">·</td>
+                if (v === null)
+                  return (
+                    <td key={i} className="rounded-md bg-surface-2 text-center text-muted">
+                      ·
+                    </td>
+                  )
                 const a = plotValue(v) / 100
                 return (
                   <td
                     key={i}
                     className="num min-w-12 rounded-md px-2 py-2 text-center"
-                    style={{ background: `color-mix(in oklab, var(--chart-3) ${Math.round(a * 85)}%, var(--surface-2))`, color: a > 0.55 ? 'var(--bg)' : 'var(--text)' }}
+                    style={{
+                      background: `color-mix(in oklab, var(--chart-3) ${Math.round(a * 85)}%, var(--surface-2))`,
+                      color: a > 0.55 ? 'var(--bg)' : 'var(--text)',
+                    }}
                   >
                     {formatPercent(v, 0)}
                   </td>

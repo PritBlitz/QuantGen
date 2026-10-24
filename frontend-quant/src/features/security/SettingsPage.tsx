@@ -62,11 +62,17 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Settings" title="Your account, your rules." description="Profile, sign-in security, limits, identity and developer access." />
+      <PageHeader
+        eyebrow="Settings"
+        title="Your account, your rules."
+        description="Profile, sign-in security, limits, identity and developer access."
+      />
       <Tabs
         label="Settings sections"
         value={tab}
-        onValueChange={(v) => void navigate(v === 'profile' ? '/settings' : `/settings/${v}`, { replace: true })}
+        onValueChange={(v) =>
+          void navigate(v === 'profile' ? '/settings' : `/settings/${v}`, { replace: true })
+        }
         tabs={[
           { value: 'profile', label: 'Profile' },
           { value: 'security', label: 'Security' },
@@ -144,13 +150,19 @@ function PasskeysPanel() {
         )
       }
     >
-      {!supported && <p className="mb-4 text-sm text-warn">This browser doesn’t support passkeys. Use your PIN instead.</p>}
+      {!supported && (
+        <p className="mb-4 text-sm text-warn">
+          This browser doesn’t support passkeys. Use your PIN instead.
+        </p>
+      )}
       {passkeys.isError ? (
         <PanelError what="your passkeys" onRetry={() => void passkeys.refetch()} />
       ) : !passkeys.data ? (
         <Skeleton className="h-24 w-full" />
       ) : passkeys.data.length === 0 ? (
-        <EmptyState icon={<Fingerprint />} title="No passkeys yet">Add one to sign in without a password.</EmptyState>
+        <EmptyState icon={<Fingerprint />} title="No passkeys yet">
+          Add one to sign in without a password.
+        </EmptyState>
       ) : (
         <ul className="divide-y divide-border">
           {passkeys.data.map((p) => (
@@ -161,7 +173,8 @@ function PasskeysPanel() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.name}</p>
                 <p className="text-xs text-muted">
-                  Added {formatRelative(p.createdAt)} · {p.lastUsedAt ? `last used ${formatRelative(p.lastUsedAt)}` : 'never used'}
+                  Added {formatRelative(p.createdAt)} ·{' '}
+                  {p.lastUsedAt ? `last used ${formatRelative(p.lastUsedAt)}` : 'never used'}
                 </p>
               </div>
               <Button
@@ -183,15 +196,25 @@ function PasskeysPanel() {
         </ul>
       )}
       <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent title="Add a passkey" description="Give it a name you’ll recognise, like “MacBook Touch ID”.">
+        <DialogContent
+          title="Add a passkey"
+          description="Give it a name you’ll recognise, like “MacBook Touch ID”."
+        >
           <form onSubmit={submit} className="space-y-4">
-            <FormField label="Name" value={name} maxLength={40} autoFocus onChange={(e) => setName(e.target.value)} />
+            <FormField
+              label="Name"
+              value={name}
+              maxLength={40}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+            />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setAdding(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={!name.trim() || add.isPending}>
-                <Fingerprint aria-hidden="true" /> {add.isPending ? 'Waiting for your device…' : 'Create passkey'}
+                <Fingerprint aria-hidden="true" />{' '}
+                {add.isPending ? 'Waiting for your device…' : 'Create passkey'}
               </Button>
             </div>
           </form>
@@ -230,7 +253,11 @@ function PinPanel({ hasPin, hasPasskey }: { hasPin: boolean; hasPasskey: boolean
           const ae = toApiError(err)
           setPinValue('')
           setConfirm('')
-          setError(ae.fieldErrors[0]?.message ? `${ae.fieldErrors[0].field === 'password' ? 'Password' : 'PIN'}: ${ae.fieldErrors[0].message}` : errorMessage(ae))
+          setError(
+            ae.fieldErrors[0]?.message
+              ? `${ae.fieldErrors[0].field === 'password' ? 'Password' : 'PIN'}: ${ae.fieldErrors[0].message}`
+              : errorMessage(ae),
+          )
         },
       },
     )
@@ -241,28 +268,53 @@ function PinPanel({ hasPin, hasPasskey }: { hasPin: boolean; hasPasskey: boolean
       eyebrow="Step-up"
       title="Transaction PIN"
       description="Six digits we ask for before large payments or security changes when a passkey isn’t available."
-      action={<Badge tone={hasPin ? 'gain' : 'warn'} dot>{hasPin ? 'Set' : 'Not set'}</Badge>}
+      action={
+        <Badge tone={hasPin ? 'gain' : 'warn'} dot>
+          {hasPin ? 'Set' : 'Not set'}
+        </Badge>
+      }
     >
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="space-y-2">
           <p className="text-sm font-medium">{hasPin ? 'New PIN' : 'Choose a PIN'}</p>
-          <PinInput className="justify-start" label={hasPin ? 'New PIN' : 'Choose a PIN'} value={pin} onChange={setPinValue} />
+          <PinInput
+            className="justify-start"
+            label={hasPin ? 'New PIN' : 'Choose a PIN'}
+            value={pin}
+            onChange={setPinValue}
+          />
         </div>
         <div className="space-y-2">
           <p className="text-sm font-medium">Confirm PIN</p>
-          <PinInput className="justify-start" label="Confirm PIN" value={confirm} onChange={setConfirm} invalid={confirm.length === 6 && confirm !== pin} />
+          <PinInput
+            className="justify-start"
+            label="Confirm PIN"
+            value={confirm}
+            onChange={setConfirm}
+            invalid={confirm.length === 6 && confirm !== pin}
+          />
         </div>
         {needsPassword && (
-          <FormField label="Account password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} hint="Needed once, to prove it’s you before your first PIN." />
+          <FormField
+            label="Account password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            hint="Needed once, to prove it’s you before your first PIN."
+          />
         )}
         {error && (
           <p role="alert" className="text-sm text-loss">
             {error}
           </p>
         )}
-        <p className="text-xs text-muted">Avoid easy PINs like 111111 or 123456; they’re rejected.</p>
+        <p className="text-xs text-muted">
+          Avoid easy PINs like 111111 or 123456; they’re rejected.
+        </p>
         <Button type="submit" disabled={setPin.isPending}>
-          <KeyRound aria-hidden="true" /> {setPin.isPending ? 'Saving…' : hasPin ? 'Change PIN' : 'Set PIN'}
+          <KeyRound aria-hidden="true" />{' '}
+          {setPin.isPending ? 'Saving…' : hasPin ? 'Change PIN' : 'Set PIN'}
         </Button>
       </form>
     </Panel>
@@ -307,7 +359,10 @@ function SessionsPanel() {
             const mobile = /iphone|android|ipad|mobile/i.test(s.device)
             const Icon = mobile ? Smartphone : LaptopMinimal
             return (
-              <li key={s.id} className="flex items-center gap-3 rounded-2xl bg-surface-2/60 p-3 hairline">
+              <li
+                key={s.id}
+                className="flex items-center gap-3 rounded-2xl bg-surface-2/60 p-3 hairline"
+              >
                 <span className="grid size-10 place-items-center rounded-xl bg-surface-3 text-muted">
                   <Icon aria-hidden="true" className="size-5" />
                 </span>
@@ -375,9 +430,13 @@ function LimitsPanel() {
     if (perTransfer) body.perTransfer = perTransfer
     if (daily) body.daily = daily
     if (!body.perTransfer && !body.daily) return setError('Enter at least one new limit.')
-    for (const v of Object.values(body)) if (!AMOUNT_INPUT_RE.test(v) || toDecimal(v).lt(1)) return setError('Limits must be at least ₹1.')
-    if (l && body.perTransfer && toDecimal(body.perTransfer).gt(l.perTransferMax)) return setError(`The per-transfer limit can’t go above ${formatINR(l.perTransferMax)}.`)
-    if (l && body.daily && toDecimal(body.daily).gt(l.dailyMax)) return setError(`The daily limit can’t go above ${formatINR(l.dailyMax)}.`)
+    for (const v of Object.values(body))
+      if (!AMOUNT_INPUT_RE.test(v) || toDecimal(v).lt(1))
+        return setError('Limits must be at least ₹1.')
+    if (l && body.perTransfer && toDecimal(body.perTransfer).gt(l.perTransferMax))
+      return setError(`The per-transfer limit can’t go above ${formatINR(l.perTransferMax)}.`)
+    if (l && body.daily && toDecimal(body.daily).gt(l.dailyMax))
+      return setError(`The daily limit can’t go above ${formatINR(l.dailyMax)}.`)
     save.mutate(body, {
       onSuccess: () => {
         toast.success('Limits updated')
@@ -389,7 +448,11 @@ function LimitsPanel() {
   }
 
   return (
-    <Panel eyebrow="Spending safety" title="Transfer limits" description="Lower them any time. You can’t raise them above the bank’s maximum.">
+    <Panel
+      eyebrow="Spending safety"
+      title="Transfer limits"
+      description="Lower them any time. You can’t raise them above the bank’s maximum."
+    >
       {limits.isError ? (
         <PanelError what="your limits" onRetry={() => void limits.refetch()} />
       ) : !l ? (
@@ -404,7 +467,10 @@ function LimitsPanel() {
               </span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
-              <div className="h-full rounded-full bg-accent" style={{ width: `${ratio(l.usedToday, l.daily) * 100}%` }} />
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{ width: `${ratio(l.usedToday, l.daily) * 100}%` }}
+              />
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
@@ -418,8 +484,20 @@ function LimitsPanel() {
             </dl>
           </div>
           <form onSubmit={submit} className="mt-5 space-y-3" noValidate>
-            <AmountInput label="New per-transfer limit" className="h-12 [&_input]:text-lg" value={perTransfer} onValueChange={setPerTransfer} hint={`Max ${formatINR(l.perTransferMax)}`} />
-            <AmountInput label="New daily limit" className="h-12 [&_input]:text-lg" value={daily} onValueChange={setDaily} hint={`Max ${formatINR(l.dailyMax)}`} />
+            <AmountInput
+              label="New per-transfer limit"
+              className="h-12 [&_input]:text-lg"
+              value={perTransfer}
+              onValueChange={setPerTransfer}
+              hint={`Max ${formatINR(l.perTransferMax)}`}
+            />
+            <AmountInput
+              label="New daily limit"
+              className="h-12 [&_input]:text-lg"
+              value={daily}
+              onValueChange={setDaily}
+              hint={`Max ${formatINR(l.dailyMax)}`}
+            />
             {error && (
               <p role="alert" className="text-sm text-loss">
                 {error}
@@ -452,7 +530,8 @@ function KycPanel() {
     const next: Record<string, string> = {}
     if (!PAN_RE.test(pan)) next.pan = 'PAN looks like ABCDE1234F'
     if (!dob) next.dateOfBirth = 'Enter your date of birth'
-    if (address.trim().length < 10) next.address = 'Enter your full address (at least 10 characters)'
+    if (address.trim().length < 10)
+      next.address = 'Enter your full address (at least 10 characters)'
     setErrors(next)
     if (Object.keys(next).length) return
     save.mutate(
@@ -465,7 +544,8 @@ function KycPanel() {
         },
         onError: (err) => {
           const ae = toApiError(err)
-          if (ae.fieldErrors.length) setErrors(Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message])))
+          if (ae.fieldErrors.length)
+            setErrors(Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message])))
           else toast.error(errorMessage(ae))
         },
       },
@@ -478,7 +558,13 @@ function KycPanel() {
       eyebrow="Identity"
       title="KYC profile"
       description="Needed for fixed deposits, loans above ₹2,00,000 and investing with Autopilot. Your PAN is encrypted; we never ask for Aadhaar."
-      action={k && <Badge tone={verified ? 'gain' : k.status === 'PENDING' ? 'warn' : 'neutral'} dot>{verified ? 'Verified' : k.status === 'PENDING' ? 'Pending' : 'Not started'}</Badge>}
+      action={
+        k && (
+          <Badge tone={verified ? 'gain' : k.status === 'PENDING' ? 'warn' : 'neutral'} dot>
+            {verified ? 'Verified' : k.status === 'PENDING' ? 'Pending' : 'Not started'}
+          </Badge>
+        )
+      }
     >
       {kyc.isError ? (
         <PanelError what="your KYC" onRetry={() => void kyc.refetch()} />
@@ -500,9 +586,30 @@ function KycPanel() {
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <FormField label="PAN" value={pan} maxLength={10} autoComplete="off" onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} error={errors.pan} hint="Sandbox: any valid-looking PAN is accepted." />
-          <FormField label="Date of birth" type="date" value={dob} onChange={(e) => setDob(e.target.value)} error={errors.dateOfBirth} />
-          <FormField label="Address" value={address} maxLength={200} autoComplete="street-address" onChange={(e) => setAddress(e.target.value)} error={errors.address} />
+          <FormField
+            label="PAN"
+            value={pan}
+            maxLength={10}
+            autoComplete="off"
+            onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            error={errors.pan}
+            hint="Sandbox: any valid-looking PAN is accepted."
+          />
+          <FormField
+            label="Date of birth"
+            type="date"
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+            error={errors.dateOfBirth}
+          />
+          <FormField
+            label="Address"
+            value={address}
+            maxLength={200}
+            autoComplete="street-address"
+            onChange={(e) => setAddress(e.target.value)}
+            error={errors.address}
+          />
           <div className="flex gap-2">
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? 'Verifying…' : verified ? 'Save changes' : 'Verify'}
@@ -564,14 +671,37 @@ function DeveloperTab() {
         description="Let Claude Desktop or another MCP client read your QuantGen data. With “read + propose” it can suggest payments, which you still approve here."
       >
         <form onSubmit={submit} className="space-y-4">
-          <FormField label="Token name" placeholder="Claude Desktop" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <FormField
+            label="Token name"
+            placeholder="Claude Desktop"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+          />
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Access</p>
-            <Segmented label="Scope" value={scope} onValueChange={setScope} options={[{ value: 'read', label: 'Read only' }, { value: 'read+propose', label: 'Read + propose' }]} />
+            <Segmented
+              label="Scope"
+              value={scope}
+              onValueChange={setScope}
+              options={[
+                { value: 'read', label: 'Read only' },
+                { value: 'read+propose', label: 'Read + propose' },
+              ]}
+            />
           </div>
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Expires in</p>
-            <Segmented label="Expiry" value={days} onValueChange={setDays} options={[{ value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: '90', label: '90 days' }]} />
+            <Segmented
+              label="Expiry"
+              value={days}
+              onValueChange={setDays}
+              options={[
+                { value: '7', label: '7 days' },
+                { value: '30', label: '30 days' },
+                { value: '90', label: '90 days' },
+              ]}
+            />
           </div>
           <Button type="submit" variant="violet" disabled={!name.trim() || create.isPending}>
             <Terminal aria-hidden="true" /> {create.isPending ? 'Creating…' : 'Create token'}
@@ -584,7 +714,9 @@ function DeveloperTab() {
         ) : !tokens.data ? (
           <Skeleton className="h-32 w-full" />
         ) : tokens.data.length === 0 ? (
-          <EmptyState icon={<Terminal />} title="No tokens">Create one to connect an MCP client.</EmptyState>
+          <EmptyState icon={<Terminal />} title="No tokens">
+            Create one to connect an MCP client.
+          </EmptyState>
         ) : (
           <ul className="divide-y divide-border">
             {tokens.data.map((t) => (
@@ -592,17 +724,25 @@ function DeveloperTab() {
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 text-sm font-medium">
                     {t.name}
-                    <Badge tone={t.scope === 'read' ? 'cyan' : 'violet'}>{t.scope === 'read' ? 'read' : 'read + propose'}</Badge>
+                    <Badge tone={t.scope === 'read' ? 'cyan' : 'violet'}>
+                      {t.scope === 'read' ? 'read' : 'read + propose'}
+                    </Badge>
                   </p>
                   <p className="text-xs text-muted">
-                    Expires {formatRelative(t.expiresAt)} · {t.lastUsedAt ? `used ${formatRelative(t.lastUsedAt)}` : 'never used'}
+                    Expires {formatRelative(t.expiresAt)} ·{' '}
+                    {t.lastUsedAt ? `used ${formatRelative(t.lastUsedAt)}` : 'never used'}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   disabled={revoke.isPending}
-                  onClick={() => revoke.mutate(t.id, { onSuccess: () => toast.success('Token revoked'), onError: (e) => toast.error(errorMessage(e)) })}
+                  onClick={() =>
+                    revoke.mutate(t.id, {
+                      onSuccess: () => toast.success('Token revoked'),
+                      onError: (e) => toast.error(errorMessage(e)),
+                    })
+                  }
                 >
                   Revoke
                 </Button>
@@ -625,16 +765,23 @@ function DeveloperTab() {
           }
         }}
       >
-        <DialogContent title="Copy your token now" description="This is the only time it’s shown. We store only a hash, so we can’t show it again.">
-          <div className="num break-all rounded-xl bg-surface-2 p-4 text-sm hairline">{created?.token}</div>
+        <DialogContent
+          title="Copy your token now"
+          description="This is the only time it’s shown. We store only a hash, so we can’t show it again."
+        >
+          <div className="num break-all rounded-xl bg-surface-2 p-4 text-sm hairline">
+            {created?.token}
+          </div>
           <div className="mt-5 flex justify-end gap-2">
             <Button
               variant="secondary"
               onClick={() => {
-                if (created) void navigator.clipboard.writeText(created.token).then(() => setCopied(true))
+                if (created)
+                  void navigator.clipboard.writeText(created.token).then(() => setCopied(true))
               }}
             >
-              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />} {copied ? 'Copied' : 'Copy'}
+              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{' '}
+              {copied ? 'Copied' : 'Copy'}
             </Button>
             <Button
               onClick={() => {

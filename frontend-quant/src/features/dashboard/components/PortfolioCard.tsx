@@ -143,7 +143,10 @@ export function PortfolioCard({ className }: { className?: string }) {
               hideYAxis
               yDomain="auto"
               unit="MONEY"
-              rows={perf.data.points.map((p) => ({ t: p.t, values: { mv: p.marketValue, inv: p.invested } }))}
+              rows={perf.data.points.map((p) => ({
+                t: p.t,
+                values: { mv: p.marketValue, inv: p.invested },
+              }))}
               series={[
                 { key: 'mv', label: 'Value', color: 'var(--chart-2)' },
                 { key: 'inv', label: 'Invested', color: 'var(--text-muted)', kind: 'dashed' },

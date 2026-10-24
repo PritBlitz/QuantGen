@@ -57,7 +57,15 @@ export function Tabs<V extends string>({
   )
 }
 
-export const TabPanel = ({ value, children, className }: { value: string; children: ReactNode; className?: string }) => (
+export const TabPanel = ({
+  value,
+  children,
+  className,
+}: {
+  value: string
+  children: ReactNode
+  className?: string
+}) => (
   <T.Content value={value} className={cn('focus-visible:outline-none', className)}>
     {children}
   </T.Content>

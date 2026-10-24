@@ -218,10 +218,22 @@ function NeedsAttention({ pendingLoans }: { pendingLoans?: number }) {
   return (
     <section aria-label="Needs attention" className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       {openCases !== undefined && (
-        <AttentionChip to="/admin/fraud" icon={ShieldAlert} label="Fraud cases to review" value={count.format(openCases)} tone={openCases > 0 ? 'warn' : 'ok'} />
+        <AttentionChip
+          to="/admin/fraud"
+          icon={ShieldAlert}
+          label="Fraud cases to review"
+          value={count.format(openCases)}
+          tone={openCases > 0 ? 'warn' : 'ok'}
+        />
       )}
       {pendingLoans !== undefined && (
-        <AttentionChip to="/admin/loans" icon={Inbox} label="Loans to decide" value={count.format(pendingLoans)} tone={pendingLoans > 0 ? 'warn' : 'ok'} />
+        <AttentionChip
+          to="/admin/loans"
+          icon={Inbox}
+          label="Loans to decide"
+          value={count.format(pendingLoans)}
+          tone={pendingLoans > 0 ? 'warn' : 'ok'}
+        />
       )}
       {health.data && (
         <AttentionChip
@@ -233,7 +245,13 @@ function NeedsAttention({ pendingLoans }: { pendingLoans?: number }) {
         />
       )}
       {on !== undefined && flags.data && (
-        <AttentionChip to="/admin/flags" icon={ToggleRight} label="Features switched on" value={`${on} of ${flags.data.length}`} tone="neutral" />
+        <AttentionChip
+          to="/admin/flags"
+          icon={ToggleRight}
+          label="Features switched on"
+          value={`${on} of ${flags.data.length}`}
+          tone="neutral"
+        />
       )}
     </section>
   )
@@ -264,7 +282,13 @@ function AttentionChip({
       <span
         className={cn(
           'grid size-9 shrink-0 place-items-center rounded-xl',
-          tone === 'ok' ? 'bg-gain/12 text-gain' : tone === 'warn' ? 'bg-warn/12 text-warn' : tone === 'bad' ? 'bg-loss/12 text-loss' : 'bg-surface-2 text-muted',
+          tone === 'ok'
+            ? 'bg-gain/12 text-gain'
+            : tone === 'warn'
+              ? 'bg-warn/12 text-warn'
+              : tone === 'bad'
+                ? 'bg-loss/12 text-loss'
+                : 'bg-surface-2 text-muted',
         )}
       >
         <Icon aria-hidden="true" className="size-4" />

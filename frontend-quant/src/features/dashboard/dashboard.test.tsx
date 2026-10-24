@@ -138,13 +138,20 @@ describe('setup checklist (F-UX-3)', () => {
     db.v2.passkeys = db.v2.passkeys.filter((p) => p.userId !== DEMO_USER_ID)
     signInAsDemo()
     // What /auth/login returns for this user now (v2 fields included).
-    useAuthStore.setState((st) => ({ user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: false } }))
+    useAuthStore.setState((st) => ({
+      user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: false },
+    }))
     const user = userEvent.setup()
     renderApp('/dashboard')
     const region = await screen.findByRole('region', { name: 'Get set up' })
     expect(await within(region).findByRole('img', { name: '3 of 4 done' })).toBeInTheDocument()
-    expect(within(region).getByRole('link', { name: /^Add a passkey\s*Sign in/ })).toHaveAttribute('href', '/settings/security')
-    expect(within(region).getByRole('link', { name: /^Claim your handle\s*\(done\)/ })).toBeInTheDocument()
+    expect(within(region).getByRole('link', { name: /^Add a passkey\s*Sign in/ })).toHaveAttribute(
+      'href',
+      '/settings/security',
+    )
+    expect(
+      within(region).getByRole('link', { name: /^Claim your handle\s*\(done\)/ }),
+    ).toBeInTheDocument()
 
     await user.click(within(region).getByRole('button', { name: 'Hide the setup checklist' }))
     expect(screen.queryByRole('region', { name: 'Get set up' })).not.toBeInTheDocument()
@@ -154,7 +161,9 @@ describe('setup checklist (F-UX-3)', () => {
 
   it('stays out of the way once everything is done', async () => {
     signInAsDemo()
-    useAuthStore.setState((st) => ({ user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: true } }))
+    useAuthStore.setState((st) => ({
+      user: st.user && { ...st.user, handle: 'aarav@qg', hasPasskey: true },
+    }))
     renderApp('/dashboard')
     await screen.findByRole('region', { name: 'Accounts' })
     expect(screen.queryByRole('region', { name: 'Get set up' })).not.toBeInTheDocument()

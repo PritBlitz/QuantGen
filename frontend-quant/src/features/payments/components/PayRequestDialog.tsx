@@ -29,17 +29,24 @@ export function PayRequestDialog({
   accounts: AccountDto[]
   onClose: () => void
 }) {
-  const senders = accounts.filter((a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'))
+  const senders = accounts.filter(
+    (a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'),
+  )
   const [fromId, setFromId] = useState(senders[0]?.id ?? '')
   const action = useMoneyAction<TransferDto>()
   const invalidate = useInvalidatePayments()
   const from = senders.find((a) => a.id === fromId)
   const available = from ? (from.availableBalance ?? from.balance) : '0'
-  const copy = action.error ? moneyErrorCopy(action.error, { amount: request.amount, balance: available }) : null
+  const copy = action.error
+    ? moneyErrorCopy(action.error, { amount: request.amount, balance: available })
+    : null
 
   return (
     <Dialog open onOpenChange={(o) => !o && !action.pending && onClose()}>
-      <DialogContent title={action.step === 'success' ? 'Paid' : `Pay ${request.fromHandle}`} description={request.note ?? undefined}>
+      <DialogContent
+        title={action.step === 'success' ? 'Paid' : `Pay ${request.fromHandle}`}
+        description={request.note ?? undefined}
+      >
         {action.step === 'success' && action.result ? (
           <div className="space-y-5 py-2 text-center">
             <SuccessCheck label="Request paid" />
@@ -55,10 +62,20 @@ export function PayRequestDialog({
             {action.step === 'form' ? (
               <div className="space-y-1.5">
                 <Label>Pay from</Label>
-                <Select aria-label="Pay from"
+                <Select
+                  aria-label="Pay from"
                   value={fromId}
                   onValueChange={setFromId}
-                  options={senders.map((a) => ({ value: a.id, text: accountLabel(a), label: <span className="flex w-full justify-between gap-3">{accountLabel(a)} <Money value={a.availableBalance ?? a.balance} className="text-muted" /></span> }))}
+                  options={senders.map((a) => ({
+                    value: a.id,
+                    text: accountLabel(a),
+                    label: (
+                      <span className="flex w-full justify-between gap-3">
+                        {accountLabel(a)}{' '}
+                        <Money value={a.availableBalance ?? a.balance} className="text-muted" />
+                      </span>
+                    ),
+                  }))}
                 />
               </div>
             ) : (
@@ -86,9 +103,11 @@ export function PayRequestDialog({
                 onClick={() => {
                   if (action.step === 'form') action.review()
                   else
-                    void action.confirm((key) => payApi.payRequest(request.id, fromId, key)).then((r) => {
-                      if (r.ok) void invalidate()
-                    })
+                    void action
+                      .confirm((key) => payApi.payRequest(request.id, fromId, key))
+                      .then((r) => {
+                        if (r.ok) void invalidate()
+                      })
                 }}
               >
                 {action.pending ? (

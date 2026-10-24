@@ -86,7 +86,9 @@ for (const theme of ['dark', 'light'] as const) {
       await page.getByLabel('Password', { exact: true }).fill('Demo@1234')
       await page.getByRole('button', { name: /^sign in/i }).click()
       await expect(page).toHaveURL(/\/dashboard$/)
-      await expect(page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })).toBeVisible()
+      await expect(
+        page.getByRole('navigation', { name: 'Main' }).filter({ visible: true }),
+      ).toBeVisible()
     }
 
     // Chunked so one test never audits all 22 screens (that blew the timeout under parallel load).
@@ -129,7 +131,16 @@ for (const theme of ['dark', 'light'] as const) {
       await page.getByRole('button', { name: /^sign in/i }).click()
       await expect(page).toHaveURL(/\/admin$/)
       await audit(page, `${theme} admin overview`)
-      const ADMIN_PATHS = ['users', 'loans', 'fraud', 'analytics', 'ai', 'flags', 'audit', 'reconcile']
+      const ADMIN_PATHS = [
+        'users',
+        'loans',
+        'fraud',
+        'analytics',
+        'ai',
+        'flags',
+        'audit',
+        'reconcile',
+      ]
       for (const path of ADMIN_PATHS) {
         await page.goto(`/admin/${path}`)
         await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()

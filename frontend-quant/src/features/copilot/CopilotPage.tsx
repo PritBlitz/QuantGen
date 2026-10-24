@@ -11,7 +11,12 @@ import { ChatView } from './components/ChatView'
 import { WaitingApprovals } from './components/WaitingApprovals'
 import { useConversations, useCopilotChat, useDeleteConversation } from './hooks'
 
-const when = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+const when = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+})
 
 /** `/copilot`: the full-page assistant (F-AGT-1…5). */
 export function CopilotPage() {
@@ -42,7 +47,11 @@ export function CopilotPage() {
         }
       />
       <div className="grid gap-4 lg:grid-cols-12">
-        <History className="order-2 lg:order-1 lg:col-span-3" active={chat.conversationId} onPick={chat.setConversation} />
+        <History
+          className="order-2 lg:order-1 lg:col-span-3"
+          active={chat.conversationId}
+          onPick={chat.setConversation}
+        />
         <section
           aria-label="Chat"
           className="order-1 flex h-[min(72dvh,760px)] min-h-[420px] flex-col overflow-hidden rounded-[var(--radius-card)] bg-surface hairline lg:order-2 lg:col-span-6"
@@ -55,7 +64,15 @@ export function CopilotPage() {
   )
 }
 
-function History({ active, onPick, className }: { active: string | null; onPick: (id: string) => void; className?: string }) {
+function History({
+  active,
+  onPick,
+  className,
+}: {
+  active: string | null
+  onPick: (id: string) => void
+  className?: string
+}) {
   const list = useConversations()
   const del = useDeleteConversation()
   return (
@@ -87,7 +104,9 @@ function History({ active, onPick, className }: { active: string | null; onPick:
                   <MessagesSquare aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
                   <span className="truncate">{c.title ?? 'New conversation'}</span>
                 </span>
-                <span className="mt-0.5 block pl-5.5 text-xs text-muted">{when.format(new Date(c.updatedAt))}</span>
+                <span className="mt-0.5 block pl-5.5 text-xs text-muted">
+                  {when.format(new Date(c.updatedAt))}
+                </span>
               </button>
               <Button
                 variant="ghost"

@@ -8,7 +8,10 @@ import { formatRelative } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useLoanDocuments, useUnderwriting } from '../riskHooks'
 
-const REC: Record<NonNullable<UnderwritingDto['recommendation']>, { label: string; tone: BadgeTone }> = {
+const REC: Record<
+  NonNullable<UnderwritingDto['recommendation']>,
+  { label: string; tone: BadgeTone }
+> = {
   APPROVE: { label: 'Suggests approve', tone: 'gain' },
   REJECT: { label: 'Suggests reject', tone: 'loss' },
   REVIEW: { label: 'Suggests a closer look', tone: 'warn' },
@@ -36,7 +39,10 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
         <span className="text-xs text-muted">
           {docs.data ? `${docs.data.length} document${docs.data.length === 1 ? '' : 's'}` : ''}
         </span>
-        <ChevronDown aria-hidden="true" className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
+        <ChevronDown
+          aria-hidden="true"
+          className={cn('size-4 text-muted transition-transform', open && 'rotate-180')}
+        />
       </button>
       {open && (
         <div className="space-y-3 border-t border-border px-3 py-3 text-sm">
@@ -45,14 +51,22 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
           ) : !u ? (
             <Skeleton className="h-20" />
           ) : u.status === 'PENDING' ? (
-            <p className="text-muted">{u.flags[0] ?? 'The memo is being prepared. Check back in a minute.'}</p>
+            <p className="text-muted">
+              {u.flags[0] ?? 'The memo is being prepared. Check back in a minute.'}
+            </p>
           ) : u.status === 'FAILED' ? (
-            <p className="text-muted">The AI couldn’t read these documents. Review them yourself; the memo is optional.</p>
+            <p className="text-muted">
+              The AI couldn’t read these documents. Review them yourself; the memo is optional.
+            </p>
           ) : (
             <>
               <p className="flex flex-wrap items-center gap-2">
-                {u.recommendation && <Badge tone={REC[u.recommendation].tone}>{REC[u.recommendation].label}</Badge>}
-                <span className="text-xs text-muted">AI-written, advisory{u.generatedAt ? ` · ${formatRelative(u.generatedAt)}` : ''}</span>
+                {u.recommendation && (
+                  <Badge tone={REC[u.recommendation].tone}>{REC[u.recommendation].label}</Badge>
+                )}
+                <span className="text-xs text-muted">
+                  AI-written, advisory{u.generatedAt ? ` · ${formatRelative(u.generatedAt)}` : ''}
+                </span>
               </p>
               {u.memo && <p className="whitespace-pre-wrap">{u.memo}</p>}
               {u.flags.length > 0 && (
@@ -83,7 +97,10 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
           {docs.data && docs.data.length > 0 && (
             <ul className="flex flex-wrap gap-1.5">
               {docs.data.map((d) => (
-                <li key={d.id} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted">
+                <li
+                  key={d.id}
+                  className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted"
+                >
                   <FileText aria-hidden="true" className="size-3" /> {d.fileName}
                 </li>
               ))}

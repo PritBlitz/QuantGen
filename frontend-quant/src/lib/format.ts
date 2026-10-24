@@ -7,8 +7,16 @@ import type { DecimalString, MetricUnit } from '@/api/types'
 import { Decimal, formatINR, toDecimal } from './money'
 
 const countFmt = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 })
-const countCompact = new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 })
-const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const countCompact = new Intl.NumberFormat('en-IN', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+const usdFmt = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 /** Integer-ish count with Indian grouping (1,24,500). */
 export function formatCount(value: DecimalString | Decimal, compact = false): string {

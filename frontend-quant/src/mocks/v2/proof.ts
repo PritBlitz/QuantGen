@@ -30,7 +30,9 @@ async function build(date: string): Promise<Snapshot> {
   const hit = cache.get(key)
   if (hit) return hit
   // Like the backend: every customer account incl. closed ones, in ASCII order of the lowercase id.
-  const customer = [...db.accounts.values()].sort((a, b) => (a.id.toLowerCase() < b.id.toLowerCase() ? -1 : 1))
+  const customer = [...db.accounts.values()].sort((a, b) =>
+    a.id.toLowerCase() < b.id.toLowerCase() ? -1 : 1,
+  )
   const index = new Map<string, { i: number; balance: string; salt: string }>()
   const leaves: HashedNode[] = []
   for (const [i, a] of customer.entries()) {
@@ -55,7 +57,16 @@ async function build(date: string): Promise<Snapshot> {
     date,
     levels,
     index,
-    root: { date, root: top.hash, totalLiabilities: top.sum, leafCount: customer.length, chainHead: { position: 48210 + db.transactions.length, hash: (await sha256Hex(`chain|${db.transactions.length}`)) } },
+    root: {
+      date,
+      root: top.hash,
+      totalLiabilities: top.sum,
+      leafCount: customer.length,
+      chainHead: {
+        position: 48210 + db.transactions.length,
+        hash: await sha256Hex(`chain|${db.transactions.length}`),
+      },
+    },
   }
   cache.set(key, snap)
   return snap
@@ -78,7 +89,8 @@ export const proofHandlers = [
     const today = todayIst()
     const date = new URL(request.url).searchParams.get('date') ?? today
     const oldest = addDays(today, -(DAYS_KEPT - 1))
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today || date < oldest) return notFound(request, 'Snapshot')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today || date < oldest)
+      return notFound(request, 'Snapshot')
     const snap = await build(date)
     const entry = snap.index.get(acc.id)
     if (!entry) return notFound(request, 'Account')
@@ -90,13 +102,23 @@ export const proofHandlers = [
       path.push({ hash: sib.hash, sum: sib.sum, side: isRight ? 'LEFT' : 'RIGHT' })
       i = Math.floor(i / 2)
     }
-    return json({ date: snap.date, leaf: { accountId: acc.id, balance: entry.balance, salt: entry.salt }, path, root: snap.root.root, totalLiabilities: snap.root.totalLiabilities })
+    return json({
+      date: snap.date,
+      leaf: { accountId: acc.id, balance: entry.balance, salt: entry.salt },
+      path,
+      root: snap.root.root,
+      totalLiabilities: snap.root.totalLiabilities,
+    })
   }),
   http.get(`${BASE}/admin/ledger/verify-chain`, async ({ request }) => {
     await delay(900)
     const r = requireAdmin(request)
     if (!r.user) return r.res
-    return json({ intact: true, checkedUpTo: 48210 + db.transactions.length, firstBrokenPosition: null })
+    return json({
+      intact: true,
+      checkedUpTo: 48210 + db.transactions.length,
+      firstBrokenPosition: null,
+    })
   }),
   http.get(`${BASE}/admin/ledger/solvency`, async ({ request }) => {
     const r = requireAdmin(request)
@@ -104,6 +126,10 @@ export const proofHandlers = [
     const snap = await build(todayIst())
     const liabilities = new Decimal(snap.root.totalLiabilities)
     const assets = liabilities.times('1.0812').toDecimalPlaces(4)
-    return json({ totalLiabilities: liabilities.toFixed(4), totalAssets: assets.toFixed(4), ratio: assets.div(liabilities).toDecimalPlaces(4).toFixed(4) })
+    return json({
+      totalLiabilities: liabilities.toFixed(4),
+      totalAssets: assets.toFixed(4),
+      ratio: assets.div(liabilities).toDecimalPlaces(4).toFixed(4),
+    })
   }),
 ]

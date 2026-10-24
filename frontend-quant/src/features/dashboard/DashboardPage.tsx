@@ -8,7 +8,13 @@ import { NetWorthCard } from './components/NetWorthCard'
 import { OnboardingCard } from './components/OnboardingCard'
 import { PortfolioCard } from './components/PortfolioCard'
 import { QuickActions } from './components/QuickActions'
-import { AutopilotCard, CopilotStrip, ProofCard, SpendingCard, UpcomingCard } from './components/V2Cards'
+import {
+  AutopilotCard,
+  CopilotStrip,
+  ProofCard,
+  SpendingCard,
+  UpcomingCard,
+} from './components/V2Cards'
 import { useAccounts } from './hooks'
 
 function greeting(hour: number) {

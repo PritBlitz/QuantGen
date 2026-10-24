@@ -129,7 +129,11 @@ export function OrdersPage() {
                       <Condition o={o} />
                     </td>
                     <td className="py-3 pr-3 text-right">
-                      {o.status === 'FILLED' ? <Money value={o.price} /> : <span className="text-muted">—</span>}
+                      {o.status === 'FILLED' ? (
+                        <Money value={o.price} />
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
                     </td>
                     <td className="py-3 pr-3 text-right">
                       <Money value={o.total} />
@@ -192,7 +196,9 @@ function CancelOrderDialog({ order, onClose }: { order: OrderDto; onClose: () =>
     onSettled: () => invalidate('orders', 'accounts', 'portfolio'),
     onSuccess: () => {
       toast.success(
-        order.side === 'BUY' ? 'Order cancelled. The held money is available again.' : 'Order cancelled. Your shares are free to sell.',
+        order.side === 'BUY'
+          ? 'Order cancelled. The held money is available again.'
+          : 'Order cancelled. Your shares are free to sell.',
       )
       onClose()
     },
@@ -215,7 +221,11 @@ function CancelOrderDialog({ order, onClose }: { order: OrderDto; onClose: () =>
           <Button variant="ghost" onClick={onClose} disabled={cancel.isPending}>
             Keep order
           </Button>
-          <Button variant="destructive" onClick={() => cancel.mutate()} disabled={cancel.isPending || err?.code === 'INVALID_STATE'}>
+          <Button
+            variant="destructive"
+            onClick={() => cancel.mutate()}
+            disabled={cancel.isPending || err?.code === 'INVALID_STATE'}
+          >
             {cancel.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
             Cancel order
           </Button>

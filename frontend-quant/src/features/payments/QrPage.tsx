@@ -16,7 +16,8 @@ interface Detector {
   detect: (source: CanvasImageSource | ImageBitmap) => Promise<Array<{ rawValue: string }>>
 }
 type DetectorCtor = new (opts: { formats: string[] }) => Detector
-const BarcodeDetectorCtor = (globalThis as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector
+const BarcodeDetectorCtor = (globalThis as unknown as { BarcodeDetector?: DetectorCtor })
+  .BarcodeDetector
 
 /** Show your QR (optionally with an amount) and scan someone else's (F-PAY-7). */
 export function QrPage() {
@@ -24,12 +25,19 @@ export function QrPage() {
   const [amount, setAmount] = useState('')
   const handle = me.data?.handle
   const link = handle
-    ? buildPayLink(window.location.origin, { handle, ...(AMOUNT_INPUT_RE.test(amount) && amount ? { amount } : {}) })
+    ? buildPayLink(window.location.origin, {
+        handle,
+        ...(AMOUNT_INPUT_RE.test(amount) && amount ? { amount } : {}),
+      })
     : null
 
   return (
     <div>
-      <PageHeader eyebrow="Pay" title="QR" description="Show your code to get paid, or scan one to pay. Scanning only pre-fills the send screen; you always confirm." />
+      <PageHeader
+        eyebrow="Pay"
+        title="QR"
+        description="Show your code to get paid, or scan one to pay. Scanning only pre-fills the send screen; you always confirm."
+      />
       <PayTabs />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel eyebrow="Get paid" title="Your code" tone="violet">
@@ -47,11 +55,18 @@ export function QrPage() {
                 )}
               </div>
               <div className="w-full max-w-xs text-left">
-                <AmountInput label="Amount (optional)" className="h-12 [&_input]:text-lg" value={amount} onValueChange={setAmount} />
+                <AmountInput
+                  label="Amount (optional)"
+                  className="h-12 [&_input]:text-lg"
+                  value={amount}
+                  onValueChange={setAmount}
+                />
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted">Claim your handle on the Pay overview to get a QR code.</p>
+            <p className="text-sm text-muted">
+              Claim your handle on the Pay overview to get a QR code.
+            </p>
           )}
         </Panel>
         <Scanner />
@@ -73,7 +88,11 @@ function Scanner() {
       setError('That isn’t a QuantGen payment code.')
       return false
     }
-    const q = new URLSearchParams({ to: link.handle, ...(link.amount ? { am: link.amount } : {}), ...(link.note ? { tn: link.note } : {}) })
+    const q = new URLSearchParams({
+      to: link.handle,
+      ...(link.amount ? { am: link.amount } : {}),
+      ...(link.note ? { tn: link.note } : {}),
+    })
     void navigate(`/transfer?${q.toString()}`)
     return true
   }
@@ -113,9 +132,12 @@ function Scanner() {
 
   async function fromFile(file: File) {
     setError(null)
-    if (!BarcodeDetectorCtor) return setError('This browser can’t read QR images. Paste the link below.')
+    if (!BarcodeDetectorCtor)
+      return setError('This browser can’t read QR images. Paste the link below.')
     const bmp = await createImageBitmap(file)
-    const codes = await new BarcodeDetectorCtor({ formats: ['qr_code'] }).detect(bmp).catch(() => [])
+    const codes = await new BarcodeDetectorCtor({ formats: ['qr_code'] })
+      .detect(bmp)
+      .catch(() => [])
     if (!codes[0]) setError('No QR code found in that image.')
     else open(codes[0].rawValue)
   }
@@ -126,8 +148,17 @@ function Scanner() {
         <div className="relative grid aspect-square w-full max-w-sm place-items-center overflow-hidden rounded-[24px] bg-surface-2 hairline sm:mx-auto">
           {active ? (
             <>
-              <video ref={video} className="size-full object-cover" muted playsInline aria-label="Camera preview" />
-              <span aria-hidden="true" className="absolute inset-10 rounded-3xl border-2 border-accent/80" />
+              <video
+                ref={video}
+                className="size-full object-cover"
+                muted
+                playsInline
+                aria-label="Camera preview"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute inset-10 rounded-3xl border-2 border-accent/80"
+              />
               <ScanLine aria-hidden="true" className="absolute size-10 animate-pulse text-accent" />
             </>
           ) : (
@@ -143,7 +174,12 @@ function Scanner() {
           <Button variant="secondary" asChild>
             <label className="cursor-pointer">
               <ImageUp aria-hidden="true" /> Upload image
-              <input type="file" accept="image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && void fromFile(e.target.files[0])} />
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => e.target.files?.[0] && void fromFile(e.target.files[0])}
+              />
             </label>
           </Button>
         </div>
@@ -154,12 +190,22 @@ function Scanner() {
             if (!open(manual)) toast.error('That link isn’t a QuantGen payment link.')
           }}
         >
-          <input aria-label="Paste a payment link" placeholder="…or paste a payment link" value={manual} onChange={(e) => setManual(e.target.value)} className="h-10 min-w-0 flex-1 rounded-[var(--radius-control)] bg-surface-2 px-3 text-sm hairline outline-none focus:border-accent" />
+          <input
+            aria-label="Paste a payment link"
+            placeholder="…or paste a payment link"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            className="h-10 min-w-0 flex-1 rounded-[var(--radius-control)] bg-surface-2 px-3 text-sm hairline outline-none focus:border-accent"
+          />
           <Button type="submit" variant="secondary">
             Open
           </Button>
         </form>
-        {error && <p role="alert" className="text-sm text-warn">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-warn">
+            {error}
+          </p>
+        )}
       </div>
     </Panel>
   )

@@ -1,5 +1,14 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CircleAlert, History, Loader2, PenLine, Power, Sparkles, Wand2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  CircleAlert,
+  History,
+  Loader2,
+  PenLine,
+  Power,
+  Sparkles,
+  Wand2,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
@@ -31,19 +40,26 @@ export function RuleBuilderPage() {
   const existing = useRule(id ?? '', !!id)
   const templateId = params.get('template')
 
-  const ready = accounts.data && (!id || existing.data) && (!templateId || templates.data || templates.isError)
+  const ready =
+    accounts.data && (!id || existing.data) && (!templateId || templates.data || templates.isError)
   const failed = accounts.isError || (id && existing.isError)
 
   return (
     <>
       <PageHeader
-        back={{ to: id ? `/autopilot/${id}` : '/autopilot', label: id ? 'Back to rule' : 'Autopilot' }}
+        back={{
+          to: id ? `/autopilot/${id}` : '/autopilot',
+          label: id ? 'Back to rule' : 'Autopilot',
+        }}
         eyebrow={id ? 'Edit rule' : 'New rule'}
         title={id ? (existing.data?.name ?? 'Edit rule') : 'Teach Autopilot a rule'}
         description="Describe it in your own words or build it step by step. You’ll see exactly what it will do, and what it would have done over the last 90 days, before it’s switched on."
       />
       {failed ? (
-        <PanelError what="this rule" onRetry={() => void (accounts.isError ? accounts.refetch() : existing.refetch())} />
+        <PanelError
+          what="this rule"
+          onRetry={() => void (accounts.isError ? accounts.refetch() : existing.refetch())}
+        />
       ) : !ready ? (
         <Skeleton className="h-96" />
       ) : (
@@ -119,16 +135,22 @@ function Builder({
 
   const save = ruleId ? update : create
   const saveErr = save.error ? toApiError(save.error) : null
-  const errs = fieldErrorIndex(saveErr?.code === 'RULE_INVALID' ? saveErr.fieldErrors : (validation.data?.fieldErrors ?? []))
+  const errs = fieldErrorIndex(
+    saveErr?.code === 'RULE_INVALID' ? saveErr.fieldErrors : (validation.data?.fieldErrors ?? []),
+  )
   const checking = validation.isFetching || debouncedKey !== key
   const valid = !checking && validation.data?.valid === true
-  const nameErr = errs.all.find((e) => e.path === 'name')?.message ?? (name.trim().length > 40 ? 'Keep it under 40 characters' : undefined)
+  const nameErr =
+    errs.all.find((e) => e.path === 'name')?.message ??
+    (name.trim().length > 40 ? 'Keep it under 40 characters' : undefined)
 
   const activate = () => {
     if (!canonical || !valid || !simFresh || save.isPending) return
     const body = { name: name.trim() || 'My rule', rule: canonical }
     const onSuccess = (r: { id: string }) => {
-      toast.success(ruleId ? 'Rule updated. The new version is live.' : 'Autopilot rule switched on.')
+      toast.success(
+        ruleId ? 'Rule updated. The new version is live.' : 'Autopilot rule switched on.',
+      )
       void navigate(`/autopilot/${r.id}`)
     }
     if (ruleId) update.mutate({ id: ruleId, ...body }, { onSuccess })
@@ -167,23 +189,37 @@ function Builder({
               />
               {compileErr && (
                 <p role="alert" className="text-sm text-loss">
-                  {compileErr.fieldErrors[0]?.message ? `Describe the rule in 8–500 characters.` : errorMessage(compileErr)}
+                  {compileErr.fieldErrors[0]?.message
+                    ? `Describe the rule in 8–500 characters.`
+                    : errorMessage(compileErr)}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" variant="violet" disabled={text.trim().length < 8 || compile.isPending}>
-                  {compile.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Wand2 aria-hidden="true" />}
+                <Button
+                  type="submit"
+                  variant="violet"
+                  disabled={text.trim().length < 8 || compile.isPending}
+                >
+                  {compile.isPending ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Wand2 aria-hidden="true" />
+                  )}
                   {compile.isPending ? 'Working it out…' : 'Turn into a rule'}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setDraft(blank)}>
                   <PenLine aria-hidden="true" /> Build it myself
                 </Button>
               </div>
-              <p className="text-xs text-muted">The AI only drafts the rule. You check it, replay it, and switch it on yourself.</p>
+              <p className="text-xs text-muted">
+                The AI only drafts the rule. You check it, replay it, and switch it on yourself.
+              </p>
             </form>
           ) : (
             <div className="space-y-3 text-sm text-muted">
-              <p>The AI helper is switched off right now, but you can build a rule with the form.</p>
+              <p>
+                The AI helper is switched off right now, but you can build a rule with the form.
+              </p>
               <Button onClick={() => setDraft(blank)}>
                 <PenLine aria-hidden="true" /> Start from a simple rule
               </Button>
@@ -255,17 +291,22 @@ function Builder({
             {validation.isError ? (
               <PanelError what="the check" onRetry={() => void validation.refetch()} />
             ) : validation.data?.rendering ? (
-              <p className={`font-display text-xl leading-snug ${checking ? 'opacity-60' : ''}`}>“{validation.data.rendering}”</p>
+              <p className={`font-display text-xl leading-snug ${checking ? 'opacity-60' : ''}`}>
+                “{validation.data.rendering}”
+              </p>
             ) : checking ? (
               <Skeleton className="h-16" />
             ) : (
-              <p className="text-sm text-muted">Fix the highlighted fields and the sentence will appear here.</p>
+              <p className="text-sm text-muted">
+                Fix the highlighted fields and the sentence will appear here.
+              </p>
             )}
             {!checking && errs.all.length > 0 && (
               <ul className="space-y-1 text-sm text-loss" role="alert">
                 {errs.all.slice(0, 4).map((e) => (
                   <li key={e.path} className="flex gap-1.5">
-                    <CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" /> {e.message}
+                    <CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{' '}
+                    {e.message}
                   </li>
                 ))}
               </ul>
@@ -291,7 +332,9 @@ function Builder({
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted">
-                {simulate.data ? 'You changed the rule, so replay it again.' : 'Run the rule against your own history. Nothing moves; it’s a dry run.'}
+                {simulate.data
+                  ? 'You changed the rule, so replay it again.'
+                  : 'Run the rule against your own history. Nothing moves; it’s a dry run.'}
               </p>
               {simulate.error && (
                 <p role="alert" className="text-sm text-loss">
@@ -307,7 +350,11 @@ function Builder({
                   simulate.mutate(canonical)
                 }}
               >
-                {simulate.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <History aria-hidden="true" />}
+                {simulate.isPending ? (
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <History aria-hidden="true" />
+                )}
                 {simulate.isPending ? 'Replaying…' : `Replay the last ${DAYS} days`}
               </Button>
             </div>
@@ -316,18 +363,37 @@ function Builder({
 
         <Panel eyebrow="Switch on" title="Name it and go">
           <div className="space-y-3">
-            <FormField label="Rule name" value={name} maxLength={41} onChange={(e) => setName(e.target.value)} placeholder="e.g. Salary splitter" error={nameErr} />
+            <FormField
+              label="Rule name"
+              value={name}
+              maxLength={41}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Salary splitter"
+              error={nameErr}
+            />
             {saveErr && saveErr.code !== 'RULE_INVALID' && (
               <p role="alert" className="text-sm text-loss">
-                {saveErr.code === 'STEP_UP_CANCELLED' ? 'Verification was cancelled, so the rule wasn’t switched on.' : errorMessage(saveErr)}
+                {saveErr.code === 'STEP_UP_CANCELLED'
+                  ? 'Verification was cancelled, so the rule wasn’t switched on.'
+                  : errorMessage(saveErr)}
               </p>
             )}
-            <Button size="lg" className="w-full" disabled={!valid || !simFresh || !!nameErr || save.isPending} onClick={activate}>
-              {save.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Power aria-hidden="true" />}
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={!valid || !simFresh || !!nameErr || save.isPending}
+              onClick={activate}
+            >
+              {save.isPending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Power aria-hidden="true" />
+              )}
               {save.isPending ? 'Switching on…' : ruleId ? 'Save new version' : 'Switch on'}
             </Button>
             <p className="text-xs text-muted">
-              {!simFresh ? 'Replay the rule first. ' : ''}You’ll confirm with your passkey or PIN. From then on it runs without AI, only within your caps, and you can pause it any time.
+              {!simFresh ? 'Replay the rule first. ' : ''}You’ll confirm with your passkey or PIN.
+              From then on it runs without AI, only within your caps, and you can pause it any time.
             </p>
           </div>
         </Panel>

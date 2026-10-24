@@ -64,13 +64,22 @@ export interface V2State {
   limits: Map<string, { perTransfer: string; daily: string }>
   kyc: Map<string, KycDto>
   handles: Map<string, HandleDto & { userId: string }>
-  holds: Array<{ id: string; accountId: string; amount: string; reason: string; status: 'ACTIVE' | 'RELEASED' | 'CAPTURED' }>
+  holds: Array<{
+    id: string
+    accountId: string
+    amount: string
+    reason: string
+    status: 'ACTIVE' | 'RELEASED' | 'CAPTURED'
+  }>
   requests: Array<PaymentRequestDto>
   blocked: Array<{ userId: string; blockedHandle: string }>
   scheduled: Array<Owned<ScheduledTransferDto> & { toAccountNumber: string }>
   billers: BillerDto[]
   savedBillers: Array<Owned<SavedBillerDto> & { consumerNumber: string }>
-  bills: Map<string, { userId: string; billerId: string; consumerNumber: string; amount: string; dueDate: string }>
+  bills: Map<
+    string,
+    { userId: string; billerId: string; consumerNumber: string; amount: string; dueDate: string }
+  >
   billPayments: Array<Owned<BillPaymentDto>>
   groups: Array<GroupDto & { memberIds: string[] }>
   topups: Array<Owned<TopupDto>>
@@ -90,7 +99,20 @@ export interface V2State {
   alerts: Array<Owned<PriceAlertDto>>
   backtests: Array<Owned<BacktestDto>>
   cards: Array<Owned<CardDto> & { pan: string }>
-  cardAuths: Map<string, { cardId: string; userId: string; amount: string; holdId: string; merchant: string; status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED'; category?: MerchantCategory; capturedAt?: string; refunded?: string }>
+  cardAuths: Map<
+    string,
+    {
+      cardId: string
+      userId: string
+      amount: string
+      holdId: string
+      merchant: string
+      status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED'
+      category?: MerchantCategory
+      capturedAt?: string
+      refunded?: string
+    }
+  >
   cardDisputes: Array<Owned<CardDisputeDto>>
   tokens: Array<Owned<PersonalTokenDto> & { tokenHash: string }>
   aiCalls: number
@@ -125,7 +147,10 @@ const isoDate = (daysFromNow: number) => {
 export function createV2State(): V2State {
   const flagNames: FeatureFlag[] = ['ai', 'autopilot', 'razorpay', 'cards', 'mcp']
   const flags = Object.fromEntries(
-    flagNames.map((name) => [name, { name, enabled: true, updatedAt: iso(3), updatedBy: 'admin@quantgen.dev' }]),
+    flagNames.map((name) => [
+      name,
+      { name, enabled: true, updatedAt: iso(3), updatedBy: 'admin@quantgen.dev' },
+    ]),
   ) as Record<FeatureFlag, AdminFeatureFlagDto>
 
   const s: V2State = {
@@ -144,13 +169,49 @@ export function createV2State(): V2State {
     stepUpTokens: new Map(),
     stepUpChallenges: new Map(),
     sessions: [
-      { id: 'd0000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, device: 'Windows PC', browser: 'Chrome 141', ipCity: 'Bengaluru', current: true, createdAt: iso(2), lastUsedAt: new Date().toISOString() },
-      { id: 'd0000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, device: 'iPhone 16', browser: 'Safari', ipCity: 'Bengaluru', current: false, createdAt: iso(9), lastUsedAt: iso(1, 21) },
-      { id: 'd0000000-0000-4000-8000-000000000003', userId: PEOPLE.demo.id, device: 'iPad', browser: 'Safari', ipCity: 'Mumbai', current: false, createdAt: iso(31), lastUsedAt: iso(12) },
+      {
+        id: 'd0000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        device: 'Windows PC',
+        browser: 'Chrome 141',
+        ipCity: 'Bengaluru',
+        current: true,
+        createdAt: iso(2),
+        lastUsedAt: new Date().toISOString(),
+      },
+      {
+        id: 'd0000000-0000-4000-8000-000000000002',
+        userId: PEOPLE.demo.id,
+        device: 'iPhone 16',
+        browser: 'Safari',
+        ipCity: 'Bengaluru',
+        current: false,
+        createdAt: iso(9),
+        lastUsedAt: iso(1, 21),
+      },
+      {
+        id: 'd0000000-0000-4000-8000-000000000003',
+        userId: PEOPLE.demo.id,
+        device: 'iPad',
+        browser: 'Safari',
+        ipCity: 'Mumbai',
+        current: false,
+        createdAt: iso(31),
+        lastUsedAt: iso(12),
+      },
     ],
     limits: new Map(),
     kyc: new Map([
-      [PEOPLE.demo.id, { status: 'VERIFIED', panMasked: 'ABCPS••••K', dateOfBirth: '1996-03-14', address: '12 MG Road, Bengaluru 560001', verifiedAt: iso(80) }],
+      [
+        PEOPLE.demo.id,
+        {
+          status: 'VERIFIED',
+          panMasked: 'ABCPS••••K',
+          dateOfBirth: '1996-03-14',
+          address: '12 MG Road, Bengaluru 560001',
+          verifiedAt: iso(80),
+        },
+      ],
     ]),
     handles: new Map(
       Object.values(PEOPLE).map((p, i) => [
@@ -161,21 +222,94 @@ export function createV2State(): V2State {
           accountId:
             p.id === PEOPLE.demo.id
               ? DEMO_SAVINGS
-              : ['a2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000002', 'a2000000-0000-4000-8000-000000000004', 'a2000000-0000-4000-8000-000000000005'][i - 1]!,
+              : [
+                  'a2000000-0000-4000-8000-000000000001',
+                  'a2000000-0000-4000-8000-000000000002',
+                  'a2000000-0000-4000-8000-000000000004',
+                  'a2000000-0000-4000-8000-000000000005',
+                ][i - 1]!,
           changeableAt: iso(-12),
         },
       ]),
     ),
-    holds: [{ id: 'h0000000-0000-4000-8000-000000000001'.replace('h', 'e'), accountId: DEMO_CHECKING, amount: '2499.0000', reason: 'CARD_AUTH', status: 'ACTIVE' }],
+    holds: [
+      {
+        id: 'h0000000-0000-4000-8000-000000000001'.replace('h', 'e'),
+        accountId: DEMO_CHECKING,
+        amount: '2499.0000',
+        reason: 'CARD_AUTH',
+        status: 'ACTIVE',
+      },
+    ],
     requests: [
-      { id: 'f1000000-0000-4000-8000-000000000001', fromHandle: PEOPLE.meera.handle, toHandle: PEOPLE.demo.handle, amount: '1850.0000', note: 'Dinner at Toit', status: 'OPEN', transferId: null, expiresAt: iso(-5), createdAt: iso(2, 20) },
-      { id: 'f1000000-0000-4000-8000-000000000002', fromHandle: PEOPLE.demo.handle, toHandle: PEOPLE.kavya.handle, amount: '650.0000', note: 'Cab share', status: 'OPEN', transferId: null, expiresAt: iso(-6), createdAt: iso(1, 18) },
-      { id: 'f1000000-0000-4000-8000-000000000003', fromHandle: PEOPLE.priya.handle, toHandle: PEOPLE.demo.handle, amount: '4200.0000', note: 'Concert tickets', status: 'PAID', transferId: null, expiresAt: iso(2), createdAt: iso(9) },
+      {
+        id: 'f1000000-0000-4000-8000-000000000001',
+        fromHandle: PEOPLE.meera.handle,
+        toHandle: PEOPLE.demo.handle,
+        amount: '1850.0000',
+        note: 'Dinner at Toit',
+        status: 'OPEN',
+        transferId: null,
+        expiresAt: iso(-5),
+        createdAt: iso(2, 20),
+      },
+      {
+        id: 'f1000000-0000-4000-8000-000000000002',
+        fromHandle: PEOPLE.demo.handle,
+        toHandle: PEOPLE.kavya.handle,
+        amount: '650.0000',
+        note: 'Cab share',
+        status: 'OPEN',
+        transferId: null,
+        expiresAt: iso(-6),
+        createdAt: iso(1, 18),
+      },
+      {
+        id: 'f1000000-0000-4000-8000-000000000003',
+        fromHandle: PEOPLE.priya.handle,
+        toHandle: PEOPLE.demo.handle,
+        amount: '4200.0000',
+        note: 'Concert tickets',
+        status: 'PAID',
+        transferId: null,
+        expiresAt: iso(2),
+        createdAt: iso(9),
+      },
     ],
     blocked: [],
     scheduled: [
-      { id: 'f2000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, fromAccountId: DEMO_SAVINGS, toAccountNumber: '502193342290', toAccountNumberMasked: '••••2290', toName: 'Meera Iyer', amount: '12000.0000', note: 'Rent', frequency: 'MONTHLY', nextRunDate: isoDate(13), endDate: null, remainingCount: null, status: 'ACTIVE', lastRun: { date: isoDate(-18), outcome: 'SUCCEEDED', transferId: null } },
-      { id: 'f2000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, fromAccountId: DEMO_CHECKING, toAccountNumber: '502197784402', toAccountNumberMasked: '••••4402', toName: 'Kavya Reddy', amount: '1500.0000', note: 'Gym buddy fund', frequency: 'WEEKLY', nextRunDate: isoDate(3), endDate: isoDate(60), remainingCount: 9, status: 'PAUSED', lastRun: null },
+      {
+        id: 'f2000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        fromAccountId: DEMO_SAVINGS,
+        toAccountNumber: '502193342290',
+        toAccountNumberMasked: '••••2290',
+        toName: 'Meera Iyer',
+        amount: '12000.0000',
+        note: 'Rent',
+        frequency: 'MONTHLY',
+        nextRunDate: isoDate(13),
+        endDate: null,
+        remainingCount: null,
+        status: 'ACTIVE',
+        lastRun: { date: isoDate(-18), outcome: 'SUCCEEDED', transferId: null },
+      },
+      {
+        id: 'f2000000-0000-4000-8000-000000000002',
+        userId: PEOPLE.demo.id,
+        fromAccountId: DEMO_CHECKING,
+        toAccountNumber: '502197784402',
+        toAccountNumberMasked: '••••4402',
+        toName: 'Kavya Reddy',
+        amount: '1500.0000',
+        note: 'Gym buddy fund',
+        frequency: 'WEEKLY',
+        nextRunDate: isoDate(3),
+        endDate: isoDate(60),
+        remainingCount: 9,
+        status: 'PAUSED',
+        lastRun: null,
+      },
     ],
     billers: [
       ['BESCOM', 'ELECTRICITY', 'Account ID', '^\\d{10}$'],
@@ -199,8 +333,30 @@ export function createV2State(): V2State {
     })),
     bills: new Map(),
     billPayments: [
-      { id: 'f3000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, billerId: 'b1000000-0000-4000-8000-000000000001', billerName: 'BESCOM', category: 'ELECTRICITY', consumerNumberMasked: '••••4471', amount: '2184.0000', fromAccountId: DEMO_SAVINGS, transactionId: '0c0ffee0-0000-4000-8000-0000000000b1', createdAt: iso(21) },
-      { id: 'f3000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, billerId: 'b1000000-0000-4000-8000-000000000003', billerName: 'Airtel Postpaid', category: 'MOBILE', consumerNumberMasked: '••••3210', amount: '799.0000', fromAccountId: DEMO_CHECKING, transactionId: '0c0ffee0-0000-4000-8000-0000000000b2', createdAt: iso(6) },
+      {
+        id: 'f3000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        billerId: 'b1000000-0000-4000-8000-000000000001',
+        billerName: 'BESCOM',
+        category: 'ELECTRICITY',
+        consumerNumberMasked: '••••4471',
+        amount: '2184.0000',
+        fromAccountId: DEMO_SAVINGS,
+        transactionId: '0c0ffee0-0000-4000-8000-0000000000b1',
+        createdAt: iso(21),
+      },
+      {
+        id: 'f3000000-0000-4000-8000-000000000002',
+        userId: PEOPLE.demo.id,
+        billerId: 'b1000000-0000-4000-8000-000000000003',
+        billerName: 'Airtel Postpaid',
+        category: 'MOBILE',
+        consumerNumberMasked: '••••3210',
+        amount: '799.0000',
+        fromAccountId: DEMO_CHECKING,
+        transactionId: '0c0ffee0-0000-4000-8000-0000000000b2',
+        createdAt: iso(6),
+      },
     ],
     groups: [
       {
@@ -209,9 +365,33 @@ export function createV2State(): V2State {
         memberIds: [PEOPLE.demo.id, PEOPLE.priya.id, PEOPLE.meera.id, PEOPLE.kavya.id],
         members: [],
         expenses: [
-          { id: 'f4100000-0000-4000-8000-000000000001', paidByHandle: PEOPLE.demo.handle, amount: '18400.0000', description: 'Villa (2 nights)', splitType: 'EQUAL', shares: [], createdAt: iso(12) },
-          { id: 'f4100000-0000-4000-8000-000000000002', paidByHandle: PEOPLE.priya.handle, amount: '6240.0000', description: 'Scooters + fuel', splitType: 'EQUAL', shares: [], createdAt: iso(11) },
-          { id: 'f4100000-0000-4000-8000-000000000003', paidByHandle: PEOPLE.meera.handle, amount: '4380.0000', description: 'Seafood at Fisherman’s Wharf', splitType: 'EQUAL', shares: [], createdAt: iso(11, 21) },
+          {
+            id: 'f4100000-0000-4000-8000-000000000001',
+            paidByHandle: PEOPLE.demo.handle,
+            amount: '18400.0000',
+            description: 'Villa (2 nights)',
+            splitType: 'EQUAL',
+            shares: [],
+            createdAt: iso(12),
+          },
+          {
+            id: 'f4100000-0000-4000-8000-000000000002',
+            paidByHandle: PEOPLE.priya.handle,
+            amount: '6240.0000',
+            description: 'Scooters + fuel',
+            splitType: 'EQUAL',
+            shares: [],
+            createdAt: iso(11),
+          },
+          {
+            id: 'f4100000-0000-4000-8000-000000000003',
+            paidByHandle: PEOPLE.meera.handle,
+            amount: '4380.0000',
+            description: 'Seafood at Fisherman’s Wharf',
+            splitType: 'EQUAL',
+            shares: [],
+            createdAt: iso(11, 21),
+          },
         ],
         createdAt: iso(14),
       },
@@ -221,20 +401,50 @@ export function createV2State(): V2State {
         memberIds: [PEOPLE.demo.id, PEOPLE.rohan.id],
         members: [],
         expenses: [
-          { id: 'f4100000-0000-4000-8000-000000000004', paidByHandle: PEOPLE.rohan.handle, amount: '3600.0000', description: 'Wi-Fi + maid (Oct)', splitType: 'EQUAL', shares: [], createdAt: iso(4) },
+          {
+            id: 'f4100000-0000-4000-8000-000000000004',
+            paidByHandle: PEOPLE.rohan.handle,
+            amount: '3600.0000',
+            description: 'Wi-Fi + maid (Oct)',
+            splitType: 'EQUAL',
+            shares: [],
+            createdAt: iso(4),
+          },
         ],
         createdAt: iso(60),
       },
     ],
     topups: [],
     goals: new Map([
-      [DEMO_GOAL_GOA, { name: 'Goa in December', target: '60000.0000', targetDate: isoDate(55), emoji: '🏖️' }],
-      [DEMO_GOAL_EMERGENCY, { name: 'Emergency fund', target: '300000.0000', targetDate: null, emoji: '🛟' }],
+      [
+        DEMO_GOAL_GOA,
+        { name: 'Goa in December', target: '60000.0000', targetDate: isoDate(55), emoji: '🏖️' },
+      ],
+      [
+        DEMO_GOAL_EMERGENCY,
+        { name: 'Emergency fund', target: '300000.0000', targetDate: null, emoji: '🛟' },
+      ],
     ]),
     savedBillers: [],
-    roundUps: new Map([[DEMO_CHECKING, { enabled: true, roundTo: 10, goalAccountId: DEMO_GOAL_GOA }]]),
+    roundUps: new Map([
+      [DEMO_CHECKING, { enabled: true, roundTo: 10, goalAccountId: DEMO_GOAL_GOA }],
+    ]),
     fds: [
-      { id: 'f5000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, fromAccountId: DEMO_SAVINGS, accountNumberMasked: '••••7712', principal: '100000.0000', annualRate: '7.10', tenureDays: 365, startDate: isoDate(-120), maturityDate: isoDate(245), accruedInterest: '2334.2500', maturityAmount: '107100.0000', onMaturity: 'PAYOUT', status: 'ACTIVE' },
+      {
+        id: 'f5000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        fromAccountId: DEMO_SAVINGS,
+        accountNumberMasked: '••••7712',
+        principal: '100000.0000',
+        annualRate: '7.10',
+        tenureDays: 365,
+        startDate: isoDate(-120),
+        maturityDate: isoDate(245),
+        accruedInterest: '2334.2500',
+        maturityAmount: '107100.0000',
+        onMaturity: 'PAYOUT',
+        status: 'ACTIVE',
+      },
     ],
     budgets: new Map([
       [
@@ -257,22 +467,89 @@ export function createV2State(): V2State {
     fraudCases: [],
     loanDocs: new Map(),
     watchlists: [
-      { id: 'f6000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, name: 'Banks', symbols: ['HDFC', 'ICIC', 'SBIN', 'QGEN'], createdAt: iso(30) },
-      { id: 'f6000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, name: 'Tech', symbols: ['INFY', 'TCS', 'WIPR'], createdAt: iso(20) },
+      {
+        id: 'f6000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        name: 'Banks',
+        symbols: ['HDFC', 'ICIC', 'SBIN', 'QGEN'],
+        createdAt: iso(30),
+      },
+      {
+        id: 'f6000000-0000-4000-8000-000000000002',
+        userId: PEOPLE.demo.id,
+        name: 'Tech',
+        symbols: ['INFY', 'TCS', 'WIPR'],
+        createdAt: iso(20),
+      },
     ],
     alerts: [
-      { id: 'f7000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, symbol: 'QGEN', direction: 'ABOVE', price: '1350.0000', status: 'ACTIVE', triggeredAt: null, createdAt: iso(5) },
-      { id: 'f7000000-0000-4000-8000-000000000002', userId: PEOPLE.demo.id, symbol: 'RELI', direction: 'BELOW', price: '2900.0000', status: 'TRIGGERED', triggeredAt: iso(2), createdAt: iso(10) },
+      {
+        id: 'f7000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        symbol: 'QGEN',
+        direction: 'ABOVE',
+        price: '1350.0000',
+        status: 'ACTIVE',
+        triggeredAt: null,
+        createdAt: iso(5),
+      },
+      {
+        id: 'f7000000-0000-4000-8000-000000000002',
+        userId: PEOPLE.demo.id,
+        symbol: 'RELI',
+        direction: 'BELOW',
+        price: '2900.0000',
+        status: 'TRIGGERED',
+        triggeredAt: iso(2),
+        createdAt: iso(10),
+      },
     ],
     backtests: [],
     cards: [
-      { id: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, accountId: DEMO_CHECKING, last4: '4417', expiry: '09/30', status: 'ACTIVE', pan: '9100 4521 7783 4417', controls: { frozen: false, online: true, perTxnLimit: '25000.00', blockedCategories: ['GAMBLING'] } },
+      {
+        id: 'f8000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        accountId: DEMO_CHECKING,
+        last4: '4417',
+        expiry: '09/30',
+        status: 'ACTIVE',
+        pan: '9100 4521 7783 4417',
+        controls: {
+          frozen: false,
+          online: true,
+          perTxnLimit: '25000.00',
+          blockedCategories: ['GAMBLING'],
+        },
+      },
     ],
     // One captured store payment on the demo card, so disputes have something to show.
-    cardAuths: new Map([['f8100000-0000-4000-8000-000000000001', { cardId: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, amount: '2499.0000', holdId: 'f8200000-0000-4000-8000-000000000001', merchant: 'QuantGen Store', status: 'CAPTURED', category: 'ELECTRONICS', capturedAt: iso(3), refunded: '0' }]]),
+    cardAuths: new Map([
+      [
+        'f8100000-0000-4000-8000-000000000001',
+        {
+          cardId: 'f8000000-0000-4000-8000-000000000001',
+          userId: PEOPLE.demo.id,
+          amount: '2499.0000',
+          holdId: 'f8200000-0000-4000-8000-000000000001',
+          merchant: 'QuantGen Store',
+          status: 'CAPTURED',
+          category: 'ELECTRONICS',
+          capturedAt: iso(3),
+          refunded: '0',
+        },
+      ],
+    ]),
     cardDisputes: [],
     tokens: [
-      { id: 'f9000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, name: 'Claude Desktop', scope: 'read+propose', lastUsedAt: iso(1), expiresAt: iso(-60), tokenHash: 'x' },
+      {
+        id: 'f9000000-0000-4000-8000-000000000001',
+        userId: PEOPLE.demo.id,
+        name: 'Claude Desktop',
+        scope: 'read+propose',
+        lastUsedAt: iso(1),
+        expiresAt: iso(-60),
+        tokenHash: 'x',
+      },
     ],
     aiCalls: 0,
     riskReviewAbove: '150000',
@@ -292,11 +569,26 @@ function seedRules(s: V2State) {
     status: 'ACTIVE',
     rule: {
       dslVersion: 1,
-      trigger: { type: 'MONEY_RECEIVED', accountId: DEMO_SAVINGS, minAmount: '40000.00', counterpartyContains: 'ACME' },
+      trigger: {
+        type: 'MONEY_RECEIVED',
+        accountId: DEMO_SAVINGS,
+        minAmount: '40000.00',
+        counterpartyContains: 'ACME',
+      },
       conditions: [],
       actions: [
-        { type: 'TRANSFER', fromAccountId: DEMO_SAVINGS, toAccountId: DEMO_GOAL_GOA, amount: { mode: 'PERCENT_OF_TRIGGER', value: '20' } },
-        { type: 'BUY', accountId: DEMO_SAVINGS, symbol: 'QGEN', amount: { mode: 'FIXED', value: '5000.00' } },
+        {
+          type: 'TRANSFER',
+          fromAccountId: DEMO_SAVINGS,
+          toAccountId: DEMO_GOAL_GOA,
+          amount: { mode: 'PERCENT_OF_TRIGGER', value: '20' },
+        },
+        {
+          type: 'BUY',
+          accountId: DEMO_SAVINGS,
+          symbol: 'QGEN',
+          amount: { mode: 'FIXED', value: '5000.00' },
+        },
       ],
       caps: { perRun: '30000.00', perMonth: '60000.00' },
     },
@@ -320,7 +612,12 @@ function seedRules(s: V2State) {
       trigger: { type: 'BALANCE_ABOVE', accountId: DEMO_CHECKING, threshold: '50000.00' },
       conditions: [],
       actions: [
-        { type: 'TRANSFER', fromAccountId: DEMO_CHECKING, toAccountId: DEMO_GOAL_EMERGENCY, amount: { mode: 'EXCESS_ABOVE', value: '50000.00' } },
+        {
+          type: 'TRANSFER',
+          fromAccountId: DEMO_CHECKING,
+          toAccountId: DEMO_GOAL_EMERGENCY,
+          amount: { mode: 'EXCESS_ABOVE', value: '50000.00' },
+        },
       ],
       caps: { perRun: '50000.00', perMonth: '100000.00' },
     },
@@ -343,7 +640,14 @@ function seedRules(s: V2State) {
       dslVersion: 1,
       trigger: { type: 'SCHEDULE', frequency: 'MONTHLY', dayOfMonth: 5 },
       conditions: [{ type: 'BALANCE_AT_LEAST', accountId: DEMO_SAVINGS, amount: '20000.00' }],
-      actions: [{ type: 'BUY', accountId: DEMO_SAVINGS, symbol: 'TCS', amount: { mode: 'FIXED', value: '8000.00' } }],
+      actions: [
+        {
+          type: 'BUY',
+          accountId: DEMO_SAVINGS,
+          symbol: 'TCS',
+          amount: { mode: 'FIXED', value: '8000.00' },
+        },
+      ],
       caps: { perRun: '8000.00', perMonth: '8000.00' },
     },
     rendering:
@@ -357,15 +661,63 @@ function seedRules(s: V2State) {
   }
   s.rules.push(salary, sweep, sip)
   s.ruleRuns.set(salary.id, [
-    { id: 'fb000000-0000-4000-8000-000000000001', ruleVersion: 2, triggerEventId: 'evt-1001', triggerSummary: '₹82,000.00 from ACME Payroll into Savings ••••4821', startedAt: iso(17, 4), outcome: 'SUCCEEDED', actions: [{ type: 'TRANSFER', amount: '16400.0000' }, { type: 'BUY', amount: '3853.5000', orderId: undefined }] },
-    { id: 'fb000000-0000-4000-8000-000000000002', ruleVersion: 1, triggerEventId: 'evt-0874', triggerSummary: '₹82,000.00 from ACME Payroll into Savings ••••4821', startedAt: iso(48, 4), outcome: 'SUCCEEDED', actions: [{ type: 'TRANSFER', amount: '16400.0000' }] },
-    { id: 'fb000000-0000-4000-8000-000000000003', ruleVersion: 1, triggerEventId: 'evt-0702', triggerSummary: '₹78,500.00 from ACME Payroll into Savings ••••4821', startedAt: iso(78, 4), outcome: 'PARTIAL', actions: [{ type: 'TRANSFER', amount: '15700.0000' }, { type: 'BUY', amount: null, error: 'INSUFFICIENT_FUNDS' }] },
+    {
+      id: 'fb000000-0000-4000-8000-000000000001',
+      ruleVersion: 2,
+      triggerEventId: 'evt-1001',
+      triggerSummary: '₹82,000.00 from ACME Payroll into Savings ••••4821',
+      startedAt: iso(17, 4),
+      outcome: 'SUCCEEDED',
+      actions: [
+        { type: 'TRANSFER', amount: '16400.0000' },
+        { type: 'BUY', amount: '3853.5000', orderId: undefined },
+      ],
+    },
+    {
+      id: 'fb000000-0000-4000-8000-000000000002',
+      ruleVersion: 1,
+      triggerEventId: 'evt-0874',
+      triggerSummary: '₹82,000.00 from ACME Payroll into Savings ••••4821',
+      startedAt: iso(48, 4),
+      outcome: 'SUCCEEDED',
+      actions: [{ type: 'TRANSFER', amount: '16400.0000' }],
+    },
+    {
+      id: 'fb000000-0000-4000-8000-000000000003',
+      ruleVersion: 1,
+      triggerEventId: 'evt-0702',
+      triggerSummary: '₹78,500.00 from ACME Payroll into Savings ••••4821',
+      startedAt: iso(78, 4),
+      outcome: 'PARTIAL',
+      actions: [
+        { type: 'TRANSFER', amount: '15700.0000' },
+        { type: 'BUY', amount: null, error: 'INSUFFICIENT_FUNDS' },
+      ],
+    },
   ])
   s.ruleRuns.set(sweep.id, [
-    { id: 'fb000000-0000-4000-8000-000000000004', ruleVersion: 1, triggerEventId: 'daily-check', triggerSummary: 'Daily check: Checking ••••9067 held ₹58,240.00', startedAt: iso(6, 2), outcome: 'SUCCEEDED', actions: [{ type: 'TRANSFER', amount: '8240.0000' }] },
+    {
+      id: 'fb000000-0000-4000-8000-000000000004',
+      ruleVersion: 1,
+      triggerEventId: 'daily-check',
+      triggerSummary: 'Daily check: Checking ••••9067 held ₹58,240.00',
+      startedAt: iso(6, 2),
+      outcome: 'SUCCEEDED',
+      actions: [{ type: 'TRANSFER', amount: '8240.0000' }],
+    },
   ])
   s.ruleRuns.set(sip.id, [
-    { id: 'fb000000-0000-4000-8000-000000000005', ruleVersion: 1, triggerEventId: 'schedule', triggerSummary: 'Scheduled: 5th of the month', startedAt: iso(13, 2), outcome: 'FAILED', actions: [{ type: 'BUY', amount: null, error: 'Condition not met: Savings below ₹20,000.00' }] },
+    {
+      id: 'fb000000-0000-4000-8000-000000000005',
+      ruleVersion: 1,
+      triggerEventId: 'schedule',
+      triggerSummary: 'Scheduled: 5th of the month',
+      startedAt: iso(13, 2),
+      outcome: 'FAILED',
+      actions: [
+        { type: 'BUY', amount: null, error: 'Condition not met: Savings below ₹20,000.00' },
+      ],
+    },
   ])
 }
 
@@ -392,7 +744,12 @@ function seedFraud(s: V2State) {
     topSignal,
     createdAt: iso(daysAgo, 23),
     decidedAt: status === 'OPEN' ? null : iso(daysAgo - 1),
-    decisionReason: status === 'OPEN' ? null : status === 'RELEASED' ? 'Customer confirmed by phone.' : 'Customer did not recognise the payee.',
+    decisionReason:
+      status === 'OPEN'
+        ? null
+        : status === 'RELEASED'
+          ? 'Customer confirmed by phone.'
+          : 'Customer did not recognise the payee.',
     memo:
       status === 'OPEN' || n === 3
         ? {
@@ -410,14 +767,59 @@ function seedFraud(s: V2State) {
       { code: 'NEW_PAYEE_LARGE', label: 'Large amount to a payee added < 24 h ago', weight: 35 },
       { code: 'ODD_HOUR', label: 'Between 00:00 and 05:00 IST', weight: 20 },
       { code: 'VELOCITY', label: '6 transfers in 18 minutes', weight: 25 },
-      { code: 'DEVICE_CHANGE', label: 'First transfer after a password change on a new device', weight: 15 },
+      {
+        code: 'DEVICE_CHANGE',
+        label: 'First transfer after a password change on a new device',
+        weight: 15,
+      },
     ].slice(0, n === 1 ? 2 : 4),
-    customerBaseline: { avgTransfer: '6800.0000', transfers30d: 4, usualHoursIst: '09:00–21:00', accountAgeDays: 92 + n },
+    customerBaseline: {
+      avgTransfer: '6800.0000',
+      transfers30d: 4,
+      usualHoursIst: '09:00–21:00',
+      accountAgeDays: 92 + n,
+    },
   })
   s.fraudCases.push(
-    mk(1, 'OPEN', '145000.0000', PEOPLE.priya, 'R. K. Traders', 86, 'Large amount to a payee added < 24 h ago', 0),
-    mk(2, 'OPEN', '120000.0000', PEOPLE.kavya, 'Multiple payees', 74, '6 transfers in 18 minutes', 1),
-    mk(3, 'RELEASED', '62000.0000', PEOPLE.meera, 'Sunrise Interiors', 61, 'Large amount to a payee added < 24 h ago', 6),
-    mk(4, 'REJECTED', '98000.0000', PEOPLE.rohan, 'Crypto OTC Desk', 91, 'First transfer after a password change on a new device', 9),
+    mk(
+      1,
+      'OPEN',
+      '145000.0000',
+      PEOPLE.priya,
+      'R. K. Traders',
+      86,
+      'Large amount to a payee added < 24 h ago',
+      0,
+    ),
+    mk(
+      2,
+      'OPEN',
+      '120000.0000',
+      PEOPLE.kavya,
+      'Multiple payees',
+      74,
+      '6 transfers in 18 minutes',
+      1,
+    ),
+    mk(
+      3,
+      'RELEASED',
+      '62000.0000',
+      PEOPLE.meera,
+      'Sunrise Interiors',
+      61,
+      'Large amount to a payee added < 24 h ago',
+      6,
+    ),
+    mk(
+      4,
+      'REJECTED',
+      '98000.0000',
+      PEOPLE.rohan,
+      'Crypto OTC Desk',
+      91,
+      'First transfer after a password change on a new device',
+      9,
+    ),
   )
 }

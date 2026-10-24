@@ -42,7 +42,8 @@ const FAILURE: Record<string, string> = {
   COOLING_PERIOD: 'The payee is new and inside the 24-hour cooling period, so nothing moved.',
   LOAN_NOT_ELIGIBLE: 'You’re not eligible for this loan right now, so nothing was applied for.',
   KYC_REQUIRED: 'This needs your KYC details first (Settings → Profile), so nothing happened.',
-  VALIDATION_FAILED: 'This can’t go through any more (for example, they’ve blocked requests from you), so nothing happened.',
+  VALIDATION_FAILED:
+    'This can’t go through any more (for example, they’ve blocked requests from you), so nothing happened.',
 }
 
 /** Where the result of an executed intent can be seen. Keyed by `resultRef.type`, which is the result's
@@ -78,18 +79,30 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
   // The approve/reject response, shown until the refetched list catches up. Once the server's
   // copy has left PROPOSED it is the source of truth.
   const [answered, setIntent] = useState<IntentDto | null>(null)
-  const intent = fromServer.status === 'PROPOSED' && answered?.id === fromServer.id ? answered : fromServer
+  const intent =
+    fromServer.status === 'PROPOSED' && answered?.id === fromServer.id ? answered : fromServer
   const now = useNow()
 
-  const expired = intent.status === 'EXPIRED' || (intent.status === 'PROPOSED' && Date.parse(intent.expiresAt) <= now)
+  const expired =
+    intent.status === 'EXPIRED' ||
+    (intent.status === 'PROPOSED' && Date.parse(intent.expiresAt) <= now)
   const status = expired ? 'EXPIRED' : intent.status
   const minsLeft = Math.max(1, Math.ceil((Date.parse(intent.expiresAt) - now) / 60_000))
 
   const refresh = () =>
     Promise.all(
-      [['accounts'], ['transfers'], ['orders'], ['portfolio'], ['pay'], ['savings'], ['notifications'], ['insights'], ['me-analytics'], ['copilot']].map((k) =>
-        qc.invalidateQueries({ queryKey: k }),
-      ),
+      [
+        ['accounts'],
+        ['transfers'],
+        ['orders'],
+        ['portfolio'],
+        ['pay'],
+        ['savings'],
+        ['notifications'],
+        ['insights'],
+        ['me-analytics'],
+        ['copilot'],
+      ].map((k) => qc.invalidateQueries({ queryKey: k })),
     )
 
   const approve = useMutation({
@@ -126,12 +139,15 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
       aria-label={`Proposed action: ${intent.summary.title}`}
       className={cn(
         'overflow-hidden rounded-[var(--radius-card)] bg-surface-solid hairline',
-        status === 'PROPOSED' && 'border-violet/45 shadow-[0_10px_32px_-18px_color-mix(in_oklab,var(--violet)_80%,transparent)]',
+        status === 'PROPOSED' &&
+          'border-violet/45 shadow-[0_10px_32px_-18px_color-mix(in_oklab,var(--violet)_80%,transparent)]',
       )}
     >
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <p className="eyebrow mb-1">Needs your approval · {AGENT_LABEL[intent.proposedBy.agent] ?? 'Copilot'}</p>
+          <p className="eyebrow mb-1">
+            Needs your approval · {AGENT_LABEL[intent.proposedBy.agent] ?? 'Copilot'}
+          </p>
           <h3 className="font-medium tracking-tight">{intent.summary.title}</h3>
         </div>
         <StatusBadge status={status} riskTone={risk.tone} riskLabel={risk.label} />
@@ -149,7 +165,8 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
       {intent.rationale && (
         <div className="mx-4 mb-3 mt-1 rounded-[var(--radius-control)] bg-violet/8 p-3 text-sm">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-violet">
-            <Sparkles aria-hidden="true" className="size-3.5" /> Copilot’s reasoning (AI-written, not verified)
+            <Sparkles aria-hidden="true" className="size-3.5" /> Copilot’s reasoning (AI-written,
+            not verified)
           </p>
           <p className="text-muted">{intent.rationale}</p>
         </div>
@@ -160,15 +177,26 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
           <>
             {errCopy && <MoneyErrorAlert copy={errCopy} />}
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="violet" disabled={busy} onClick={() => approve.mutate()} className="flex-1">
+              <Button
+                variant="violet"
+                disabled={busy}
+                onClick={() => approve.mutate()}
+                className="flex-1"
+              >
                 {approve.isPending ? (
                   <>
                     <Loader2 className="animate-spin" aria-hidden="true" /> Approving…
                   </>
                 ) : (
                   <>
-                    {intent.requiresStepUp ? <ShieldCheck aria-hidden="true" /> : <Check aria-hidden="true" />}
-                    {err?.code === 'NETWORK' || err?.code === 'INTERNAL_ERROR' ? 'Try again' : 'Approve'}
+                    {intent.requiresStepUp ? (
+                      <ShieldCheck aria-hidden="true" />
+                    ) : (
+                      <Check aria-hidden="true" />
+                    )}
+                    {err?.code === 'NETWORK' || err?.code === 'INTERNAL_ERROR'
+                      ? 'Try again'
+                      : 'Approve'}
                   </>
                 )}
               </Button>
@@ -178,7 +206,9 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
             </div>
             <p className="flex items-center gap-1.5 text-xs text-muted">
               <Clock aria-hidden="true" className="size-3.5" />
-              Expires in {minsLeft} min.{intent.requiresStepUp && ' You’ll confirm with your passkey or PIN.'} Nothing happens until you approve.
+              Expires in {minsLeft} min.
+              {intent.requiresStepUp && ' You’ll confirm with your passkey or PIN.'} Nothing happens
+              until you approve.
             </p>
           </>
         )}
@@ -188,7 +218,10 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
               <Check aria-hidden="true" className="size-4" /> Approved and carried out.
             </span>
             {link && (
-              <Link to={link.to} className="inline-flex items-center gap-1 text-muted hover:text-text">
+              <Link
+                to={link.to}
+                className="inline-flex items-center gap-1 text-muted hover:text-text"
+              >
                 {link.label} <ArrowRight aria-hidden="true" className="size-3.5" />
               </Link>
             )}
@@ -199,17 +232,35 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
             {FAILURE[intent.failureCode ?? ''] ?? 'This couldn’t be carried out, so nothing moved.'}
           </p>
         )}
-        {status === 'REJECTED' && <p className="text-sm text-muted">You declined this. Nothing happened.</p>}
-        {status === 'EXPIRED' && <p className="text-sm text-muted">This expired before it was approved. Ask Copilot again if you still want it.</p>}
+        {status === 'REJECTED' && (
+          <p className="text-sm text-muted">You declined this. Nothing happened.</p>
+        )}
+        {status === 'EXPIRED' && (
+          <p className="text-sm text-muted">
+            This expired before it was approved. Ask Copilot again if you still want it.
+          </p>
+        )}
       </footer>
     </article>
   )
 }
 
-function StatusBadge({ status, riskTone, riskLabel }: { status: IntentDto['status']; riskTone: BadgeTone; riskLabel: string }) {
+function StatusBadge({
+  status,
+  riskTone,
+  riskLabel,
+}: {
+  status: IntentDto['status']
+  riskTone: BadgeTone
+  riskLabel: string
+}) {
   switch (status) {
     case 'PROPOSED':
-      return <Badge tone={riskTone} dot>{riskLabel}</Badge>
+      return (
+        <Badge tone={riskTone} dot>
+          {riskLabel}
+        </Badge>
+      )
     case 'EXECUTED':
       return <Badge tone="gain">Done</Badge>
     case 'FAILED':

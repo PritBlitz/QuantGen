@@ -14,7 +14,10 @@ function captureOrders() {
   const seen: Captured[] = []
   server.events.on('request:start', async ({ request }) => {
     if (request.method === 'POST' && new URL(request.url).pathname === '/api/v1/orders')
-      seen.push({ body: (await request.clone().json()) as Record<string, unknown>, key: request.headers.get('Idempotency-Key') })
+      seen.push({
+        body: (await request.clone().json()) as Record<string, unknown>,
+        key: request.headers.get('Idempotency-Key'),
+      })
   })
   return seen
 }
@@ -64,11 +67,22 @@ describe('limit and stop-loss orders', () => {
     expect(within(sheet).getByText(/is held in your account until it fills/)).toBeInTheDocument()
 
     expect(seen).toHaveLength(1)
-    expect(seen[0]!.body).toMatchObject({ symbol: 'QGEN', side: 'BUY', quantity: 1, orderType: 'LIMIT', limitPrice: '1000', validity: 'GTC' })
+    expect(seen[0]!.body).toMatchObject({
+      symbol: 'QGEN',
+      side: 'BUY',
+      quantity: 1,
+      orderType: 'LIMIT',
+      limitPrice: '1000',
+      validity: 'GTC',
+    })
     expect(seen[0]!.key).toMatch(/^[0-9a-f-]{36}$/)
     const order = db.orders[0]!
     expect(order).toMatchObject({ status: 'OPEN', orderType: 'LIMIT', limitPrice: '1000.0000' })
-    expect(db.v2.holds.some((h) => h.reason === 'LIMIT_ORDER' && h.status === 'ACTIVE' && h.amount === '1000.0000')).toBe(true)
+    expect(
+      db.v2.holds.some(
+        (h) => h.reason === 'LIMIT_ORDER' && h.status === 'ACTIVE' && h.amount === '1000.0000',
+      ),
+    ).toBe(true)
   })
 
   it('offers stop-loss on the sell side and sends the trigger price', async () => {
@@ -84,7 +98,12 @@ describe('limit and stop-loss orders', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Review stop-loss sell' }))
     await user.click(await within(sheet).findByRole('button', { name: 'Place stop-loss sell' }))
     expect(await within(sheet).findByText(/at market if the price falls to/)).toBeInTheDocument()
-    expect(seen[0]!.body).toMatchObject({ side: 'SELL', orderType: 'STOP_LOSS', triggerPrice: '1100.50', validity: 'DAY' })
+    expect(seen[0]!.body).toMatchObject({
+      side: 'SELL',
+      orderType: 'STOP_LOSS',
+      triggerPrice: '1100.50',
+      validity: 'DAY',
+    })
   })
 
   it('cancels an open order after confirmation and releases its hold', async () => {
@@ -92,12 +111,27 @@ describe('limit and stop-loss orders', () => {
     const user = userEvent.setup()
     // Rest a limit buy first, through the API like the ticket does.
     const { tradeApi } = await import('@/api/endpoints.v2')
-    const accountId = [...db.accounts.values()].find((a) => a.userId === DEMO_USER_ID && a.status === 'ACTIVE')!.id
-    const placed = await tradeApi.placeOrder({ accountId, symbol: 'HDFC', side: 'BUY', quantity: 2, orderType: 'LIMIT', limitPrice: '1500.00', validity: 'DAY' }, crypto.randomUUID())
+    const accountId = [...db.accounts.values()].find(
+      (a) => a.userId === DEMO_USER_ID && a.status === 'ACTIVE',
+    )!.id
+    const placed = await tradeApi.placeOrder(
+      {
+        accountId,
+        symbol: 'HDFC',
+        side: 'BUY',
+        quantity: 2,
+        orderType: 'LIMIT',
+        limitPrice: '1500.00',
+        validity: 'DAY',
+      },
+      crypto.randomUUID(),
+    )
     expect(placed.status).toBe('OPEN')
 
     renderApp('/orders')
-    const cancel = (await screen.findAllByRole('button', { name: 'Cancel buy order for 2 HDFC' }))[0]!
+    const cancel = (
+      await screen.findAllByRole('button', { name: 'Cancel buy order for 2 HDFC' })
+    )[0]!
     await user.click(cancel)
     const dialog = await screen.findByRole('dialog', { name: 'Cancel this order?' })
     await user.click(within(dialog).getByRole('button', { name: 'Cancel order' }))
@@ -116,7 +150,9 @@ describe('watchlists and price alerts', () => {
     const { unmount } = renderApp('/markets')
     await user.click(await screen.findByRole('radio', { name: 'Tech' }))
     const table = (await screen.findAllByRole('table', { name: 'Instruments and live prices' }))[0]!
-    await waitFor(() => expect(within(table).queryByRole('link', { name: 'QGEN' })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(within(table).queryByRole('link', { name: 'QGEN' })).not.toBeInTheDocument(),
+    )
     expect(within(table).getByRole('link', { name: 'INFY' })).toBeInTheDocument()
     unmount()
 
@@ -126,7 +162,12 @@ describe('watchlists and price alerts', () => {
     const tech = within(dialog).getByRole('checkbox', { name: /Tech/ })
     expect(tech).toHaveAttribute('aria-checked', 'false')
     await user.click(tech)
-    await waitFor(() => expect(within(dialog).getByRole('checkbox', { name: /Tech/ })).toHaveAttribute('aria-checked', 'true'))
+    await waitFor(() =>
+      expect(within(dialog).getByRole('checkbox', { name: /Tech/ })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    )
     expect(db.v2.watchlists.find((w) => w.name === 'Tech')?.symbols).toContain('QGEN')
   })
 
@@ -143,8 +184,17 @@ describe('watchlists and price alerts', () => {
     await user.clear(price)
     await user.type(price, '99999')
     await user.click(within(card).getByRole('button', { name: 'Set alert' }))
-    await waitFor(() => expect(db.v2.alerts[0]).toMatchObject({ symbol: 'INFY', direction: 'ABOVE', price: '99999.0000', status: 'ACTIVE' }))
-    expect(await screen.findByRole('button', { name: /Delete alert: INFY rises above/ })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(db.v2.alerts[0]).toMatchObject({
+        symbol: 'INFY',
+        direction: 'ABOVE',
+        price: '99999.0000',
+        status: 'ACTIVE',
+      }),
+    )
+    expect(
+      await screen.findByRole('button', { name: /Delete alert: INFY rises above/ }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -193,7 +243,11 @@ describe('strategy lab and tax report', () => {
     signInAs('CUSTOMER')
     renderApp('/portfolio/tax')
     expect(await screen.findByText('Short-term gains')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: `FY ${financialYear(new Date().toISOString().slice(0, 10))}` })).toBeInTheDocument()
+    expect(
+      screen.getByRole('radio', {
+        name: `FY ${financialYear(new Date().toISOString().slice(0, 10))}`,
+      }),
+    ).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
     expect(screen.getAllByText('TCS').length).toBeGreaterThan(0)
   })

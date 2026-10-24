@@ -24,14 +24,21 @@ export interface HashedNode {
   sum: string
 }
 
-export async function leafNode(accountId: string, balance: MoneyString, salt: string): Promise<HashedNode> {
+export async function leafNode(
+  accountId: string,
+  balance: MoneyString,
+  salt: string,
+): Promise<HashedNode> {
   const sum = fmt4(balance)
   return { hash: await sha256Hex(`${accountId}|${sum}|${salt}`), sum }
 }
 
 export async function parentNode(left: HashedNode, right: HashedNode): Promise<HashedNode> {
   const sum = toDecimal(left.sum).plus(right.sum).toFixed(4)
-  return { hash: await sha256Hex(`${left.hash}|${fmt4(left.sum)}|${right.hash}|${fmt4(right.sum)}`), sum }
+  return {
+    hash: await sha256Hex(`${left.hash}|${fmt4(left.sum)}|${right.hash}|${fmt4(right.sum)}`),
+    sum,
+  }
 }
 
 export interface VerifyStep {
@@ -61,13 +68,20 @@ export async function verifyBalanceProof(
   const steps: VerifyStep[] = [{ level: 0, node }]
   for (const [i, sib] of proof.path.entries()) {
     if (toDecimal(sib.sum).isNegative()) {
-      return { ok: false, reason: 'A node in the proof has a negative sum, which isn’t allowed.', computedRoot: node.hash, computedTotal: node.sum, steps }
+      return {
+        ok: false,
+        reason: 'A node in the proof has a negative sum, which isn’t allowed.',
+        computedRoot: node.hash,
+        computedTotal: node.sum,
+        steps,
+      }
     }
     const sibling = { hash: sib.hash, sum: fmt4(sib.sum) }
     node = sib.side === 'LEFT' ? await parentNode(sibling, node) : await parentNode(node, sibling)
     steps.push({ level: i + 1, node })
   }
-  const rootOk = node.hash === published.root.toLowerCase() && node.hash === proof.root.toLowerCase()
+  const rootOk =
+    node.hash === published.root.toLowerCase() && node.hash === proof.root.toLowerCase()
   const totalOk = toDecimal(node.sum).eq(published.totalLiabilities)
   return {
     ok: rootOk && totalOk,

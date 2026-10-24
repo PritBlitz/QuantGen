@@ -9,7 +9,10 @@ describe('payment links (F-PAY-7)', () => {
     expect(parsePayLink(link, O)).toEqual({ handle: 'aarav@qg', amount: '500.00', note: 'Dinner' })
   })
   it('accepts the legacy quantgen:// form', () => {
-    expect(parsePayLink('quantgen://pay?h=meera@qg&am=10', O)).toEqual({ handle: 'meera@qg', amount: '10' })
+    expect(parsePayLink('quantgen://pay?h=meera@qg&am=10', O)).toEqual({
+      handle: 'meera@qg',
+      amount: '10',
+    })
   })
   it('rejects other sites, bad handles and drops bad amounts', () => {
     expect(parsePayLink('https://evil.example/transfer?to=aarav@qg', O)).toBeNull()

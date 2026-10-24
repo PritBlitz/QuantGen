@@ -50,30 +50,32 @@ export function AccountsCard({ className }: { className?: string }) {
       ) : (
         <>
           <ul className="space-y-2">
-            {data.filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-surface-2 px-4 py-3.5"
-              >
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-medium">
-                    {TYPE_LABEL[a.type]} <StatusBadge status={a.status} />
-                  </p>
-                  <MaskedAccount
-                    accountNumber={a.accountNumber}
-                    className="mt-0.5 text-xs text-muted"
-                  />
-                </div>
-                <div className="text-right">
-                  <Money value={a.balance} className="block text-base font-medium sm:text-lg" />
-                  {a.availableBalance && a.availableBalance !== a.balance && (
-                    <span className="text-[0.6875rem] text-muted">
-                      <Money value={a.availableBalance} /> available
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
+            {data
+              .filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING')
+              .map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-surface-2 px-4 py-3.5"
+                >
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {TYPE_LABEL[a.type]} <StatusBadge status={a.status} />
+                    </p>
+                    <MaskedAccount
+                      accountNumber={a.accountNumber}
+                      className="mt-0.5 text-xs text-muted"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <Money value={a.balance} className="block text-base font-medium sm:text-lg" />
+                    {a.availableBalance && a.availableBalance !== a.balance && (
+                      <span className="text-[0.6875rem] text-muted">
+                        <Money value={a.availableBalance} /> available
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
             {data.some((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT') && (
               <li>
                 <Link
@@ -83,11 +85,16 @@ export function AccountsCard({ className }: { className?: string }) {
                   <div>
                     <p className="text-sm font-medium">Goals &amp; deposits</p>
                     <p className="text-xs text-muted">
-                      {data.filter((a) => a.type === 'GOAL').length} goals · {data.filter((a) => a.type === 'FIXED_DEPOSIT').length} FD
+                      {data.filter((a) => a.type === 'GOAL').length} goals ·{' '}
+                      {data.filter((a) => a.type === 'FIXED_DEPOSIT').length} FD
                     </p>
                   </div>
                   <Money
-                    value={sumMoney(data.filter((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT').map((a) => a.balance))}
+                    value={sumMoney(
+                      data
+                        .filter((a) => a.type === 'GOAL' || a.type === 'FIXED_DEPOSIT')
+                        .map((a) => a.balance),
+                    )}
                     className="text-base font-medium sm:text-lg"
                   />
                 </Link>

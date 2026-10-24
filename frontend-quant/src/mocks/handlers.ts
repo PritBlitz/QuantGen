@@ -195,7 +195,12 @@ export const toLoanDto = ({
   schedule: _s,
   ...l
 }: MockLoan) => l
-export const toLoanDetail = ({ userId: _u, monthlyIncome: _m, disburseAccountId: _d, ...l }: MockLoan) => l
+export const toLoanDetail = ({
+  userId: _u,
+  monthlyIncome: _m,
+  disburseAccountId: _d,
+  ...l
+}: MockLoan) => l
 
 export const existingEmis = (userId: string) =>
   db.loans
@@ -236,9 +241,13 @@ export function toAdminLoan(loan: MockLoan): AdminLoanDto {
     decisionReason: loan.decisionReason,
   }
 }
-export const ownAccounts = (userId: string) => [...db.accounts.values()].filter((a) => a.userId === userId)
+export const ownAccounts = (userId: string) =>
+  [...db.accounts.values()].filter((a) => a.userId === userId)
 /** Public shape, plus the v2 fields (PRD §12.2): available balance after active holds, goal info. */
-export const publicAccount = ({ userId: _u, ...a }: AccountDto & { userId: string }): AccountDto => {
+export const publicAccount = ({
+  userId: _u,
+  ...a
+}: AccountDto & { userId: string }): AccountDto => {
   const holds = db.v2.holds
     .filter((h) => h.accountId === a.id && h.status === 'ACTIVE')
     .reduce((sum, h) => sum.plus(h.amount), new Decimal(0))
@@ -370,7 +379,6 @@ export function stepUpGate(request: Request, user: UserDto, action: StepUpAction
   )
 }
 
-
 // ── handlers ──────────────────────────────────────────────────────────────────────────
 export const handlers = [
   // §7.2 Auth
@@ -490,12 +498,17 @@ export const handlers = [
     if (b.type === 'GOAL') {
       const fe: FieldError[] = []
       const name = typeof b.name === 'string' ? b.name.trim() : ''
-      if (name.length < 1 || name.length > 40) fe.push({ field: 'name', message: 'must be 1–40 characters' })
+      if (name.length < 1 || name.length > 40)
+        fe.push({ field: 'name', message: 'must be 1–40 characters' })
       if (!isMoney(b.target) || new Decimal(String(b.target)).lt(100))
         fe.push({ field: 'target', message: 'must be at least 100.00' })
-      if (b.targetDate !== undefined && (typeof b.targetDate !== 'string' || !IST_DATE.test(b.targetDate)))
+      if (
+        b.targetDate !== undefined &&
+        (typeof b.targetDate !== 'string' || !IST_DATE.test(b.targetDate))
+      )
         fe.push({ field: 'targetDate', message: 'must be a date (yyyy-MM-dd)' })
-      if (fe.length) return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
+      if (fe.length)
+        return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, fe)
       if (ownAccounts(user.id).filter((a) => a.type === 'GOAL').length >= 10)
         return error(422, 'LIMIT_EXCEEDED', 'At most 10 goals', request)
       const goal = {
@@ -521,7 +534,9 @@ export const handlers = [
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
         { field: 'type', message: 'must be SAVINGS or CHECKING' },
       ])
-    if (ownAccounts(user.id).filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').length >= 3)
+    if (
+      ownAccounts(user.id).filter((a) => a.type === 'SAVINGS' || a.type === 'CHECKING').length >= 3
+    )
       return error(422, 'LIMIT_EXCEEDED', 'A customer can hold at most 3 accounts', request)
     const acc = {
       id: crypto.randomUUID(),
@@ -611,7 +626,9 @@ export const handlers = [
         return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
           { field: 'toHandle', message: 'send either toHandle or toAccountNumber, not both' },
         ])
-      const h = [...db.v2.handles.values()].find((x) => x.handle === String(b.toHandle).toLowerCase())
+      const h = [...db.v2.handles.values()].find(
+        (x) => x.handle === String(b.toHandle).toLowerCase(),
+      )
       const acc = h ? db.accounts.get(h.accountId) : undefined
       if (!acc)
         return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
@@ -679,15 +696,25 @@ export const handlers = [
           .filter((t) => t.userId === user.id && t.toAccountNumber === to.accountNumber)
           .reduce((s2, t) => s2.plus(t.amount), new Decimal(0))
         if (sent.plus(amount).gt(25000))
-          return error(422, 'COOLING_PERIOD', 'New payee: ₹25,000 limit in the first 24 hours', request)
+          return error(
+            422,
+            'COOLING_PERIOD',
+            'New payee: ₹25,000 limit in the first 24 hours',
+            request,
+          )
       }
     }
     // v2 (F-SEC-2): step-up for transfers above ₹50,000 to someone else, or the first transfer
     // to a payee saved less than 24 h ago.
     const newPayee = db.beneficiaries.find(
-      (x) => x.userId === user.id && x.accountNumber === to.accountNumber && Date.now() - Date.parse(x.createdAt) < 86_400_000,
+      (x) =>
+        x.userId === user.id &&
+        x.accountNumber === to.accountNumber &&
+        Date.now() - Date.parse(x.createdAt) < 86_400_000,
     )
-    const firstToNewPayee = !!newPayee && !db.transfers.some((t) => t.userId === user.id && t.toAccountNumber === to.accountNumber)
+    const firstToNewPayee =
+      !!newPayee &&
+      !db.transfers.some((t) => t.userId === user.id && t.toAccountNumber === to.accountNumber)
     if (to.userId !== user.id && (amount.gt(50000) || firstToNewPayee)) {
       const gate = stepUpGate(request, user, 'TRANSFER')
       if (gate) return gate
@@ -702,9 +729,19 @@ export const handlers = [
     if (!toUser) return error(500, 'INTERNAL_ERROR', 'Mock data inconsistent', request)
     const note = typeof b.note === 'string' ? b.note : null
     // v2 (F-RISK-1): very large transfers to someone else are held for fraud review (mock rule).
-    if (to.userId !== user.id && db.v2.riskReviewAbove !== null && amount.gte(db.v2.riskReviewAbove)) {
+    if (
+      to.userId !== user.id &&
+      db.v2.riskReviewAbove !== null &&
+      amount.gte(db.v2.riskReviewAbove)
+    ) {
       const holdId = crypto.randomUUID()
-      db.v2.holds.push({ id: holdId, accountId: from.id, amount: amount.toFixed(4), reason: 'FRAUD_REVIEW', status: 'ACTIVE' })
+      db.v2.holds.push({
+        id: holdId,
+        accountId: from.id,
+        amount: amount.toFixed(4),
+        reason: 'FRAUD_REVIEW',
+        status: 'ACTIVE',
+      })
       const pending: TransferDto = {
         id: crypto.randomUUID(),
         fromAccountNumber: from.accountNumber,
@@ -732,10 +769,22 @@ export const handlers = [
         decidedAt: null,
         decisionReason: null,
         memo: null,
-        signals: [{ code: 'LARGE_AMOUNT', label: 'Unusually large amount for this customer', weight: 40 }],
-        customerBaseline: { avgTransfer: '6800.0000', transfers30d: 4, usualHoursIst: '09:00–21:00', accountAgeDays: 108 },
+        signals: [
+          { code: 'LARGE_AMOUNT', label: 'Unusually large amount for this customer', weight: 40 },
+        ],
+        customerBaseline: {
+          avgTransfer: '6800.0000',
+          transfers30d: 4,
+          usualHoursIst: '09:00–21:00',
+          accountAgeDays: 108,
+        },
       })
-      notify(user.id, 'TRANSFER_UNDER_REVIEW', 'Transfer under review', `${inr(amount)} to ${toUser.fullName} is being checked. The money is held, not sent.`)
+      notify(
+        user.id,
+        'TRANSFER_UNDER_REVIEW',
+        'Transfer under review',
+        `${inr(amount)} to ${toUser.fullName} is being checked. The money is held, not sent.`,
+      )
       idem.save(201, pending)
       return HttpResponse.json(pending, { status: 201 })
     }

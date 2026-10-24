@@ -28,7 +28,10 @@ export function BudgetsDialog({
 }) {
   const save = useSaveBudgets()
   const [rows, setRows] = useState<Row[]>(() =>
-    budgets.map((b) => ({ category: b.category, limit: toDecimal(b.monthlyLimit).toDecimalPlaces(0).toFixed(0) })),
+    budgets.map((b) => ({
+      category: b.category,
+      limit: toDecimal(b.monthlyLimit).toDecimalPlaces(0).toFixed(0),
+    })),
   )
   const [error, setError] = useState<string | null>(null)
   const free = BUDGETABLE.filter((c) => !rows.some((r) => r.category === c))
@@ -63,18 +66,27 @@ export function BudgetsDialog({
         <ul className="space-y-3">
           {rows.map((r, i) => (
             <li key={r.category} className="grid grid-cols-[1fr_9rem_auto] items-end gap-2">
-              <Select aria-label="Category"
+              <Select
+                aria-label="Category"
                 value={r.category}
                 onValueChange={(v) =>
-                  setRows((rs) => rs.map((x, j) => (j === i ? { ...x, category: v as Category } : x)))
+                  setRows((rs) =>
+                    rs.map((x, j) => (j === i ? { ...x, category: v as Category } : x)),
+                  )
                 }
-                options={[r.category, ...free].map((c) => ({ value: c, label: CATEGORIES[c].label, text: CATEGORIES[c].label }))}
+                options={[r.category, ...free].map((c) => ({
+                  value: c,
+                  label: CATEGORIES[c].label,
+                  text: CATEGORIES[c].label,
+                }))}
               />
               <AmountInput
                 label={`${CATEGORIES[r.category].label} limit`}
                 className="h-11 [&_input]:text-base"
                 value={r.limit}
-                onValueChange={(v) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, limit: v } : x)))}
+                onValueChange={(v) =>
+                  setRows((rs) => rs.map((x, j) => (j === i ? { ...x, limit: v } : x)))
+                }
               />
               <Button
                 variant="ghost"
@@ -92,7 +104,9 @@ export function BudgetsDialog({
             variant="outline"
             size="sm"
             className="mt-4"
-            onClick={() => setRows((rs) => [...rs, { category: free[0] as Category, limit: '2000' }])}
+            onClick={() =>
+              setRows((rs) => [...rs, { category: free[0] as Category, limit: '2000' }])
+            }
           >
             <Plus aria-hidden="true" /> Add a budget
           </Button>

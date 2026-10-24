@@ -37,7 +37,11 @@ function NewWatchlistForm({ onCreated }: { onCreated?: (w: WatchlistDto) => void
       },
       onError: (err) => {
         const ae = toApiError(err)
-        setError(ae.code === 'LIMIT_EXCEEDED' ? `You can have up to ${MAX_WATCHLISTS} lists.` : errorMessage(ae))
+        setError(
+          ae.code === 'LIMIT_EXCEEDED'
+            ? `You can have up to ${MAX_WATCHLISTS} lists.`
+            : errorMessage(ae),
+        )
       },
     })
   }
@@ -55,7 +59,11 @@ function NewWatchlistForm({ onCreated }: { onCreated?: (w: WatchlistDto) => void
           aria-describedby={error ? `${id}-error` : undefined}
         />
         <Button type="submit" variant="secondary" disabled={create.isPending}>
-          {create.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Plus aria-hidden="true" />}
+          {create.isPending ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Plus aria-hidden="true" />
+          )}
           Create
         </Button>
       </div>
@@ -77,12 +85,7 @@ export function WatchButton({ symbol }: { symbol: string }) {
   const watched = data.some((w) => w.symbols.includes(symbol))
   return (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => setOpen(true)}
-        disabled={!lists.data}
-      >
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)} disabled={!lists.data}>
         <Star aria-hidden="true" className={cn(watched && 'fill-current text-accent')} />
         {watched ? 'Watching' : 'Watch'}
         <span className="sr-only"> {symbol}</span>
@@ -125,12 +128,12 @@ export function WatchButton({ symbol }: { symbol: string }) {
                 </li>
               )
             })}
-            {data.length === 0 && <li className="text-sm text-muted">No lists yet. Create one below.</li>}
+            {data.length === 0 && (
+              <li className="text-sm text-muted">No lists yet. Create one below.</li>
+            )}
           </ul>
           {data.length < MAX_WATCHLISTS && (
-            <NewWatchlistForm
-              onCreated={(w) => toggle.mutate({ id: w.id, symbol, on: true })}
-            />
+            <NewWatchlistForm onCreated={(w) => toggle.mutate({ id: w.id, symbol, on: true })} />
           )}
         </DialogContent>
       </Dialog>

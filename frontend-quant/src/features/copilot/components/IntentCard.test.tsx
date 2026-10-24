@@ -45,7 +45,12 @@ describe('IntentCard result link', () => {
   })
 
   it('explains a loan the server refused at approval', () => {
-    show({ ...executed('LOAN_APPLICATION', 'LOAN'), status: 'FAILED', resultRef: null, failureCode: 'LOAN_NOT_ELIGIBLE' })
+    show({
+      ...executed('LOAN_APPLICATION', 'LOAN'),
+      status: 'FAILED',
+      resultRef: null,
+      failureCode: 'LOAN_NOT_ELIGIBLE',
+    })
     expect(screen.getByRole('alert')).toHaveTextContent('not eligible for this loan')
   })
 })

@@ -29,7 +29,11 @@ export function CardPayments({ card }: { card: CardDto }) {
   // The 60-day window only needs day precision: read the clock once, not on every render.
   const [now] = useState(() => Date.now())
   return (
-    <Panel eyebrow={`•••• ${card.last4}`} title="Payments" description="Something wrong with a payment? Raise a dispute and our team reviews it.">
+    <Panel
+      eyebrow={`•••• ${card.last4}`}
+      title="Payments"
+      description="Something wrong with a payment? Raise a dispute and our team reviews it."
+    >
       {payments.isError ? (
         <PanelError what="card payments" onRetry={() => void payments.refetch()} />
       ) : !payments.data ? (
@@ -59,7 +63,12 @@ export function CardPayments({ card }: { card: CardDto }) {
                 {p.openDisputeId ? (
                   <Badge tone="warn">Disputed</Badge>
                 ) : canDispute ? (
-                  <Button size="sm" variant="ghost" onClick={() => setDisputing(p)} aria-label={`Dispute ${p.merchant} payment`}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDisputing(p)}
+                    aria-label={`Dispute ${p.merchant} payment`}
+                  >
                     <Flag aria-hidden="true" /> Dispute
                   </Button>
                 ) : null}
@@ -73,7 +82,15 @@ export function CardPayments({ card }: { card: CardDto }) {
   )
 }
 
-function DisputeDialog({ card, payment, onClose }: { card: CardDto; payment: CardPaymentDto | null; onClose: () => void }) {
+function DisputeDialog({
+  card,
+  payment,
+  onClose,
+}: {
+  card: CardDto
+  payment: CardPaymentDto | null
+  onClose: () => void
+}) {
   const open = useOpenDispute(card.id)
   return (
     <Dialog open={!!payment} onOpenChange={(o) => !o && !open.isPending && onClose()}>
@@ -81,7 +98,15 @@ function DisputeDialog({ card, payment, onClose }: { card: CardDto; payment: Car
         title="Dispute this payment?"
         description="No money moves yet. Our team reviews it, and if it’s upheld the amount comes back to your account. You’ll get a notification either way."
       >
-        {payment && <DisputeForm key={payment.authId} payment={payment} submit={open.mutateAsync} pending={open.isPending} onDone={onClose} />}
+        {payment && (
+          <DisputeForm
+            key={payment.authId}
+            payment={payment}
+            submit={open.mutateAsync}
+            pending={open.isPending}
+            onDone={onClose}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -110,7 +135,8 @@ function DisputeForm({
     const e: typeof errors = {}
     if (!reason) e.reason = 'Choose what went wrong'
     if (!AMOUNT_INPUT_RE.test(amount) || toDecimal(amount).lte(0)) e.amount = 'Enter an amount'
-    else if (toDecimal(amount).gt(payment.disputableAmount)) e.amount = `At most ${toDecimal(payment.disputableAmount).toFixed(2)}`
+    else if (toDecimal(amount).gt(payment.disputableAmount))
+      e.amount = `At most ${toDecimal(payment.disputableAmount).toFixed(2)}`
     if (note.trim().length > NOTE_MAX) e.note = `Keep it under ${NOTE_MAX} characters`
     setErrors(e)
     return Object.keys(e).length === 0
@@ -121,15 +147,25 @@ function DisputeForm({
     setFailure(null)
     try {
       const full = toDecimal(amount).eq(payment.disputableAmount)
-      await submit({ authId: payment.authId, reason, ...(full ? {} : { amount: toDecimal(amount).toFixed(2) }), ...(note.trim() ? { note: note.trim() } : {}) })
+      await submit({
+        authId: payment.authId,
+        reason,
+        ...(full ? {} : { amount: toDecimal(amount).toFixed(2) }),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      })
       toast.success('Dispute raised. We’ll let you know the outcome.')
       onDone()
     } catch (e) {
       const ae = toApiError(e)
       const byField = Object.fromEntries(ae.fieldErrors.map((f) => [f.field, f.message]))
-      if (byField.amount || byField.note || byField.reason) setErrors({ amount: byField.amount, note: byField.note, reason: byField.reason })
-      else if (ae.code === 'INVALID_STATE') setFailure('This payment can’t be disputed any more (it may already be disputed, or it’s over 60 days old).')
-      else if (ae.code === 'LIMIT_EXCEEDED') setFailure('You have too many disputes open right now. Wait for one to be resolved.')
+      if (byField.amount || byField.note || byField.reason)
+        setErrors({ amount: byField.amount, note: byField.note, reason: byField.reason })
+      else if (ae.code === 'INVALID_STATE')
+        setFailure(
+          'This payment can’t be disputed any more (it may already be disputed, or it’s over 60 days old).',
+        )
+      else if (ae.code === 'LIMIT_EXCEEDED')
+        setFailure('You have too many disputes open right now. Wait for one to be resolved.')
       else setFailure(errorMessage(ae))
     }
   }
@@ -144,7 +180,8 @@ function DisputeForm({
       }}
     >
       <div className="rounded-[var(--radius-control)] bg-surface-2 p-4 text-sm">
-        <Money value={payment.capturedAmount} className="font-medium" /> at {payment.merchant} · {formatDate(payment.capturedAt)}
+        <Money value={payment.capturedAmount} className="font-medium" /> at {payment.merchant} ·{' '}
+        {formatDate(payment.capturedAt)}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${id}-reason`}>What went wrong?</Label>
@@ -154,16 +191,32 @@ function DisputeForm({
           placeholder="Choose a reason"
           invalid={!!errors.reason}
           onValueChange={(v) => setReason(v as DisputeReason)}
-          options={(Object.keys(DISPUTE_REASON) as DisputeReason[]).map((r) => ({ value: r, label: DISPUTE_REASON[r], text: DISPUTE_REASON[r] }))}
+          options={(Object.keys(DISPUTE_REASON) as DisputeReason[]).map((r) => ({
+            value: r,
+            label: DISPUTE_REASON[r],
+            text: DISPUTE_REASON[r],
+          }))}
         />
         <FieldMessage id={`${id}-reason-error`}>{errors.reason}</FieldMessage>
       </div>
-      <AmountInput label="Amount to dispute" value={amount} onValueChange={setAmount} error={errors.amount} />
+      <AmountInput
+        label="Amount to dispute"
+        value={amount}
+        onValueChange={setAmount}
+        error={errors.amount}
+      />
       <div className="space-y-1.5">
         <Label htmlFor={`${id}-note`}>
           Details <span className="font-normal text-muted">(optional)</span>
         </Label>
-        <Textarea id={`${id}-note`} value={note} maxLength={NOTE_MAX + 20} onChange={(e) => setNote(e.target.value)} aria-invalid={errors.note ? true : undefined} placeholder="e.g. The order never arrived" />
+        <Textarea
+          id={`${id}-note`}
+          value={note}
+          maxLength={NOTE_MAX + 20}
+          onChange={(e) => setNote(e.target.value)}
+          aria-invalid={errors.note ? true : undefined}
+          placeholder="e.g. The order never arrived"
+        />
         <FieldMessage id={`${id}-note-error`}>{errors.note}</FieldMessage>
       </div>
       {failure && <MoneyErrorAlert copy={{ title: 'That didn’t go through.', detail: failure }} />}
@@ -199,9 +252,12 @@ export function MyDisputes() {
                   <Badge tone={s.tone}>{s.label}</Badge>
                 </span>
                 <span className="block text-xs text-muted">
-                  {DISPUTE_REASON[d.reason] ?? d.reason} · •••• {d.last4} · {formatRelative(d.createdAt)}
+                  {DISPUTE_REASON[d.reason] ?? d.reason} · •••• {d.last4} ·{' '}
+                  {formatRelative(d.createdAt)}
                 </span>
-                {d.resolutionReason && <span className="mt-1 block text-xs">{d.resolutionReason}</span>}
+                {d.resolutionReason && (
+                  <span className="mt-1 block text-xs">{d.resolutionReason}</span>
+                )}
               </span>
               <Money value={d.amount} />
             </li>

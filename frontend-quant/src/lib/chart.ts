@@ -15,8 +15,12 @@ export function plotValue(value: DecimalString | null | undefined): number {
 export function axisDate(t: string, month = false): string {
   const d = new Date(`${t.length === 7 ? `${t}-01` : t.slice(0, 10)}T00:00:00Z`)
   return month
-    ? new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(d).replace(' ', ' ’')
-    : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(d)
+    ? new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' })
+        .format(d)
+        .replace(' ', ' ’')
+    : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+        d,
+      )
 }
 
 /** Chart palette from CSS tokens (DESIGN.md v2 §1). */

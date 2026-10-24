@@ -26,9 +26,15 @@ function toEvent(type: string, data: string): CopilotEvent | null {
     case 'token':
       return typeof p.text === 'string' ? { type: 'token', text: p.text } : null
     case 'intent':
-      return { type: 'intent', intent: payload as Extract<CopilotEvent, { type: 'intent' }>['intent'] }
+      return {
+        type: 'intent',
+        intent: payload as Extract<CopilotEvent, { type: 'intent' }>['intent'],
+      }
     case 'citation':
-      return { type: 'citation', citation: payload as Extract<CopilotEvent, { type: 'citation' }>['citation'] }
+      return {
+        type: 'citation',
+        citation: payload as Extract<CopilotEvent, { type: 'citation' }>['citation'],
+      }
     default:
       return { type, ...p } as CopilotEvent
   }
@@ -75,8 +81,13 @@ async function errorFrom(res: Response): Promise<ApiError> {
   }
   return new ApiError({
     status: res.status,
-    code: (typeof body.code === 'string' ? body.code : res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR') as ApiError['code'],
-    message: typeof body.message === 'string' ? body.message : 'Unexpected response from the server',
+    code: (typeof body.code === 'string'
+      ? body.code
+      : res.status === 401
+        ? 'UNAUTHORIZED'
+        : 'INTERNAL_ERROR') as ApiError['code'],
+    message:
+      typeof body.message === 'string' ? body.message : 'Unexpected response from the server',
     fieldErrors: body.fieldErrors ?? [],
     requestId: body.requestId ?? null,
   })
@@ -112,7 +123,8 @@ export async function streamMessage(
     res = await post(conversationId, text, signal)
     if (res.status === 401) {
       // An expired access token: refresh once (shared single-flight) and retry.
-      if (!(await refreshSession())) throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Session ended' })
+      if (!(await refreshSession()))
+        throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Session ended' })
       res = await post(conversationId, text, signal)
     }
   } catch (e) {

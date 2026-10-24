@@ -180,7 +180,9 @@ test('loan lifecycle, notifications, freeze and audit against the real API', asy
 
 // V2-M3 against the real API: PIN → goal → FD booked → closed early with step-up (FD_CLOSE),
 // paying 0 interest under 7 days and returning the principal.
-test('savings: set PIN, create a goal, book an FD and close it early with step-up', async ({ page }) => {
+test('savings: set PIN, create a goal, book an FD and close it early with step-up', async ({
+  page,
+}) => {
   test.setTimeout(120_000)
   const n = Date.now().toString().slice(-9)
   await page.goto('/register')
@@ -243,13 +245,20 @@ test('savings: set PIN, create a goal, book an FD and close it early with step-u
   await expect(page.getByText('₹5,000.00').first()).toBeVisible()
 })
 
-test('cards: issue, reveal with step-up, pay the demo store → hold → capture → refund', async ({ page, playwright, baseURL }) => {
+test('cards: issue, reveal with step-up, pay the demo store → hold → capture → refund', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   // Cards sit behind a feature flag (off on a fresh :8080). Turn it on as admin, restore after.
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).cards as boolean
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .cards as boolean
   await admin.put('/api/v1/admin/feature-flags/cards', { headers: auth, data: { enabled: true } })
   try {
     const n = Date.now().toString().slice(-9)
@@ -310,35 +319,71 @@ test('cards: issue, reveal with step-up, pay the demo store → hold → capture
     await go(page, 'Accounts')
     await expect(page.getByText('₹5,000.00').first()).toBeVisible()
   } finally {
-    await admin.put('/api/v1/admin/feature-flags/cards', { headers: auth, data: { enabled: wasOn } })
+    await admin.put('/api/v1/admin/feature-flags/cards', {
+      headers: auth,
+      data: { enabled: wasOn },
+    })
     await admin.dispose()
   }
 })
 
 /** A fresh customer created through the API, with its own cookie jar. */
-async function apiCustomer(playwright: { request: APIRequest }, baseURL: string | undefined, tag: string) {
+async function apiCustomer(
+  playwright: { request: APIRequest },
+  baseURL: string | undefined,
+  tag: string,
+) {
   const ctx = await playwright.request.newContext({ baseURL })
   const n = `${Date.now()}`.slice(-8) + Math.floor(Math.random() * 10)
   const email = `${tag}${n}@example.com`
   const password = 'Live@12345'
-  expect((await ctx.post('/api/v1/auth/register', { data: { fullName: `${tag} Tester`, email, phone: `+91${n}9`, password } })).ok()).toBe(true)
-  const token = (await (await ctx.post('/api/v1/auth/login', { data: { email, password } })).json()).accessToken as string
+  expect(
+    (
+      await ctx.post('/api/v1/auth/register', {
+        data: { fullName: `${tag} Tester`, email, phone: `+91${n}9`, password },
+      })
+    ).ok(),
+  ).toBe(true)
+  const token = (await (await ctx.post('/api/v1/auth/login', { data: { email, password } })).json())
+    .accessToken as string
   const headers = { Authorization: `Bearer ${token}` }
-  const accounts = (await (await ctx.get('/api/v1/accounts', { headers })).json()) as Array<{ id: string; accountNumber: string; balance: string }>
+  const accounts = (await (await ctx.get('/api/v1/accounts', { headers })).json()) as Array<{
+    id: string
+    accountNumber: string
+    balance: string
+  }>
   return { ctx, email, password, headers, account: accounts[0]! }
 }
 
-test('fraud: an unusual transfer is held for review, then an admin releases it', async ({ page, playwright, baseURL }) => {
+test('fraud: an unusual transfer is held for review, then an admin releases it', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   const sender = await apiCustomer(playwright, baseURL, 'sender')
   const friend = await apiCustomer(playwright, baseURL, 'friend')
   const stranger = await apiCustomer(playwright, baseURL, 'stranger')
   try {
     const idem = () => ({ ...sender.headers, 'Idempotency-Key': crypto.randomUUID() })
-    expect((await sender.ctx.post(`/api/v1/accounts/${sender.account.id}/deposit`, { headers: idem(), data: { amount: '40000.00' } })).ok()).toBe(true)
+    expect(
+      (
+        await sender.ctx.post(`/api/v1/accounts/${sender.account.id}/deposit`, {
+          headers: idem(),
+          data: { amount: '40000.00' },
+        })
+      ).ok(),
+    ).toBe(true)
     // Some history with a known payee, so the next one stands out.
     for (let i = 0; i < 3; i++) {
-      const r = await sender.ctx.post('/api/v1/transfers', { headers: idem(), data: { fromAccountId: sender.account.id, toAccountNumber: friend.account.accountNumber, amount: '1000.00' } })
+      const r = await sender.ctx.post('/api/v1/transfers', {
+        headers: idem(),
+        data: {
+          fromAccountId: sender.account.id,
+          toAccountNumber: friend.account.accountNumber,
+          amount: '1000.00',
+        },
+      })
       expect(r.status()).toBe(201)
     }
 
@@ -351,14 +396,19 @@ test('fraud: an unusual transfer is held for review, then an admin releases it',
     await page.getByRole('button', { name: 'Review transfer' }).click()
     await page.getByRole('button', { name: /send ₹30,000\.00/i }).click()
     await expect(page.getByText('being checked')).toBeVisible()
-    const held = await (await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })).json()
+    const held = await (
+      await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })
+    ).json()
     expect(held[0].balance).toMatch(/^0(\.0+)?$/)
     await signOut(page)
 
     // Admin releases it with a reason; the stranger is credited.
     await signIn(page, 'admin@quantgen.dev', 'Admin@1234', /\/admin$/)
     await page.goto('/admin/fraud')
-    await page.getByRole('link', { name: /₹30,000\.00/ }).first().click()
+    await page
+      .getByRole('link', { name: /₹30,000\.00/ })
+      .first()
+      .click()
     await expect(page.getByText('Large amount to someone never paid before').first()).toBeVisible()
     await page.getByRole('button', { name: /Release transfer/ }).click()
     const dialog = page.getByRole('dialog', { name: 'Release this transfer?' })
@@ -367,7 +417,12 @@ test('fraud: an unusual transfer is held for review, then an admin releases it',
     await expect(dialog).toBeHidden()
     await expect(page.getByText('Called the customer; payee confirmed.')).toBeVisible()
     await expect
-      .poll(async () => (await (await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })).json())[0].balance)
+      .poll(
+        async () =>
+          (
+            await (await stranger.ctx.get('/api/v1/accounts', { headers: stranger.headers })).json()
+          )[0].balance,
+      )
       .toMatch(/^30000(\.0+)?$/)
   } finally {
     await Promise.all([sender.ctx.dispose(), friend.ctx.dispose(), stranger.ctx.dispose()])
@@ -396,12 +451,19 @@ async function registerWithPin(page: Page, tag: string) {
   await expect(page.getByText('Set', { exact: true }).first()).toBeVisible()
 }
 
-test('access tokens: create with step-up, read-only reach, revoke kills it', async ({ page, playwright, baseURL }) => {
+test('access tokens: create with step-up, read-only reach, revoke kills it', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(120_000)
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).mcp as boolean
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .mcp as boolean
   await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: true } })
   const client = await playwright.request.newContext({ baseURL })
   try {
@@ -436,21 +498,51 @@ test('access tokens: create with step-up, read-only reach, revoke kills it', asy
 
 // V2-M4 core side: an intent proposed through the API (as the agent service will) is approved in the
 // "Waiting for you" panel with PIN step-up, and the money moves exactly once.
-test('intents: proposed via API, approved in the UI with step-up, executed', async ({ page, playwright, baseURL }) => {
+test('intents: proposed via API, approved in the UI with step-up, executed', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).ai as boolean
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .ai as boolean
   await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: true } })
   const me = await apiCustomer(playwright, baseURL, 'intent')
   const friend = await apiCustomer(playwright, baseURL, 'payee')
   try {
-    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '2000.00' } })).ok()).toBe(true)
-    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
+    expect(
+      (
+        await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, {
+          headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() },
+          data: { amount: '2000.00' },
+        })
+      ).ok(),
+    ).toBe(true)
+    expect(
+      (
+        await me.ctx.put('/api/v1/users/me/pin', {
+          headers: me.headers,
+          data: { pin: '246810', password: me.password },
+        })
+      ).ok(),
+    ).toBe(true)
     const proposed = await me.ctx.post('/api/v1/intents', {
       headers: me.headers,
-      data: { kind: 'TRANSFER', payload: { fromAccountId: me.account.id, toAccountNumber: friend.account.accountNumber, amount: '750.00' }, rationale: 'You asked to pay your friend back for dinner.', agent: 'PAYMENTS' },
+      data: {
+        kind: 'TRANSFER',
+        payload: {
+          fromAccountId: me.account.id,
+          toAccountNumber: friend.account.accountNumber,
+          amount: '750.00',
+        },
+        rationale: 'You asked to pay your friend back for dinner.',
+        agent: 'PAYMENTS',
+      },
     })
     expect(proposed.status()).toBe(201)
     const intent = await proposed.json()
@@ -458,7 +550,10 @@ test('intents: proposed via API, approved in the UI with step-up, executed', asy
 
     await signIn(page, me.email, me.password, /\/dashboard$/)
     await page.goto('/copilot')
-    const waiting = page.getByRole('region', { name: 'Waiting for you' }).or(page.locator('section', { hasText: 'Waiting for you' })).first()
+    const waiting = page
+      .getByRole('region', { name: 'Waiting for you' })
+      .or(page.locator('section', { hasText: 'Waiting for you' }))
+      .first()
     const card = waiting.getByRole('article', { name: /Proposed action: Send ₹750\.00/ })
     await expect(card).toBeVisible()
     await card.getByRole('button', { name: 'Approve' }).click()
@@ -467,8 +562,13 @@ test('intents: proposed via API, approved in the UI with step-up, executed', asy
     await expect(card.getByText('Approved and carried out.')).toBeVisible()
 
     const list = await (await me.ctx.get('/api/v1/intents', { headers: me.headers })).json()
-    expect(list.find((i: { id: string }) => i.id === intent.id)).toMatchObject({ status: 'EXECUTED', resultRef: { type: 'TRANSFER' } })
-    const paid = await (await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })).json()
+    expect(list.find((i: { id: string }) => i.id === intent.id)).toMatchObject({
+      status: 'EXECUTED',
+      resultRef: { type: 'TRANSFER' },
+    })
+    const paid = await (
+      await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })
+    ).json()
     expect(paid[0].balance).toMatch(/^750(\.0+)?$/)
   } finally {
     await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: wasOn } })
@@ -478,20 +578,49 @@ test('intents: proposed via API, approved in the UI with step-up, executed', asy
 
 // A connected app (read+propose token) proposes; with the ai flag OFF the user still approves it, on
 // Settings → Developer.
-test('intents from a connected app are approvable on the Developer tab with ai off', async ({ page, playwright, baseURL }) => {
+test('intents from a connected app are approvable on the Developer tab with ai off', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const flags = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()) as Record<string, boolean>
+  const flags = (await (
+    await admin.get('/api/v1/feature-flags', { headers: auth })
+  ).json()) as Record<string, boolean>
   await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: true } })
   await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: false } })
   const me = await apiCustomer(playwright, baseURL, 'mcp')
   const friend = await apiCustomer(playwright, baseURL, 'mcppayee')
   try {
-    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '1000.00' } })).ok()).toBe(true)
-    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
-    const stepUp = (await (await me.ctx.post('/api/v1/auth/step-up/verify', { headers: me.headers, data: { action: 'TOKEN_CREATE', pin: '246810' } })).json()).stepUpToken
+    expect(
+      (
+        await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, {
+          headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() },
+          data: { amount: '1000.00' },
+        })
+      ).ok(),
+    ).toBe(true)
+    expect(
+      (
+        await me.ctx.put('/api/v1/users/me/pin', {
+          headers: me.headers,
+          data: { pin: '246810', password: me.password },
+        })
+      ).ok(),
+    ).toBe(true)
+    const stepUp = (
+      await (
+        await me.ctx.post('/api/v1/auth/step-up/verify', {
+          headers: me.headers,
+          data: { action: 'TOKEN_CREATE', pin: '246810' },
+        })
+      ).json()
+    ).stepUpToken
     const created = await me.ctx.post('/api/v1/users/me/tokens', {
       headers: { ...me.headers, 'X-Step-Up-Token': stepUp },
       data: { name: 'Claude Desktop', scope: 'read+propose', expiresInDays: 7 },
@@ -500,7 +629,15 @@ test('intents from a connected app are approvable on the Developer tab with ai o
     const pat = (await created.json()).token as string
     const proposed = await me.ctx.post('/api/v1/intents', {
       headers: { Authorization: `Bearer ${pat}` },
-      data: { kind: 'TRANSFER', payload: { fromAccountId: me.account.id, toAccountNumber: friend.account.accountNumber, amount: '120.00' }, rationale: 'Splitting the cab fare.' },
+      data: {
+        kind: 'TRANSFER',
+        payload: {
+          fromAccountId: me.account.id,
+          toAccountNumber: friend.account.accountNumber,
+          amount: '120.00',
+        },
+        rationale: 'Splitting the cab fare.',
+      },
     })
     expect(proposed.status()).toBe(201)
     expect((await proposed.json()).proposedBy.agent).toBe('MCP_CLIENT')
@@ -514,30 +651,58 @@ test('intents from a connected app are approvable on the Developer tab with ai o
     await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
     await page.keyboard.type('246810')
     await expect(card.getByText('Approved and carried out.')).toBeVisible()
-    const paid = await (await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })).json()
+    const paid = await (
+      await friend.ctx.get('/api/v1/accounts', { headers: friend.headers })
+    ).json()
     expect(paid[0].balance).toMatch(/^120(\.0+)?$/)
   } finally {
-    await admin.put('/api/v1/admin/feature-flags/mcp', { headers: auth, data: { enabled: flags.mcp } })
-    await admin.put('/api/v1/admin/feature-flags/ai', { headers: auth, data: { enabled: flags.ai } })
+    await admin.put('/api/v1/admin/feature-flags/mcp', {
+      headers: auth,
+      data: { enabled: flags.mcp },
+    })
+    await admin.put('/api/v1/admin/feature-flags/ai', {
+      headers: auth,
+      data: { enabled: flags.ai },
+    })
     await Promise.all([admin.dispose(), me.ctx.dispose(), friend.ctx.dispose()])
   }
 })
 
 // V2-M5 core: a salary-splitter rule built with the form (no AI), replayed, switched on with PIN
 // step-up; money arriving fires it exactly once and moves exactly 20%.
-test('autopilot: build a rule by hand, replay, switch on with step-up, it fires once', async ({ page, playwright, baseURL }) => {
+test('autopilot: build a rule by hand, replay, switch on with step-up, it fires once', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).autopilot as boolean
-  await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: true } })
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .autopilot as boolean
+  await admin.put('/api/v1/admin/feature-flags/autopilot', {
+    headers: auth,
+    data: { enabled: true },
+  })
   const me = await apiCustomer(playwright, baseURL, 'autopilot')
   try {
-    const opened = await me.ctx.post('/api/v1/accounts', { headers: me.headers, data: { type: 'CHECKING' } })
+    const opened = await me.ctx.post('/api/v1/accounts', {
+      headers: me.headers,
+      data: { type: 'CHECKING' },
+    })
     expect(opened.status()).toBe(201)
     const checking = (await opened.json()) as { id: string }
-    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
+    expect(
+      (
+        await me.ctx.put('/api/v1/users/me/pin', {
+          headers: me.headers,
+          data: { pin: '246810', password: me.password },
+        })
+      ).ok(),
+    ).toBe(true)
 
     await signIn(page, me.email, me.password, /\/dashboard$/)
     await page.goto('/autopilot/new')
@@ -561,36 +726,77 @@ test('autopilot: build a rule by hand, replay, switch on with step-up, it fires 
     await expect(page.getByText(/move 20% of it from Savings/)).toBeVisible()
 
     // ₹10,000 arrives → one run moves ₹2,000 to checking. Never twice.
-    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '10000.00' } })).ok()).toBe(true)
-    const rules = (await (await me.ctx.get('/api/v1/autopilot/rules', { headers: me.headers })).json()) as Array<{ id: string }>
+    expect(
+      (
+        await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, {
+          headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() },
+          data: { amount: '10000.00' },
+        })
+      ).ok(),
+    ).toBe(true)
+    const rules = (await (
+      await me.ctx.get('/api/v1/autopilot/rules', { headers: me.headers })
+    ).json()) as Array<{ id: string }>
     expect(rules).toHaveLength(1)
     await expect
-      .poll(async () => (await (await me.ctx.get(`/api/v1/autopilot/rules/${rules[0]!.id}/runs`, { headers: me.headers })).json()).content.map((r: { outcome: string | null }) => r.outcome), { timeout: 30_000 })
+      .poll(
+        async () =>
+          (
+            await (
+              await me.ctx.get(`/api/v1/autopilot/rules/${rules[0]!.id}/runs`, {
+                headers: me.headers,
+              })
+            ).json()
+          ).content.map((r: { outcome: string | null }) => r.outcome),
+        { timeout: 30_000 },
+      )
       .toEqual(['SUCCEEDED'])
-    const balances = (await (await me.ctx.get('/api/v1/accounts', { headers: me.headers })).json()) as Array<{ id: string; balance: string }>
+    const balances = (await (
+      await me.ctx.get('/api/v1/accounts', { headers: me.headers })
+    ).json()) as Array<{ id: string; balance: string }>
     expect(balances.find((a) => a.id === checking.id)!.balance).toMatch(/^2000(\.0+)?$/)
     expect(balances.find((a) => a.id === me.account.id)!.balance).toMatch(/^8000(\.0+)?$/)
 
     await page.reload()
     await expect(page.getByText('Done', { exact: true }).first()).toBeVisible()
   } finally {
-    await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: wasOn } })
+    await admin.put('/api/v1/admin/feature-flags/autopilot', {
+      headers: auth,
+      data: { enabled: wasOn },
+    })
     await Promise.all([admin.dispose(), me.ctx.dispose()])
   }
 })
 
 // V2-M5-bills: save a biller after a fetch, pay it from the saved list (the UI never sees the full
 // number), and an Autopilot PAY_BILL rule can point at it.
-test('saved billers: save, pay from the saved list once, use in an Autopilot rule, remove', async ({ page, playwright, baseURL }) => {
+test('saved billers: save, pay from the saved list once, use in an Autopilot rule, remove', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
   test.setTimeout(150_000)
   const admin = await playwright.request.newContext({ baseURL })
-  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
   const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
-  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).autopilot as boolean
-  await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: true } })
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .autopilot as boolean
+  await admin.put('/api/v1/admin/feature-flags/autopilot', {
+    headers: auth,
+    data: { enabled: true },
+  })
   const me = await apiCustomer(playwright, baseURL, 'biller')
   try {
-    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '20000.00' } })).ok()).toBe(true)
+    expect(
+      (
+        await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, {
+          headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() },
+          data: { amount: '20000.00' },
+        })
+      ).ok(),
+    ).toBe(true)
     const consumer = `${Date.now()}`.slice(-9)
     await signIn(page, me.email, me.password, /\/dashboard$/)
     await page.goto('/pay/bills')
@@ -609,24 +815,44 @@ test('saved billers: save, pay from the saved list once, use in an Autopilot rul
     await page.getByRole('button', { name: 'Review' }).click()
     await page.getByRole('button', { name: /^Pay ₹/ }).click()
     await expect(page.getByRole('img', { name: 'Bill paid' })).toBeVisible()
-    const paid = (await (await me.ctx.get('/api/v1/bill-payments', { headers: me.headers })).json()).content
+    const paid = (await (await me.ctx.get('/api/v1/bill-payments', { headers: me.headers })).json())
+      .content
     expect(paid).toHaveLength(1)
 
     // This month's bill is paid: fetching it again is refused, and the rule still validates.
-    const list = (await (await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })).json()) as Array<{ id: string; consumerNumberMasked: string }>
+    const list = (await (
+      await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })
+    ).json()) as Array<{ id: string; consumerNumberMasked: string }>
     expect(list).toHaveLength(1)
     expect(JSON.stringify(list)).not.toContain(consumer)
-    expect((await me.ctx.post(`/api/v1/saved-billers/${list[0]!.id}/fetch`, { headers: me.headers })).status()).toBe(409)
-    const rule = { dslVersion: 1, trigger: { type: 'SCHEDULE', frequency: 'MONTHLY', dayOfMonth: 5 }, conditions: [], actions: [{ type: 'PAY_BILL', savedBillerId: list[0]!.id, fromAccountId: me.account.id }], caps: { perRun: '5000.00', perMonth: '5000.00' } }
-    const v = await (await me.ctx.post('/api/v1/autopilot/validate', { headers: me.headers, data: { rule } })).json()
+    expect(
+      (
+        await me.ctx.post(`/api/v1/saved-billers/${list[0]!.id}/fetch`, { headers: me.headers })
+      ).status(),
+    ).toBe(409)
+    const rule = {
+      dslVersion: 1,
+      trigger: { type: 'SCHEDULE', frequency: 'MONTHLY', dayOfMonth: 5 },
+      conditions: [],
+      actions: [{ type: 'PAY_BILL', savedBillerId: list[0]!.id, fromAccountId: me.account.id }],
+      caps: { perRun: '5000.00', perMonth: '5000.00' },
+    }
+    const v = await (
+      await me.ctx.post('/api/v1/autopilot/validate', { headers: me.headers, data: { rule } })
+    ).json()
     expect(v).toMatchObject({ valid: true })
     expect(v.rendering).toContain('(Home wifi)')
 
     await saved.getByRole('button', { name: 'Remove Home wifi' }).click()
     await expect(saved).toHaveCount(0)
-    expect(await (await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })).json()).toEqual([])
+    expect(
+      await (await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })).json(),
+    ).toEqual([])
   } finally {
-    await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: wasOn } })
+    await admin.put('/api/v1/admin/feature-flags/autopilot', {
+      headers: auth,
+      data: { enabled: wasOn },
+    })
     await Promise.all([admin.dispose(), me.ctx.dispose()])
   }
 })

@@ -25,9 +25,15 @@ type Tone = 'gain' | 'loss' | 'warn' | 'accent' | 'violet'
 type Meta = { icon: LucideIcon; tone: Tone; to: string; label: string }
 
 /** Fallback for a type this build doesn't know yet (the server can add types). */
-export const UNKNOWN_META: Meta = { icon: CircleAlert, tone: 'accent', to: '/notifications', label: 'Update' }
+export const UNKNOWN_META: Meta = {
+  icon: CircleAlert,
+  tone: 'accent',
+  to: '/notifications',
+  label: 'Update',
+}
 
-export const metaFor = (type: NotificationDto['type']): Meta => NOTIFICATION_META[type] ?? UNKNOWN_META
+export const metaFor = (type: NotificationDto['type']): Meta =>
+  NOTIFICATION_META[type] ?? UNKNOWN_META
 
 export const NOTIFICATION_META: Record<NotificationDto['type'], Meta> = {
   MONEY_RECEIVED: { icon: ArrowDownLeft, tone: 'gain', to: '/accounts', label: 'Money' },
@@ -43,7 +49,12 @@ export const NOTIFICATION_META: Record<NotificationDto['type'], Meta> = {
   RULE_RUN: { icon: Workflow, tone: 'violet', to: '/autopilot', label: 'Autopilot' },
   RULE_PAUSED: { icon: Workflow, tone: 'warn', to: '/autopilot', label: 'Autopilot' },
   BUDGET_ALERT: { icon: PiggyBank, tone: 'warn', to: '/insights', label: 'Budgets' },
-  NEW_DEVICE_LOGIN: { icon: MonitorSmartphone, tone: 'warn', to: '/settings/security', label: 'Security' },
+  NEW_DEVICE_LOGIN: {
+    icon: MonitorSmartphone,
+    tone: 'warn',
+    to: '/settings/security',
+    label: 'Security',
+  },
   TRANSFER_UNDER_REVIEW: { icon: ShieldAlert, tone: 'warn', to: '/pay', label: 'Payments' },
   PRICE_ALERT: { icon: TrendingUp, tone: 'accent', to: '/markets', label: 'Markets' },
   FD_MATURED: { icon: HandCoins, tone: 'gain', to: '/savings', label: 'Savings' },

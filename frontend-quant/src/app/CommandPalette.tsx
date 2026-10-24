@@ -79,7 +79,9 @@ export function CommandPalette({
               className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-sm text-text data-[selected=true]:bg-violet/12 [&_svg]:size-4 [&_svg]:text-violet"
             >
               <Sparkles aria-hidden="true" />
-              <span className="truncate">{search.trim() ? <>Ask Copilot: “{search.trim()}”</> : 'Ask Copilot'}</span>
+              <span className="truncate">
+                {search.trim() ? <>Ask Copilot: “{search.trim()}”</> : 'Ask Copilot'}
+              </span>
             </Command.Item>
           </Group>
         )}
@@ -104,7 +106,12 @@ export function CommandPalette({
         </Group>
         <Group heading="Go to">
           {[...nav, ...SECONDARY_NAV].map((item) => (
-            <Item key={item.to} onSelect={run(() => void navigate(item.to))} icon={<item.icon />} hint={item.hint}>
+            <Item
+              key={item.to}
+              onSelect={run(() => void navigate(item.to))}
+              icon={<item.icon />}
+              hint={item.hint}
+            >
               {item.label}
             </Item>
           ))}

@@ -32,4 +32,5 @@ export const accountLabel = (a: Pick<AccountDto, 'type' | 'accountNumber' | 'goa
  * SAVINGS and CHECKING: the accounts that pay, trade, take deposits and loans. Goals only move
  * money to and from your own accounts; fixed deposits can't send or receive at all (D-037).
  */
-export const isEveryday = (a: Pick<AccountDto, 'type'>) => a.type === 'SAVINGS' || a.type === 'CHECKING'
+export const isEveryday = (a: Pick<AccountDto, 'type'>) =>
+  a.type === 'SAVINGS' || a.type === 'CHECKING'

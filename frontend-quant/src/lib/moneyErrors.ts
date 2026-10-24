@@ -84,7 +84,10 @@ export function moneyErrorCopy(
         next: 'edit',
       }
     case 'KYC_REQUIRED':
-      return { title: 'Complete your KYC first.', detail: 'It takes a minute in Settings → Limits & KYC.' }
+      return {
+        title: 'Complete your KYC first.',
+        detail: 'It takes a minute in Settings → Limits & KYC.',
+      }
     default:
       return { title: errorMessage(e) }
   }
