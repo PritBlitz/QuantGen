@@ -1,6 +1,25 @@
 # Backend handoff (2026-10-19, after V2-M8, M9, M6, M10, the M4 core side and the M5 core)
 
-## 2026-10-24 (session backend-quant-e): audit + every non-AI item except the P2s  ← READ THIS FIRST
+## 2026-10-25: agent-quant built (copilot live-capable on the Gemini free tier)  ← READ THIS FIRST
+- Committed: `5c03a2e` card disputes (V24); `96c282b` copilot core side (V25: conversations, messages, agent_runs,
+  agent_steps; SSE relay; delegated tokens `aud=agent` confined by `AgentAuthenticationFilter`; token budgets;
+  traces; `/admin/ai/*`; `/autopilot/compile` through the Planner); `70a7ba9` + `285d428` `agent-quant/` (stateless
+  Spring Boot on :8090, own loop, Concierge + 5 specialists, `propose_intent` only, masking, 10 tool calls/turn).
+  Decisions D-044 (free-tier OpenAI-compatible provider) and D-045 (stateless agent); CLAUDE.md row + AI rules.
+- Tests: backend 40 unit + 240 IT; agent-quant 6 (fake LLM + fake core, no cost).
+- **Live check, done:** agent-quant alone against Gemini (`gemini-3.5-flash`; `gemini-2.5-flash` now gives 404 on the
+  OpenAI endpoint): compile and a delegated chat turn work, tool round trips included.
+- **NOT done:** :8080 is down (stopped by Claude Code for low memory on 2026-10-24; the owner decides when to restart),
+  so V24/V25 aren't on the dev DB yet and there's no live end-to-end turn through the core. To run both:
+  `cd backend-quant && QG_RATE_LIMIT_ENABLED=false ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` and
+  `cd agent-quant && QG_GEMINI_API_KEY=… ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` (the dev profiles share
+  the dev secret). Smoke V24+V25 on a pg_dump clone first. Then ping the frontend to flip /copilot, /intents, /admin/ai,
+  /autopilot/compile and F-CARD-4. Flags must be set off first (the frontend does that on start).
+- Still open: back-office agents (Fraud Investigator memos on `TRANSFER_REVIEW_OPENED`, Underwriting Analyst), evals
+  (F-AGT-8, small golden + red-team set, run on demand), MCP server (F-MCP-1), streaming tokens from the provider,
+  chain checkpoints, F-POB-6 anchoring. Compose wiring for agent-quant (root compose is the frontend's).
+
+## 2026-10-24 (session backend-quant-e): audit + every non-AI item except the P2s
 **State:** :8080 runs `71f7715` (jar built from a clean worktree, `-Xmx512m`, dev profile,
 `QG_RATE_LIMIT_ENABLED=false`), dev DB **V23**, all five flags OFF. **40 unit + 235 IT** green.
 **Audit:** a script diffed all 168 PRD §7/§12 endpoints against the controllers. Every one exists except
