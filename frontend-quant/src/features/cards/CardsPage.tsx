@@ -19,7 +19,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { accountLabel } from '@/features/accounts/labels'
 import { toDecimal } from '@/lib/money'
 import { cn } from '@/lib/utils'
-import { useCardControls, useCards, useIssueCard } from './hooks'
+import { CardPayments, MyDisputes } from './Disputes'
+import { DISPUTES, useCardControls, useCards, useIssueCard } from './hooks'
 import { CATEGORIES, CATEGORY_LABEL } from './labels'
 
 /** `/cards` (F-CARD-1, F-CARD-2): one virtual debit card per account, its details and controls. */
@@ -75,6 +76,7 @@ export function CardsPage() {
           {cards.data.map((c) => (
             <CardBlock key={c.id} card={c} account={accounts.data.find((a) => a.id === c.accountId)} />
           ))}
+          {DISPUTES && <MyDisputes />}
           {withoutCard.length > 0 && (
             <Panel title="Issue a card" eyebrow="New" description="One virtual card per account. It works immediately for online payments.">
               <ul className="divide-y divide-border">
@@ -237,8 +239,9 @@ function CardBlock({ card, account }: { card: CardDto; account?: AccountDto }) {
           <Lock aria-hidden="true" className="size-3" /> Showing details asks for your PIN. The CVV changes every 30 seconds.
         </p>
       </div>
-      <div className="lg:col-span-7">
+      <div className="space-y-4 lg:col-span-7">
         <Controls card={card} account={account} />
+        {DISPUTES && <CardPayments card={card} />}
       </div>
     </div>
   )

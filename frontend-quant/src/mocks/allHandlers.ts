@@ -5,7 +5,7 @@
 import { handlers as v1 } from './handlers'
 import { analyticsHandlers } from './v2/analytics'
 import { autopilotHandlers } from './v2/autopilot'
-import { cardHandlers } from './v2/cards'
+import { cardHandlers, disputeHandlers } from './v2/cards'
 import { copilotHandlers } from './v2/copilot'
 import { paymentHandlers } from './v2/payments'
 import { proofHandlers } from './v2/proof'
@@ -25,5 +25,6 @@ export const handlers = [
   ...tradingHandlers,
   ...proofHandlers,
   ...cardHandlers,
+  ...disputeHandlers,
   ...v1,
 ]

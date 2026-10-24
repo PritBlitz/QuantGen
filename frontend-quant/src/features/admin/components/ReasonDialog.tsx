@@ -21,13 +21,10 @@ function adminErrorCopy(e: ApiError) {
   return { title: 'That didn’t go through.', detail: errorMessage(e) }
 }
 
-/** Client-side check for UX only; the server validates the same bounds (5–500). */
-const requiredReason = z
-  .string()
-  .trim()
-  .min(5, 'Give a reason of at least 5 characters')
-  .max(REASON_MAX, `Keep it under ${REASON_MAX} characters`)
-const optionalReason = z.string().trim().max(REASON_MAX, `Keep it under ${REASON_MAX} characters`)
+/** Client-side check for UX only; the server validates the same bounds (5–max, 500 unless a contract says less). */
+const requiredReason = (max: number) =>
+  z.string().trim().min(5, 'Give a reason of at least 5 characters').max(max, `Keep it under ${max} characters`)
+const optionalReason = (max: number) => z.string().trim().max(max, `Keep it under ${max} characters`)
 
 /**
  * Review-then-confirm dialog for a sensitive admin action. The reason is audited server-side,
@@ -41,6 +38,7 @@ export function ReasonDialog({
   summary,
   reasonLabel = 'Reason',
   reasonRequired,
+  maxLength = REASON_MAX,
   placeholder,
   confirmLabel,
   destructive,
@@ -53,6 +51,8 @@ export function ReasonDialog({
   summary?: ReactNode
   reasonLabel?: string
   reasonRequired: boolean
+  /** The contract's limit for this reason (default 500). */
+  maxLength?: number
   placeholder?: string
   confirmLabel: string
   destructive?: boolean
@@ -71,6 +71,7 @@ export function ReasonDialog({
             summary={summary}
             reasonLabel={reasonLabel}
             reasonRequired={reasonRequired}
+            maxLength={maxLength}
             placeholder={placeholder}
             confirmLabel={confirmLabel}
             destructive={destructive}
@@ -88,6 +89,7 @@ function ReasonForm({
   summary,
   reasonLabel,
   reasonRequired,
+  maxLength,
   placeholder,
   confirmLabel,
   destructive,
@@ -98,6 +100,7 @@ function ReasonForm({
   summary?: ReactNode
   reasonLabel: string
   reasonRequired: boolean
+  maxLength: number
   placeholder?: string
   confirmLabel: string
   destructive?: boolean
@@ -112,7 +115,7 @@ function ReasonForm({
   const [failure, setFailure] = useState<ApiError | null>(null)
   const [pending, setPending] = useState(false)
 
-  const parsed = (reasonRequired ? requiredReason : optionalReason).safeParse(reason)
+  const parsed = (reasonRequired ? requiredReason : optionalReason)(maxLength).safeParse(reason)
   const clientError = parsed.success ? undefined : parsed.error.issues[0]?.message
   const fieldError = serverField ?? (touched ? clientError : undefined)
 
@@ -154,14 +157,14 @@ function ReasonForm({
             {!reasonRequired && <span className="font-normal text-muted"> (optional)</span>}
           </Label>
           <span className="num text-xs text-muted" aria-hidden="true">
-            {reason.trim().length}/{REASON_MAX}
+            {reason.trim().length}/{maxLength}
           </span>
         </div>
         <Textarea
           id={id}
           value={reason}
           placeholder={placeholder}
-          maxLength={REASON_MAX + 50}
+          maxLength={maxLength + 50}
           onChange={(e) => {
             setReason(e.target.value)
             setServerField(null)

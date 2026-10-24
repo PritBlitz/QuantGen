@@ -24,6 +24,11 @@ import type {
   BudgetDto,
   CardControls,
   CardDto,
+  CardDisputeDto,
+  CardPaymentDto,
+  AdminCardDisputeDto,
+  DisputeReason,
+  DisputeStatus,
   CardRevealDto,
   CashflowDto,
   ChainVerifyDto,
@@ -415,6 +420,18 @@ export const cardsApi = {
         headers: idempotencyHeader(idempotencyKey),
       })
       .then(() => undefined),
+  // F-CARD-4 disputes. Opening one moves no money (🔒, no key); the admin's resolve does (🔒💰).
+  payments: (cardId: string, params: PageQuery = {}) =>
+    api.get<Page<CardPaymentDto>>(`/cards/${seg(cardId)}/payments`, { params }).then(data),
+  openDispute: (cardId: string, authId: string, body: { reason: DisputeReason; amount?: MoneyString; note?: string }) =>
+    api.post<CardDisputeDto>(`/cards/${seg(cardId)}/payments/${seg(authId)}/dispute`, body).then(data),
+  disputes: () => api.get<CardDisputeDto[]>('/card-disputes').then(data),
+  adminDisputes: (params: PageQuery & { status?: DisputeStatus } = {}) =>
+    api.get<Page<AdminCardDisputeDto>>('/admin/card-disputes', { params }).then(data),
+  resolveDispute: (id: string, body: { outcome: 'REFUNDED' | 'REJECTED'; reason: string }, idempotencyKey: string) =>
+    api
+      .post<CardDisputeDto>(`/admin/card-disputes/${seg(id)}/resolve`, body, { headers: idempotencyHeader(idempotencyKey) })
+      .then(data),
 }
 
 // §12.12 Developer access ──────────────────────────────────────────────────────────

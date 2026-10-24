@@ -46,6 +46,12 @@ const admin: RouteObject = {
       }),
     },
     {
+      path: 'disputes',
+      lazy: async () => ({
+        Component: (await import('@/features/admin/AdminDisputesPage')).AdminDisputesPage,
+      }),
+    },
+    {
       path: 'fraud/:id',
       lazy: async () => ({
         Component: (await import('@/features/admin/AdminFraudPage')).AdminFraudCasePage,

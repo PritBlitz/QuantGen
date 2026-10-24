@@ -25,6 +25,7 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react'
+import { backendHas } from '@/api/capabilities'
 import { useFlags } from '@/api/flags'
 import type { FeatureFlag, Role } from '@/api/types'
 import { useAuthStore } from '@/features/auth/store'
@@ -107,6 +108,7 @@ export const ADMIN_GROUPS: NavGroup[] = [
       { to: '/admin/users', label: 'Users', icon: Users, mobile: true },
       { to: '/admin/loans', label: 'Loan queue', icon: Inbox },
       { to: '/admin/fraud', label: 'Fraud cases', icon: ShieldAlert, mobile: true },
+      ...(backendHas('F-CARD-4') ? [{ to: '/admin/disputes', label: 'Card disputes', icon: Scale }] : []),
     ],
   },
   {

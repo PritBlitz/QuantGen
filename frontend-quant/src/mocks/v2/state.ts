@@ -7,6 +7,8 @@ import type {
   AdminFeatureFlagDto,
   BacktestDto,
   BillerDto,
+  CardDisputeDto,
+  MerchantCategory,
   SavedBillerDto,
   BillPaymentDto,
   CardDto,
@@ -88,7 +90,8 @@ export interface V2State {
   alerts: Array<Owned<PriceAlertDto>>
   backtests: Array<Owned<BacktestDto>>
   cards: Array<Owned<CardDto> & { pan: string }>
-  cardAuths: Map<string, { cardId: string; userId: string; amount: string; holdId: string; merchant: string; status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' }>
+  cardAuths: Map<string, { cardId: string; userId: string; amount: string; holdId: string; merchant: string; status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED'; category?: MerchantCategory; capturedAt?: string; refunded?: string }>
+  cardDisputes: Array<Owned<CardDisputeDto>>
   tokens: Array<Owned<PersonalTokenDto> & { tokenHash: string }>
   aiCalls: number
   /** Mock fraud rule: transfers to others at or above this amount go to review. null = off (tests). */
@@ -265,7 +268,9 @@ export function createV2State(): V2State {
     cards: [
       { id: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, accountId: DEMO_CHECKING, last4: '4417', expiry: '09/30', status: 'ACTIVE', pan: '9100 4521 7783 4417', controls: { frozen: false, online: true, perTxnLimit: '25000.00', blockedCategories: ['GAMBLING'] } },
     ],
-    cardAuths: new Map(),
+    // One captured store payment on the demo card, so disputes have something to show.
+    cardAuths: new Map([['f8100000-0000-4000-8000-000000000001', { cardId: 'f8000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, amount: '2499.0000', holdId: 'f8200000-0000-4000-8000-000000000001', merchant: 'QuantGen Store', status: 'CAPTURED', category: 'ELECTRONICS', capturedAt: iso(3), refunded: '0' }]]),
+    cardDisputes: [],
     tokens: [
       { id: 'f9000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, name: 'Claude Desktop', scope: 'read+propose', lastUsedAt: iso(1), expiresAt: iso(-60), tokenHash: 'x' },
     ],

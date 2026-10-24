@@ -90,6 +90,7 @@ export type NotificationTypeV2 =
   | 'PRICE_ALERT'
   | 'FD_MATURED'
   | 'CARD_DECLINED'
+  | 'CARD_DISPUTE_RESOLVED'
   | 'LEDGER_INTEGRITY'
 
 // Feature flags (§12.8) ─────────────────────────────────────────────────────────────
@@ -799,6 +800,37 @@ export interface MerchantAuthRequest {
   merchant: string
   category: MerchantCategory
 }
+// F-CARD-4 disputes (PRD §12.11, accepted 2026-10-24) ───────────────────────────────
+export type DisputeReason = 'NOT_RECEIVED' | 'NOT_AS_DESCRIBED' | 'DUPLICATE' | 'NOT_RECOGNISED' | 'OTHER'
+export type DisputeStatus = 'OPEN' | 'REFUNDED' | 'REJECTED'
+/** A captured payment on the caller's own card. `disputableAmount` = captured − refunded − open disputes. */
+export interface CardPaymentDto {
+  authId: Uuid
+  merchant: string
+  category: MerchantCategory
+  amount: MoneyString
+  capturedAmount: MoneyString
+  refundedAmount: MoneyString
+  disputableAmount: MoneyString
+  status: 'CAPTURED' | 'REFUNDED'
+  capturedAt: IsoDateTime
+  openDisputeId?: Uuid | null
+}
+export interface CardDisputeDto {
+  id: Uuid
+  cardId: Uuid
+  authId: Uuid
+  last4: string
+  merchant: string
+  amount: MoneyString
+  reason: DisputeReason
+  note?: string | null
+  status: DisputeStatus
+  resolutionReason?: string | null
+  createdAt: IsoDateTime
+  resolvedAt?: IsoDateTime | null
+}
+export type AdminCardDisputeDto = CardDisputeDto & { customerId: Uuid }
 export interface MerchantAuthDto {
   authId: Uuid
   status: 'APPROVED' | 'DECLINED'

@@ -141,3 +141,55 @@ describe('merchant sandbox', () => {
     expect(keys[2]).not.toBe(keys[0])
   }, 20_000)
 })
+
+describe('card disputes (F-CARD-4)', () => {
+  const STORE_AUTH = 'f8100000-0000-4000-8000-000000000001'
+
+  it('raises a dispute on a captured payment; it shows as disputed and moves no money', async () => {
+    signInAs('CUSTOMER')
+    const before = db.accounts.get(DEMO_CHECKING)!.balance
+    const user = userEvent.setup()
+    renderApp('/cards')
+    await user.click(await screen.findByRole('button', { name: 'Dispute QuantGen Store payment' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Dispute this payment?' })
+    // The amount is prefilled with what can still be disputed; the reason is required.
+    expect(within(dialog).getByLabelText('Amount to dispute')).toHaveValue('2499.00')
+    await user.click(within(dialog).getByRole('button', { name: 'Raise dispute' }))
+    expect(await within(dialog).findByText('Choose what went wrong')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('combobox', { name: 'What went wrong?' }))
+    await user.click(await screen.findByRole('option', { name: 'I didn’t receive it' }))
+    await user.type(within(dialog).getByLabelText(/Details/), '<b>never</b> arrived')
+    await user.click(within(dialog).getByRole('button', { name: 'Raise dispute' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByText('Disputed')).toBeInTheDocument()
+    const mine = (await screen.findByText('Your disputes')).closest('section') as HTMLElement
+    expect(within(mine).getByText('Under review')).toBeInTheDocument()
+    expect(db.v2.cardDisputes[0]).toMatchObject({ authId: STORE_AUTH, amount: expect.stringMatching(/^2499\.00(00)?$/), reason: 'NOT_RECEIVED', note: '<b>never</b> arrived' })
+    expect(db.accounts.get(DEMO_CHECKING)!.balance).toBe(before)
+  })
+
+  it('an admin refunds it once, with one Idempotency-Key per dispute and outcome', async () => {
+    db.v2.cardDisputes.unshift({ id: 'd1000000-0000-4000-8000-000000000001', userId: db.v2.cards[0]!.userId, cardId: CARD, authId: STORE_AUTH, last4: '4417', merchant: 'QuantGen Store', amount: '2499.00', reason: 'NOT_RECEIVED', note: '<img src=x onerror=alert(1)>', status: 'OPEN', resolutionReason: null, createdAt: new Date().toISOString(), resolvedAt: null })
+    const keys: Array<string | null> = []
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && request.url.includes('/admin/card-disputes/')) keys.push(request.headers.get('Idempotency-Key'))
+    })
+    const before = db.accounts.get(DEMO_CHECKING)!.balance
+    signInAs('ADMIN')
+    const user = userEvent.setup()
+    renderApp('/admin/disputes')
+    // The customer's note is shown as text, never as markup.
+    expect(await screen.findByText('“<img src=x onerror=alert(1)>”')).toBeInTheDocument()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Refund QuantGen Store dispute' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Refund this dispute?' })
+    await user.type(within(dialog).getByRole('textbox'), 'Merchant confirmed it never shipped.')
+    await user.click(within(dialog).getByRole('button', { name: 'Refund' }))
+    await waitFor(() => expect(db.v2.cardDisputes[0]!.status).toBe('REFUNDED'))
+    expect(keys).toHaveLength(1)
+    expect(keys[0]).toBeTruthy()
+    expect(db.accounts.get(DEMO_CHECKING)!.balance).not.toBe(before)
+    expect(db.transactions[0]).toMatchObject({ type: 'REFUND', amount: expect.stringMatching(/^2499\.00(00)?$/), description: 'Dispute refund QuantGen Store' })
+  })
+})

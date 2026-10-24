@@ -81,6 +81,10 @@ export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
   // documents and underwriting live on 2026-10-19; they ride on the /admin/ and /loans prefixes.)
   /^\/api\/v1\/admin\/ai(\/|$)/,
   /^\/api\/v1\/autopilot\/compile$/,
+  // F-CARD-4 disputes (backend 5c03a2e, V24) sit under the live /cards and /admin/ prefixes; mocked until
+  // they're on :8080. (/card-disputes isn't under a live prefix, so it's mocked already.)
+  /^\/api\/v1\/cards\/[^/]+\/payments(\/|$)/,
+  /^\/api\/v1\/admin\/card-disputes(\/|$)/,
 ]
 
 export const isLive = (pathname: string) =>
