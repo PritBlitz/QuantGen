@@ -16,6 +16,9 @@ public interface InstrumentRepository extends JpaRepository<Instrument, UUID> {
 
     Optional<Instrument> findBySymbol(String symbol);
 
+    /** Doesn't load the entity, so a later {@link #findBySymbolForShare} in the same transaction reads fresh. */
+    boolean existsBySymbol(String symbol);
+
     /**
      * {@code FOR SHARE}: an order fills at the price read in its own transaction, and a concurrent
      * simulator tick cannot change that price until the order commits.

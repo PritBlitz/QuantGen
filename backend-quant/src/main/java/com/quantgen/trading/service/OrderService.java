@@ -88,7 +88,9 @@ public class OrderService {
             throw new ApiException(ErrorCode.INVALID_STATE, "Account is closed");
         }
         String symbol = MarketService.normalize(req.symbol());
-        if (instruments.findBySymbol(symbol).isEmpty()) {
+        // Not findBySymbol: a managed Instrument would make the FOR SHARE read below return that stale copy, and a
+        // tick in between would fail its version check (409 to the customer).
+        if (!instruments.existsBySymbol(symbol)) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "symbol", "unknown instrument");
         }
         long quantity = req.quantity();

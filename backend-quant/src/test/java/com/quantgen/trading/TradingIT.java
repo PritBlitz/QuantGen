@@ -283,6 +283,30 @@ class TradingIT extends IntegrationTest {
         return client;
     }
 
+    @Test
+    void ordersPlacedDuringPriceTicksNeverAskTheCustomerToRetry() throws Exception {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        UUID acc = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, acc, "100000.00");
+        // Found by k6: a tick between the order's symbol check and its FOR SHARE price read gave 409 "retry".
+        java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+        CompletableFuture<Void> ticking = CompletableFuture.runAsync(() -> {
+            while (!done.get()) {
+                simulator.tick();
+            }
+        });
+        try {
+            List<Integer> statuses = new ArrayList<>();
+            for (int i = 0; i < 40; i++) {
+                statuses.add(order(s, acc, "QGEN", i % 2 == 0 ? "BUY" : "SELL", 1).status());
+            }
+            assertThat(statuses).containsOnly(201);
+        } finally {
+            done.set(true);
+            ticking.get(30, TimeUnit.SECONDS);
+        }
+    }
+
     private void setPrice(String symbol, String price) {
         jdbc.update("UPDATE instruments SET price = ?::numeric WHERE symbol = ?", price, symbol);
     }
