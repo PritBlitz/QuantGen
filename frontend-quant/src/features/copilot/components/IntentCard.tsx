@@ -40,17 +40,21 @@ const FAILURE: Record<string, string> = {
   LIMIT_EXCEEDED: 'This would go over your transfer limit, so nothing moved.',
   NOT_FOUND: 'The account or payee is no longer available, so nothing moved.',
   COOLING_PERIOD: 'The payee is new and inside the 24-hour cooling period, so nothing moved.',
+  LOAN_NOT_ELIGIBLE: 'You’re not eligible for this loan right now, so nothing was applied for.',
+  KYC_REQUIRED: 'This needs your KYC details first (Settings → Profile), so nothing happened.',
+  VALIDATION_FAILED: 'This can’t go through any more (for example, they’ve blocked requests from you), so nothing happened.',
 }
 
-/** Where the result of an executed intent can be seen. */
+/** Where the result of an executed intent can be seen. Keyed by `resultRef.type`, which is the result's
+ *  own type and not always the intent kind (FD_BOOKING → FIXED_DEPOSIT, LOAN_APPLICATION → LOAN). */
 const RESULT_LINK: Record<string, { to: string; label: string }> = {
   TRANSFER: { to: '/pay', label: 'See payments' },
   ORDER: { to: '/orders', label: 'See orders' },
   BILL_PAYMENT: { to: '/pay/bills', label: 'See bills' },
   SCHEDULED_TRANSFER: { to: '/pay/scheduled', label: 'See scheduled' },
   PAYMENT_REQUEST: { to: '/pay/requests', label: 'See requests' },
-  FD_BOOKING: { to: '/savings', label: 'See savings' },
-  LOAN_APPLICATION: { to: '/loans', label: 'See loans' },
+  FIXED_DEPOSIT: { to: '/savings', label: 'See savings' },
+  LOAN: { to: '/loans', label: 'See loans' },
   AUTOPILOT_RULE: { to: '/autopilot', label: 'See Autopilot' },
 }
 

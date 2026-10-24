@@ -371,7 +371,9 @@ export const copilotHandlers = [
       db.orders.unshift({ id, userId: r.user.id, symbol: inst.symbol, side: 'BUY', quantity: qty, price: inst.price, total: money(total), status: 'FILLED', createdAt: new Date().toISOString() })
       i.resultRef = { type: 'ORDER', id }
     } else {
-      i.resultRef = { type: i.kind, id: crypto.randomUUID() }
+      // Same result types as the backend: the result's own type, not the intent kind.
+      const type = i.kind === 'FD_BOOKING' ? 'FIXED_DEPOSIT' : i.kind === 'LOAN_APPLICATION' ? 'LOAN' : i.kind
+      i.resultRef = { type, id: crypto.randomUUID() }
     }
     i.status = 'EXECUTED'
     const out = publicIntent(i)
