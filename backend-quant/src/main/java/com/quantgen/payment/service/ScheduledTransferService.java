@@ -106,14 +106,57 @@ public class ScheduledTransferService {
         this.tx = new TransactionTemplate(txManager);
     }
 
+    /** A validated instruction: the resolved accounts and the normalized amount and note. */
+    public record Checked(AccountRef from, AccountRef to, BigDecimal amount, String note) {
+    }
+
     @Transactional
     public IdempotencyService.Result<ScheduledTransferDto> create(UUID userId, UUID idempotencyKey, String fingerprint,
                                                                   CreateCommand cmd, String stepUpToken) {
-        return idempotency.execute(userId, idempotencyKey, fingerprint, 201, ScheduledTransferDto.class,
-                () -> doCreate(userId, cmd, stepUpToken));
+        return create(userId, idempotencyKey, fingerprint, cmd, stepUpToken, false);
     }
 
-    private ScheduledTransferDto doCreate(UUID userId, CreateCommand cmd, String stepUpToken) {
+    /** {@code preAuthorized}: the customer already completed step-up for this instruction (an approved intent). */
+    @Transactional
+    public IdempotencyService.Result<ScheduledTransferDto> create(UUID userId, UUID idempotencyKey, String fingerprint,
+                                                                  CreateCommand cmd, String stepUpToken,
+                                                                  boolean preAuthorized) {
+        return idempotency.execute(userId, idempotencyKey, fingerprint, 201, ScheduledTransferDto.class,
+                () -> doCreate(userId, cmd, stepUpToken, preAuthorized));
+    }
+
+    private ScheduledTransferDto doCreate(UUID userId, CreateCommand cmd, String stepUpToken, boolean preAuthorized) {
+        Checked c = check(userId, cmd);
+        AccountRef from = c.from();
+        AccountRef to = c.to();
+        BigDecimal amount = c.amount();
+        LocalDate start = cmd.startDate();
+        if (!preAuthorized && !to.userId().equals(userId) && amount.compareTo(TransferService.STEP_UP_THRESHOLD) > 0) {
+            // Runs happen with nobody present, so the customer confirms a large instruction now.
+            stepUp.require(userId, StepUpAction.TRANSFER, stepUpToken);
+        }
+        jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", UUID.class, userId);
+        Integer active = jdbc.queryForObject("SELECT count(*) FROM scheduled_transfers WHERE user_id = ? "
+                + "AND status IN ('ACTIVE', 'PAUSED')", Integer.class, userId);
+        if (active != null && active >= MAX_ACTIVE) {
+            throw new ApiException(ErrorCode.LIMIT_EXCEEDED,
+                    "You can have at most " + MAX_ACTIVE + " scheduled transfers; cancel one first");
+        }
+        Integer remaining = cmd.frequency() == Frequency.ONCE ? Integer.valueOf(1) : cmd.count();
+        UUID id = jdbc.queryForObject("""
+                INSERT INTO scheduled_transfers (user_id, from_account_id, to_account_id, to_account_number,
+                    to_name_masked, amount, note, frequency, start_date, end_date, remaining_count, next_run_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                """, UUID.class, userId, from.id(), to.id(), to.accountNumber(),
+                HandleService.maskName(users.getUser(to.userId()).fullName()), amount, c.note(), cmd.frequency().name(),
+                Date.valueOf(start), cmd.endDate() == null ? null : Date.valueOf(cmd.endDate()), remaining,
+                Date.valueOf(start));
+        return toDto(find(id, userId).orElseThrow());
+    }
+
+    /** Every rule a new instruction must pass, without storing anything (also validates an intent's payload). */
+    @Transactional(readOnly = true)
+    public Checked check(UUID userId, CreateCommand cmd) {
         AccountRef from = accounts.requireOwned(userId, cmd.fromAccountId());
         TransferService.Target target = transfers.resolveTarget(cmd.toAccountNumber(), cmd.toHandle());
         AccountRef to = target.account();
@@ -160,29 +203,8 @@ public class ScheduledTransferService {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "endDate", "must be after the start date");
         }
         BigDecimal amount = Money.normalize(cmd.amount());
-        boolean internal = to.userId().equals(userId);
-        if (!internal && amount.compareTo(TransferService.STEP_UP_THRESHOLD) > 0) {
-            // Runs happen with nobody present, so the customer confirms a large instruction now.
-            stepUp.require(userId, StepUpAction.TRANSFER, stepUpToken);
-        }
-        jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", UUID.class, userId);
-        Integer active = jdbc.queryForObject("SELECT count(*) FROM scheduled_transfers WHERE user_id = ? "
-                + "AND status IN ('ACTIVE', 'PAUSED')", Integer.class, userId);
-        if (active != null && active >= MAX_ACTIVE) {
-            throw new ApiException(ErrorCode.LIMIT_EXCEEDED,
-                    "You can have at most " + MAX_ACTIVE + " scheduled transfers; cancel one first");
-        }
-        Integer remaining = cmd.frequency() == Frequency.ONCE ? Integer.valueOf(1) : cmd.count();
         String note = cmd.note() == null || cmd.note().isBlank() ? null : cmd.note().trim();
-        UUID id = jdbc.queryForObject("""
-                INSERT INTO scheduled_transfers (user_id, from_account_id, to_account_id, to_account_number,
-                    to_name_masked, amount, note, frequency, start_date, end_date, remaining_count, next_run_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
-                """, UUID.class, userId, from.id(), to.id(), to.accountNumber(),
-                HandleService.maskName(users.getUser(to.userId()).fullName()), amount, note, cmd.frequency().name(),
-                Date.valueOf(start), cmd.endDate() == null ? null : Date.valueOf(cmd.endDate()), remaining,
-                Date.valueOf(start));
-        return toDto(find(id, userId).orElseThrow());
+        return new Checked(from, to, amount, note);
     }
 
     @Transactional(readOnly = true)

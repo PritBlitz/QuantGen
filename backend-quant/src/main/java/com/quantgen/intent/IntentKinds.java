@@ -3,9 +3,14 @@ package com.quantgen.intent;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -19,15 +24,26 @@ import com.quantgen.account.service.AccountService;
 import com.quantgen.autopilot.AutopilotService;
 import com.quantgen.autopilot.RuleDsl;
 import com.quantgen.auth.service.UserService;
+import com.quantgen.common.error.ApiError;
 import com.quantgen.common.error.ApiException;
+import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.money.AccountNumbers;
 import com.quantgen.common.money.Inr;
 import com.quantgen.common.web.TextRules;
 import com.quantgen.intent.IntentService.Line;
 import com.quantgen.intent.IntentService.ResultRef;
 import com.quantgen.intent.IntentService.Summary;
+import com.quantgen.loan.api.LoanDtos.ApplyRequest;
+import com.quantgen.loan.api.LoanDtos.QuoteDto;
+import com.quantgen.loan.api.LoanDtos.QuoteRequest;
+import com.quantgen.loan.service.LoanService;
 import com.quantgen.payment.domain.TransferSource;
+import com.quantgen.payment.service.BillService;
 import com.quantgen.payment.service.HandleService;
+import com.quantgen.payment.service.PaymentRequestService;
+import com.quantgen.payment.service.ScheduledTransferService;
+import com.quantgen.payment.service.ScheduledTransferService.CreateCommand;
+import com.quantgen.payment.service.ScheduledTransferService.Frequency;
 import com.quantgen.payment.service.TransferService;
 import com.quantgen.savings.FixedDepositService;
 import com.quantgen.savings.FixedDepositService.OnMaturity;
@@ -46,8 +62,10 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 class IntentKinds {
 
-    static final List<String> SUPPORTED = List.of("TRANSFER", "GOAL_TRANSFER", "ORDER", "FD_BOOKING", "AUTOPILOT_RULE");
     static final BigDecimal MAX_AMOUNT = new BigDecimal("1000000.00");
+    /** Same bound as the manual endpoints for schedules and requests. */
+    static final BigDecimal MAX_PAYMENT = new BigDecimal("200000.00");
+    static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH);
     static final BigDecimal STEP_UP_INTERNAL = new BigDecimal("50000.00");
     static final BigDecimal MEDIUM = new BigDecimal("10000.00");
     static final BigDecimal HIGH = new BigDecimal("50000.00");
@@ -62,10 +80,17 @@ class IntentKinds {
     private final OrderService orders;
     private final FixedDepositService deposits;
     private final AutopilotService autopilot;
+    private final ScheduledTransferService scheduled;
+    private final PaymentRequestService requests;
+    private final HandleService handles;
+    private final BillService bills;
+    private final LoanService loans;
     private final JsonMapper json;
 
     IntentKinds(JdbcTemplate jdbc, AccountService accounts, UserService users, TransferService transfers,
-                OrderService orders, FixedDepositService deposits, AutopilotService autopilot, JsonMapper json) {
+                OrderService orders, FixedDepositService deposits, AutopilotService autopilot,
+                ScheduledTransferService scheduled, PaymentRequestService requests, HandleService handles,
+                BillService bills, LoanService loans, JsonMapper json) {
         this.jdbc = jdbc;
         this.accounts = accounts;
         this.users = users;
@@ -73,6 +98,11 @@ class IntentKinds {
         this.orders = orders;
         this.deposits = deposits;
         this.autopilot = autopilot;
+        this.scheduled = scheduled;
+        this.requests = requests;
+        this.handles = handles;
+        this.bills = bills;
+        this.loans = loans;
         this.json = json;
     }
 
@@ -83,9 +113,10 @@ class IntentKinds {
             case "ORDER" -> order(userId, p);
             case "FD_BOOKING" -> fdBooking(userId, p);
             case "AUTOPILOT_RULE" -> autopilotRule(userId, p);
-            case "BILL_PAYMENT", "SCHEDULED_TRANSFER", "PAYMENT_REQUEST", "LOAN_APPLICATION" ->
-                    throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "kind", "not supported yet; supported: "
-                            + String.join(", ", SUPPORTED));
+            case "SCHEDULED_TRANSFER" -> scheduledTransfer(userId, p);
+            case "PAYMENT_REQUEST" -> paymentRequest(userId, p);
+            case "BILL_PAYMENT" -> billPayment(userId, p);
+            case "LOAN_APPLICATION" -> loanApplication(userId, p);
             default -> throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "kind", "unknown intent kind");
         };
     }
@@ -118,6 +149,26 @@ class IntentKinds {
                         new BigDecimal(p.get("amount").asString()), p.get("tenureDays").asInt(),
                         OnMaturity.valueOf(p.get("onMaturity").asString())).body();
                 yield new ResultRef("FIXED_DEPOSIT", dto.id());
+            }
+            case "SCHEDULED_TRANSFER" -> {
+                // Step-up (when the card asked for it) happened at approval, so the instruction is pre-authorized.
+                var dto = scheduled.create(userId, key, fingerprint, scheduleCommand(p), null, true).body();
+                yield new ResultRef("SCHEDULED_TRANSFER", dto.id());
+            }
+            case "PAYMENT_REQUEST" -> {
+                var dto = requests.createInternal(userId, p.get("toHandle").asString(),
+                        new BigDecimal(p.get("amount").asString()), p.path("note").asString(null), null);
+                yield new ResultRef("PAYMENT_REQUEST", dto.id());
+            }
+            case "BILL_PAYMENT" -> {
+                var dto = bills.pay(userId, key, fingerprint, uuid(p, "billId"), uuid(p, "fromAccountId")).body();
+                yield new ResultRef("BILL_PAYMENT", dto.id());
+            }
+            case "LOAN_APPLICATION" -> {
+                var dto = loans.apply(userId, new ApplyRequest(new BigDecimal(p.get("amount").asString()),
+                        p.get("tenureMonths").asInt(), new BigDecimal(p.get("monthlyIncome").asString()),
+                        p.get("purpose").asString(), uuid(p, "disburseAccountId")));
+                yield new ResultRef("LOAN", dto.id());
             }
             default -> throw new IllegalStateException("Unsupported intent kind " + kind);
         };
@@ -236,6 +287,169 @@ class IntentKinds {
                 List.of(new Line("Rule", autopilot.render(dsl)))), "MEDIUM", true);
     }
 
+    private Prepared scheduledTransfer(UUID userId, JsonNode p) {
+        AccountRef from = ownEveryday(userId, p, "fromAccountId");
+        String handle = text(p, "toHandle", false);
+        String number = text(p, "toAccountNumber", false);
+        BigDecimal amount = amount(p, "amount", new BigDecimal("1.00"), MAX_PAYMENT);
+        String note = note(p);
+        LocalDate start = date(p, "startDate", true);
+        String freq = text(p, "frequency", true);
+        if (!List.of("ONCE", "WEEKLY", "MONTHLY").contains(freq)) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.frequency", "must be ONCE, WEEKLY or MONTHLY");
+        }
+        LocalDate end = date(p, "endDate", false);
+        Integer count = null;
+        JsonNode c = p.get("count");
+        if (c != null && !c.isNull()) {
+            if (!c.isIntegralNumber() || c.asLong() < 1 || c.asLong() > ScheduledTransferService.MAX_COUNT) {
+                throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.count",
+                        "must be a whole number 1–" + ScheduledTransferService.MAX_COUNT);
+            }
+            count = c.asInt();
+        }
+        CreateCommand cmd = new CreateCommand(from.id(), number, handle, amount, note, start, Frequency.valueOf(freq),
+                end, count);
+        ScheduledTransferService.Checked checked = inPayload(() -> scheduled.check(userId, cmd));
+        AccountRef to = checked.to();
+        boolean own = to.userId().equals(userId);
+        String name = own ? "your " + label(to) : HandleService.maskName(users.getUser(to.userId()).fullName());
+        String repeats = switch (cmd.frequency()) {
+            case ONCE -> "Once";
+            case WEEKLY -> "Every " + start.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+            case MONTHLY -> "Every month on day " + start.getDayOfMonth();
+        };
+        List<Line> lines = new ArrayList<>(List.of(new Line("From", label(from)),
+                new Line("To", name + (handle != null ? " · @" + HandleService.normalize(handle) : "") + " · "
+                        + AccountNumbers.mask(to.accountNumber())),
+                new Line("Amount", inr(checked.amount()) + (cmd.frequency() == Frequency.ONCE ? "" : " each time")),
+                new Line(cmd.frequency() == Frequency.ONCE ? "On" : "Starts", start.format(DATE)),
+                new Line("Repeats", repeats)));
+        if (cmd.frequency() != Frequency.ONCE) {
+            lines.add(new Line("Ends", count != null ? "After " + count + " payment" + (count == 1 ? "" : "s")
+                    : end != null ? "On " + end.format(DATE) : "When you cancel it"));
+        }
+        if (checked.note() != null) {
+            lines.add(new Line("Message", checked.note()));
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fromAccountId", from.id().toString());
+        // The resolved number, not the handle: a later handle change can't redirect what was approved.
+        payload.put("toAccountNumber", to.accountNumber());
+        payload.put("amount", checked.amount().toPlainString());
+        payload.put("note", checked.note());
+        payload.put("startDate", start.toString());
+        payload.put("frequency", freq);
+        payload.put("endDate", end == null ? null : end.toString());
+        payload.put("count", count);
+        String risk = own ? "LOW" : checked.amount().compareTo(HIGH) > 0 ? "HIGH" : "MEDIUM";
+        String title = (cmd.frequency() == Frequency.ONCE ? "Schedule " : "Set up a repeating payment of ")
+                + inr(checked.amount()) + " to " + name;
+        // Runs happen with nobody present, so money to someone else is confirmed with step-up now.
+        return new Prepared(payload, new Summary(title, lines), risk,
+                !own || checked.amount().compareTo(STEP_UP_INTERNAL) > 0);
+    }
+
+    private static CreateCommand scheduleCommand(JsonNode p) {
+        return new CreateCommand(uuid(p, "fromAccountId"), p.get("toAccountNumber").asString(), null,
+                new BigDecimal(p.get("amount").asString()), p.path("note").asString(null),
+                LocalDate.parse(p.get("startDate").asString()), Frequency.valueOf(p.get("frequency").asString()),
+                p.path("endDate").isString() ? LocalDate.parse(p.get("endDate").asString()) : null,
+                p.path("count").isIntegralNumber() ? Integer.valueOf(p.get("count").asInt()) : null);
+    }
+
+    private Prepared paymentRequest(UUID userId, JsonNode p) {
+        String raw = text(p, "toHandle", true);
+        UUID payer = handles.userFor(raw).orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST,
+                "payload.toHandle", "no account with this handle"));
+        if (payer.equals(userId)) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.toHandle", "you can't request money from yourself");
+        }
+        if (handles.handleOf(userId) == null) {
+            throw new ApiException(ErrorCode.INVALID_STATE, "Set your handle before requesting money");
+        }
+        BigDecimal amount = amount(p, "amount", new BigDecimal("1.00"), MAX_PAYMENT);
+        String note = note(p);
+        String handle = handles.handleOf(payer);
+        String name = HandleService.maskName(users.getUser(payer).fullName());
+        List<Line> lines = new ArrayList<>(List.of(new Line("From", name + " · @" + handle),
+                new Line("Amount", inr(amount))));
+        if (note != null) {
+            lines.add(new Line("Message", note));
+        }
+        lines.add(new Line("Note", "No money moves until they choose to pay"));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("toHandle", handle);
+        payload.put("amount", amount.toPlainString());
+        payload.put("note", note);
+        return new Prepared(payload, new Summary("Ask " + name + " for " + inr(amount), lines), "LOW", false);
+    }
+
+    private Prepared billPayment(UUID userId, JsonNode p) {
+        AccountRef from = ownEveryday(userId, p, "fromAccountId");
+        UUID billerId = uuid(p, "billerId");
+        BillService.BillerDto biller = bills.billers(null).stream().filter(b -> b.id().equals(billerId)).findFirst()
+                .orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.billerId", "unknown biller"));
+        String consumer = text(p, "consumerNumber", true);
+        if (!consumer.matches(biller.consumerNumberPattern())) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.consumerNumber",
+                    "is not a valid " + biller.consumerNumberLabel().toLowerCase(Locale.ROOT));
+        }
+        // Fetching pins the amount: the bill row is what gets paid, so the card and the payment can't differ.
+        BillService.BillDto bill = inPayload(() -> bills.fetch(userId, billerId, consumer));
+        BigDecimal amount = bill.amount().setScale(2, RoundingMode.UNNECESSARY);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fromAccountId", from.id().toString());
+        payload.put("billId", bill.billId().toString());
+        payload.put("billerId", billerId.toString());
+        payload.put("amount", amount.toPlainString());
+        return new Prepared(payload, new Summary("Pay " + inr(amount) + " to " + biller.name(), List.of(
+                new Line("From", label(from)),
+                new Line("Biller", biller.name() + " (" + biller.category().toLowerCase(Locale.ROOT).replace('_', ' ') + ")"),
+                new Line(biller.consumerNumberLabel(), AccountNumbers.mask(consumer)),
+                new Line("Amount", inr(amount)),
+                new Line("Due", bill.dueDate().format(DATE)))),
+                amount.compareTo(HIGH) > 0 ? "HIGH" : amount.compareTo(MEDIUM) > 0 ? "MEDIUM" : "LOW", true);
+    }
+
+    private Prepared loanApplication(UUID userId, JsonNode p) {
+        AccountRef to = ownEveryday(userId, p, "disburseAccountId");
+        BigDecimal amount = amount(p, "amount", new BigDecimal("10000.00"), MAX_AMOUNT);
+        BigDecimal income = amount(p, "monthlyIncome", new BigDecimal("1.00"), new BigDecimal("100000000.00"));
+        JsonNode t = p.get("tenureMonths");
+        if (t == null || !t.isIntegralNumber() || t.asInt() < 6 || t.asInt() > 60) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.tenureMonths", "must be a whole number 6–60");
+        }
+        int months = t.asInt();
+        JsonNode pn = p.get("purpose");
+        String purpose = pn != null && pn.isString() ? pn.asString().strip() : "";
+        if (purpose.length() < 3 || purpose.length() > 200 || !purpose.matches(TextRules.NO_CONTROL_CHARS)) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload.purpose", "must be 3–200 characters");
+        }
+        QuoteDto quote = loans.quote(userId, new QuoteRequest(amount, months, income));
+        if (!quote.eligible()) {
+            // Said now, so the assistant can explain it instead of showing a card that can only fail.
+            throw new ApiException(ErrorCode.LOAN_NOT_ELIGIBLE, quote.reason());
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("amount", amount.toPlainString());
+        payload.put("tenureMonths", months);
+        payload.put("monthlyIncome", income.toPlainString());
+        payload.put("purpose", purpose);
+        payload.put("disburseAccountId", to.id().toString());
+        return new Prepared(payload, new Summary("Apply for a loan of " + inr(amount), List.of(
+                new Line("Amount", inr(amount)),
+                new Line("Tenure", months + " months"),
+                new Line("EMI", inr(quote.emi()) + " a month"),
+                new Line("Interest", LoanService.ANNUAL_RATE.stripTrailingZeros().toPlainString() + "% p.a., "
+                        + inr(quote.totalInterest()) + " in total"),
+                new Line("Monthly income (declared)", inr(income)),
+                new Line("Paid into", label(to)),
+                new Line("Purpose", purpose),
+                new Line("Note", "An admin reviews every application; nothing is paid out until it's approved"))),
+                "MEDIUM", true);
+    }
+
     private Prepared fdBooking(UUID userId, JsonNode p) {
         AccountRef from = ownEveryday(userId, p, "fromAccountId");
         BigDecimal amount = amount(p, "amount", new BigDecimal("1000.00"), MAX_AMOUNT);
@@ -279,6 +493,34 @@ class IntentKinds {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload." + field, "must be a savings or checking account");
         }
         return a;
+    }
+
+    /** Runs a service-side validation and points its field errors into the payload ({@code payload.<field>}). */
+    private static <T> T inPayload(java.util.function.Supplier<T> check) {
+        try {
+            return check.get();
+        } catch (ApiException e) {
+            if (e.code() != ErrorCode.VALIDATION_FAILED || e.fieldErrors().isEmpty()) {
+                throw e;
+            }
+            ApiError.FieldError f = e.fieldErrors().getFirst();
+            throw ApiException.fieldError(e.status(), "payload." + f.field(), f.message());
+        }
+    }
+
+    private static LocalDate date(JsonNode p, String field, boolean required) {
+        JsonNode n = p.get(field);
+        if (n == null || n.isNull()) {
+            if (required) {
+                throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload." + field, "is required");
+            }
+            return null;
+        }
+        try {
+            return LocalDate.parse(n.isString() ? n.asString() : "");
+        } catch (DateTimeParseException e) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "payload." + field, "must be a date YYYY-MM-DD");
+        }
     }
 
     private static UUID uuid(JsonNode p, String field) {

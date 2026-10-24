@@ -1199,6 +1199,24 @@ agent tokens and traces need `agent-quant`, not built yet):
 - **Audit:** `INTENT_PROPOSED` (with the token id), `INTENT_EXECUTED`, `INTENT_FAILED`, `INTENT_REJECTED`.
 - `GET /intents?status=` (unknown status `400`): newest first, at most 100.
 
+Backend notes (remaining kinds, implemented 2026-10-24; every `kind` in `IntentDto` is now accepted):
+- `SCHEDULED_TRANSFER {fromAccountId, toAccountNumber | toHandle, amount (≤ 200000.00), note?, startDate, frequency:
+  ONCE|WEEKLY|MONTHLY, endDate?, count? (1–120)}`: same rules as `POST /scheduled-transfers`, checked at proposal
+  (field errors as `payload.<field>`). Stored with the resolved account number. `requiresStepUp` for money to someone
+  else, or own-account > ₹50,000; that step-up covers the instruction (no second `TRANSFER` step-up). Risk: own LOW,
+  others MEDIUM, HIGH > ₹50,000. Nothing moves at approval; `resultRef.type` `SCHEDULED_TRANSFER`.
+- `PAYMENT_REQUEST {toHandle, amount (≤ 200000.00), note?}`: no money moves, so LOW and no step-up. The proposer needs
+  a handle (`409 INVALID_STATE` otherwise). A block by the payer shows at approval as `FAILED` / `VALIDATION_FAILED`.
+  `resultRef.type` `PAYMENT_REQUEST`.
+- `BILL_PAYMENT {fromAccountId, billerId, consumerNumber}`: the proposal fetches the bill (same rate limit as
+  `/billers/{id}/fetch`) and pins it, so the card's amount is exactly what's paid. An already-paid bill → `409`.
+  Always `requiresStepUp`. Risk by amount (MEDIUM > ₹10,000, HIGH > ₹50,000). `resultRef.type` `BILL_PAYMENT`.
+- `LOAN_APPLICATION {amount, tenureMonths, monthlyIncome, purpose, disburseAccountId}`: same bounds as
+  `POST /loans`. Quoted at proposal, and an ineligible one is refused then (`422 LOAN_NOT_ELIGIBLE`, nothing stored).
+  The card shows the EMI and total interest. MEDIUM, always `requiresStepUp`. Approval only *applies*: the loan is
+  `PENDING` for an admin, nothing is disbursed. `LOAN_NOT_ELIGIBLE` / `KYC_REQUIRED` at approval → `FAILED`.
+  `resultRef.type` `LOAN`.
+
 ### 12.7 Autopilot
 | Method | Path | Body | Response |
 |---|---|---|---|

@@ -51,7 +51,7 @@ public class IntentService {
     static final List<ErrorCode> BUSINESS_FAILURES = List.of(ErrorCode.INSUFFICIENT_FUNDS, ErrorCode.INSUFFICIENT_HOLDINGS,
             ErrorCode.LIMIT_EXCEEDED, ErrorCode.ACCOUNT_FROZEN, ErrorCode.COOLING_PERIOD, ErrorCode.INVALID_STATE,
             ErrorCode.NOT_FOUND, ErrorCode.VALIDATION_FAILED, ErrorCode.KYC_REQUIRED, ErrorCode.FEATURE_DISABLED,
-            ErrorCode.RULE_INVALID);
+            ErrorCode.RULE_INVALID, ErrorCode.LOAN_NOT_ELIGIBLE);
 
     public record Line(String label, String value) {
     }
