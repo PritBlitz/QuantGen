@@ -1,5 +1,27 @@
 # Backend handoff (2026-10-19, after V2-M8, M9, M6, M10, the M4 core side and the M5 core)
 
+## 2026-10-24 (session backend-quant-e): audit + every non-AI item except the P2s  ← READ THIS FIRST
+**State:** :8080 runs `71f7715` (jar built from a clean worktree, `-Xmx512m`, dev profile,
+`QG_RATE_LIMIT_ENABLED=false`), dev DB **V23**, all five flags OFF. **40 unit + 235 IT** green.
+**Audit:** a script diffed all 168 PRD §7/§12 endpoints against the controllers. Every one exists except
+`/copilot/*` (6) and `/admin/ai/*` (2), which belong to agent-quant.
+- Done: `f34b3b1` the remaining intent kinds (SCHEDULED_TRANSFER, PAYMENT_REQUEST, BILL_PAYMENT, LOAN_APPLICATION;
+  PRD §12.6 notes). `f5ab093` Autopilot BUDGET_THRESHOLD + ROUND_UP_SWEEP (`RuleInputs` shared by engine and replay).
+  `8d59c77` market-order 409 during price ticks (found by the frontend's k6: `findBySymbol` before the FOR SHARE
+  read left a stale managed Instrument). `71f7715` saved billers (§12.4, V23) + Autopilot PAY_BILL.
+  The frontend (quantgen-27) flipped each one live.
+- Still open, no agent needed: F-CARD-4 disputes (contract ACCEPTED in PRD §12.11 by both sessions, not built);
+  chain-verify checkpoints; F-POB-6 anchoring (free: commit roots to a public git repo, the owner pushes);
+  F-TRD-12 crypto feed (P2, behind a flag).
+- **Free-tier rule (owner, 2026-10-24):** nothing paid. The owner picked the Gemini free tier for the AI layer,
+  per the frontend; confirm with the owner. Plan: an OpenAI-compatible client, provider swappable by config, and
+  provider 429 → `BUDGET_EXHAUSTED`. The key is `QG_GEMINI_API_KEY` in the gitignored root `.env`, never logged.
+  **agent-quant still needs the owner's explicit go-ahead + D-019/D-020 + a CLAUDE.md row.**
+- Routine that worked: build → targeted ITs → full verify → commit with explicit paths → jar from
+  `git worktree add --detach <scratch>/wt HEAD` (keeps uncommitted work off :8080) → if there's a new migration,
+  `pg_dump` clone `qg_smoke` + run on :8099 + `scratchpad/smoke_*.py` → swap :8080 → ping the frontend.
+- Bash heredocs that contain `'''` break in this harness: put Python patch scripts in files.
+
 **Update (later 2026-10-19):** V2-M5 Autopilot core is done and live (`5ac903a`, dev DB **V22**, 40 unit + **226** IT
 green). `com.quantgen.autopilot`: `RuleValidator`, `RuleRenderer`, `RuleSimulator`, `AutopilotEngine` (outbox consumer
 `autopilot`, 08:00 IST scheduler, `PricesUpdatedEvent` from `PriceSimulator`, resume sweeper), `AutopilotService`;
