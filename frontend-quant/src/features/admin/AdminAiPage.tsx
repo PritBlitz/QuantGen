@@ -48,7 +48,7 @@ export function AdminAiPage() {
       ) : (
         <div className={cn('grid gap-4 lg:grid-cols-12', usage.isPlaceholderData && 'opacity-60')}>
           <div className="grid grid-cols-2 gap-3 lg:col-span-12 lg:grid-cols-4">
-            <Tile label="Cost" value={formatUsd(u.costUsd)} />
+            <Tile label="Cost" value={new Decimal(u.costUsd).isZero() ? `${formatUsd(u.costUsd)} · free tier` : formatUsd(u.costUsd)} />
             <Tile label="Input tokens" value={formatCount(String(u.tokens.input), true)} />
             <Tile label="Output tokens" value={formatCount(String(u.tokens.output), true)} />
             <Tile

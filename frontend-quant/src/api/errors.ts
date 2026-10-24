@@ -106,6 +106,9 @@ const COPY: Record<ClientErrorCode, string> = {
   KYC_REQUIRED: 'Complete your KYC profile first. It takes a minute in Settings.',
   PAYMENT_VERIFICATION_FAILED: "We couldn't verify that payment, so nothing was credited.",
   GATEWAY_UNAVAILABLE: "The payment gateway isn't available right now. Try the demo deposit.",
+  AI_UNAVAILABLE: "The assistant isn't available right now. Everything else in QuantGen works as usual.",
+  AI_BUSY: 'The assistant is busy right now. Try again in a minute.',
+  TOOL_LIMIT: 'That question needed too many steps. Try asking something narrower.',
 }
 
 /** Human copy for a toast. Field errors are shown inline by forms instead. */

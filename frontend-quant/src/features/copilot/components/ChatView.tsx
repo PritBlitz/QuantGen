@@ -353,6 +353,11 @@ function Composer({
           'AI can be wrong. Check every action card before you approve it.'
         )}
       </p>
+      {/* PRD §11.5 AI privacy + D-044: the provider's data use is stated where people type. */}
+      <p className="mt-1 px-1 text-[0.6875rem] text-muted">
+        Runs on Google’s Gemini free tier, which may use messages to improve Google’s products. Account numbers are
+        masked before anything is sent. Conversations are deleted after 30 days.
+      </p>
     </form>
   )
 }

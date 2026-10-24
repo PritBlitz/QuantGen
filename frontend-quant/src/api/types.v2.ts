@@ -31,6 +31,10 @@ export type ErrorCodeV2 =
   | 'KYC_REQUIRED'
   | 'PAYMENT_VERIFICATION_FAILED'
   | 'GATEWAY_UNAVAILABLE'
+  // Copilot (agent-quant, backend D-044): no provider key / service down, provider rate limit, tool cap.
+  | 'AI_UNAVAILABLE'
+  | 'AI_BUSY'
+  | 'TOOL_LIMIT'
 
 export type StepUpMethod = 'PASSKEY' | 'PIN'
 export type StepUpAction =
