@@ -1248,10 +1248,26 @@ Backend notes (V2-M5 core, implemented 2026-10-19; `/autopilot/compile` needs th
 - **Kill switch:** the `autopilot` flag off → validate, simulate, compile, create, edit and resume answer `503
   FEATURE_DISABLED`, and the engine runs nothing; list, get, runs, pause and delete keep working. `compile` with the
   flag on answers `503` too (no Planner yet; `400 text` first if the text isn't 8–500 chars).
-- **Supported now:** triggers `MONEY_RECEIVED`, `SCHEDULE`, `BALANCE_ABOVE`, `PRICE_CROSSES`; actions `TRANSFER`, `BUY`,
-  `NOTIFY`; condition `BALANCE_AT_LEAST` (≤ 3). `BUDGET_THRESHOLD`, `PAY_BILL` and `ROUND_UP_SWEEP` are `RULE_INVALID`
-  "not supported yet" (round-ups already sweep nightly; there are no saved billers). `RuleRunDto` also carries
-  `triggerSummary`; `outcome` is `null` while a run is in progress.
+- **Supported now:** triggers `MONEY_RECEIVED`, `SCHEDULE`, `BALANCE_ABOVE`, `PRICE_CROSSES`, `BUDGET_THRESHOLD`;
+  actions `TRANSFER`, `BUY`, `NOTIFY`, `ROUND_UP_SWEEP`; condition `BALANCE_AT_LEAST` (≤ 3). `PAY_BILL` is still
+  `RULE_INVALID` "not supported yet" (it needs saved billers). `RuleRunDto` also carries `triggerSummary`; `outcome`
+  is `null` while a run is in progress.
+- **`BUDGET_THRESHOLD` (added 2026-10-24):** `{type, category, percent}`. `percent` is a whole number 1–200, and the
+  user must have a budget for `category` (`rule.trigger.category` "set a monthly budget for this category first").
+  Fires when this IST month's spending in the category (same numbers as `/budgets`) reaches `percent`% of the budget,
+  at most once per rule version per month (`triggerEventId` `budget:<category>:<YYYY-MM>`). Checked after every spend
+  (outbox) and at 08:00 IST. Autopilot's own transfers never fire it. `triggerAmount` = spent so far (so
+  `PERCENT_OF_TRIGGER` stays MONEY_RECEIVED-only). Rendering: "When your food and dining spending reaches 90% of its
+  monthly budget (once a month)"; run summary "Food and dining budget at 95% (₹950.00 of ₹1,000.00)".
+- **`ROUND_UP_SWEEP` (added 2026-10-24):** `{type, fromAccountId (savings/checking), toAccountId (yours, not an FD, not
+  the source), roundTo: 10|50|100}`, no `amount`. Only with a `SCHEDULE` trigger (`rule.actions[i].type` otherwise).
+  It moves the sum of round-ups of the source's spends (payments to another person, bill and card payments; not
+  Autopilot's own) from the previous scheduled day (a month or a week earlier) 00:00 IST up to the scheduled day
+  00:00 IST. The window depends only on the date, so a resumed run moves the same amount. A missed or capped run's
+  round-ups aren't carried over. `< ₹1` → `SKIPPED`. Refused on an account with nightly round-ups on (`fromAccountId`
+  "this account already saves its round-ups every night"). Counts toward the caps. Rendering: "move the round-ups to
+  the next ₹10 on spends from Savings ••••1234 since the previous scheduled day to Goa trip".
+- **Templates:** two more, `round-up-saver` and `budget-guard` (rule `null`, like the others).
 - **Validation (`422 RULE_INVALID`, paths like `rule.actions[0].toAccountId`):** accounts must be yours and active;
   `TRANSFER.fromAccountId` defaults to the trigger's account, never an FD; exactly one of `toAccountId` (yours, not the
   source, not an FD) or `toBeneficiaryId` (saved > 24 h ago; source must be savings/checking); `BUY` from

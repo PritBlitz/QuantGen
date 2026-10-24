@@ -17,6 +17,7 @@ import com.quantgen.autopilot.RuleDsl.Amount;
 import com.quantgen.autopilot.RuleDsl.Trigger;
 import com.quantgen.common.money.AccountNumbers;
 import com.quantgen.common.money.Inr;
+import com.quantgen.insights.CategoryService;
 
 /**
  * F-AUTO-2: the plain-language sentence of a rule, generated from the validated DSL by the server, so the user
@@ -47,6 +48,8 @@ class RuleRenderer {
                     : "Every " + WEEKDAYS.get(t.weekday()) + " at 08:00 IST";
             case "BALANCE_ABOVE" -> "Every day at 08:00 IST, if " + account(t.accountId()) + " holds more than "
                     + inr(t.threshold());
+            case "BUDGET_THRESHOLD" -> "When your " + CategoryService.label(t.category()).toLowerCase(Locale.ROOT)
+                    + " spending reaches " + t.percent() + "% of its monthly budget (once a month)";
             default -> "When " + t.symbol() + " goes " + ("ABOVE".equals(t.direction()) ? "above " : "below ")
                     + inr(t.price());
         };
@@ -66,6 +69,9 @@ class RuleRenderer {
             case "TRANSFER" -> "move " + amount(a.amount()) + " from " + account(a.fromAccountId()) + " to "
                     + (a.toBeneficiaryId() != null ? payee(a.toBeneficiaryId()) : account(a.toAccountId()));
             case "BUY" -> "buy " + amount(a.amount()) + " of " + a.symbol() + " (whole shares)";
+            case "ROUND_UP_SWEEP" -> "move the round-ups to the next ₹" + a.roundTo()
+                    + " on spends from " + account(a.fromAccountId()) + " since the previous scheduled day to "
+                    + account(a.toAccountId());
             default -> "notify me: “" + a.message() + "”";
         };
     }

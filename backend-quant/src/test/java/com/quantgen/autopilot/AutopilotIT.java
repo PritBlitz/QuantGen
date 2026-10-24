@@ -88,6 +88,12 @@ class AutopilotIT extends IntegrationTest {
         }
     }
 
+    /** A payment to another person that lands in FOOD (by its note). */
+    private void dinner(TestUsers.Session s, UUID from, String toNumber, String amount) {
+        assertThat(postJson("/api/v1/transfers", Map.of("fromAccountId", from.toString(), "toAccountNumber", toNumber,
+                "amount", amount, "note", "dinner"), Bank.authWithKey(s, UUID.randomUUID())).status()).isEqualTo(201);
+    }
+
     private long finishedRuns(String ruleId) {
         return jdbc.queryForObject("SELECT count(*) FROM autopilot_runs WHERE rule_id = ? AND finished_at IS NOT NULL",
                 Long.class, UUID.fromString(ruleId));
@@ -307,6 +313,92 @@ class AutopilotIT extends IntegrationTest {
         assertThat(run.get("actions").get(0).get("orderId").isNull()).isFalse();
         assertThat(jdbc.queryForObject("SELECT quantity FROM holdings WHERE user_id = ? AND symbol = ?", Long.class,
                 s.userId(), symbol)).isEqualTo(expected);
+    }
+
+    @Test
+    void aBudgetThresholdFiresOnceAMonthWhenSpendingCrossesTheLine() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session friend = TestUsers.registerAndLogin(this);
+        UUID savings = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, savings, "5000.00");
+        String g = goal(s, "Treat fund");
+        Map<String, Object> trigger = Map.of("type", "BUDGET_THRESHOLD", "category", "FOOD", "percent", 90);
+        List<Map<String, Object>> actions = List.of(Map.of("type", "NOTIFY", "message", "Food budget is running hot"),
+                transfer(savings.toString(), g, "FIXED", "100.00"));
+
+        // A budget has to exist first.
+        JsonNode noBudget = postJson("/api/v1/autopilot/validate", Map.of("rule", rule(trigger, actions, "100.00",
+                "100.00")), Bank.auth(s)).jsonBody();
+        assertThat(noBudget.get("fieldErrors").toString()).contains("rule.trigger.category");
+        put("/api/v1/budgets", List.of(Map.of("category", "FOOD", "monthlyLimit", "1000.00")), s.accessToken());
+        JsonNode ok = postJson("/api/v1/autopilot/validate", Map.of("rule", rule(trigger, actions, "100.00", "100.00")),
+                Bank.auth(s)).jsonBody();
+        assertThat(ok.get("rendering").asString()).startsWith("When your food and dining spending reaches 90% of its monthly "
+                + "budget (once a month): notify me: “Food budget is running hot”, then move ₹100.00 from Savings");
+        String ruleId = activate(s, "Budget guard", rule(trigger, actions, "100.00", "100.00")).jsonBody().get("id")
+                .asString();
+
+        String friendNumber = Bank.firstAccountNumber(this, friend);
+        dinner(s, savings, friendNumber, "500.00"); // 50%: not yet
+        dinner(s, savings, friendNumber, "450.00"); // 95%: fires, via the outbox
+        await(() -> finishedRuns(ruleId) == 1);
+        dinner(s, savings, friendNumber, "100.00"); // still over: not again this month
+        engine.runDaily(LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")));
+        JsonNode runs = get("/api/v1/autopilot/rules/" + ruleId + "/runs", s.accessToken()).jsonBody().get("content");
+        assertThat(runs.size()).isEqualTo(1);
+        assertThat(runs.get(0).get("outcome").asString()).isEqualTo("SUCCEEDED");
+        assertThat(runs.get(0).get("triggerSummary").asString()).startsWith("Food and dining budget at 95% (₹950.00 of ₹1,000.00)");
+        assertThat(Bank.balance(this, s, UUID.fromString(g))).isEqualTo("100.00");
+        assertThat(get("/api/v1/notifications", s.accessToken()).body()).contains("Food budget is running hot");
+
+        // The replay finds the same crossing.
+        JsonNode sim = postJson("/api/v1/autopilot/simulate", Map.of("rule", rule(trigger, actions, "100.00", "100.00"),
+                "days", 1), Bank.auth(s)).jsonBody();
+        assertThat(sim.get("firings").size()).isEqualTo(1);
+        assertThat(sim.get("firings").get(0).get("triggerSummary").asString()).startsWith("Food and dining budget at ");
+    }
+
+    @Test
+    void aRoundUpSweepMovesTheSpareChangeOfItsWindowOnce() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session friend = TestUsers.registerAndLogin(this);
+        UUID savings = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, savings, "5000.00");
+        String g = goal(s, "Spare change");
+        String friendNumber = Bank.firstAccountNumber(this, friend);
+        Bank.transfer(this, s, savings, friendNumber, "123.40", UUID.randomUUID()); // +6.60
+        Bank.transfer(this, s, savings, friendNumber, "207.00", UUID.randomUUID()); // +3.00
+        Bank.transfer(this, s, savings, friendNumber, "50.00", UUID.randomUUID());  // exact: +0
+
+        LocalDate due = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).plusDays(1);
+        String weekday = due.getDayOfWeek().name().substring(0, 3);
+        Map<String, Object> sweep = Map.of("type", "ROUND_UP_SWEEP", "fromAccountId", savings.toString(),
+                "toAccountId", g, "roundTo", 10);
+
+        JsonNode bad = postJson("/api/v1/autopilot/validate", Map.of("rule", rule(Map.of("type", "MONEY_RECEIVED",
+                "accountId", savings.toString()), List.of(Map.of("type", "ROUND_UP_SWEEP", "fromAccountId",
+                savings.toString(), "toAccountId", g, "roundTo", 7)), "100.00", "100.00")), Bank.auth(s)).jsonBody();
+        assertThat(bad.get("fieldErrors").toString()).contains("rule.actions[0].type").contains("rule.actions[0].roundTo");
+
+        Map<String, Object> rule = rule(Map.of("type", "SCHEDULE", "frequency", "WEEKLY", "weekday", weekday),
+                List.of(sweep), "500.00", "2000.00");
+        JsonNode created = activate(s, "Round-up saver", rule).jsonBody();
+        assertThat(created.get("rendering").asString()).contains("move the round-ups to the next ₹10 on spends from "
+                + "Savings ••••" + Bank.firstAccountNumber(this, s).substring(8)
+                + " since the previous scheduled day to Spare change");
+        String ruleId = created.get("id").asString();
+
+        engine.runDaily(due);
+        engine.runDaily(due); // once per scheduled day
+        assertThat(Bank.balance(this, s, UUID.fromString(g))).isEqualTo("9.60");
+        JsonNode run = get("/api/v1/autopilot/rules/" + ruleId + "/runs", s.accessToken()).jsonBody().get("content");
+        assertThat(run.size()).isEqualTo(1);
+        assertThat(run.get(0).get("actions").get(0).get("amount").asString()).isEqualTo("9.60");
+        // The sweep counts toward the caps like any transfer.
+        assertThat(get("/api/v1/autopilot/rules/" + ruleId, s.accessToken()).jsonBody().toString()).contains("9.60");
+        // The week after has no spends in its window: under ₹1 is skipped, nothing moves.
+        engine.runDaily(due.plusWeeks(1));
+        assertThat(Bank.balance(this, s, UUID.fromString(g))).isEqualTo("9.60");
     }
 
     // ------------------------------------------------------------------ replay, lifecycle, intents

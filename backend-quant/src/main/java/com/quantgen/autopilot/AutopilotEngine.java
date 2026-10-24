@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import com.quantgen.common.idempotency.IdempotencyService;
 import com.quantgen.common.money.Inr;
 import com.quantgen.common.notification.NotificationService;
 import com.quantgen.common.notification.NotificationType;
+import com.quantgen.insights.CategoryService;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.payment.api.PaymentDtos.TransferDto;
 import com.quantgen.payment.domain.TransferSource;
@@ -70,6 +72,10 @@ public class AutopilotEngine implements EventConsumer {
     static final BigDecimal DAILY_CAP = new BigDecimal("100000.00");
     static final int FAILURES_TO_PAUSE = 3;
     static final Duration RESUME_AFTER = Duration.ofMinutes(2);
+    /** Journal types that count as spending for budgets (as for the budget alerts). */
+    static final List<String> SPEND_TYPES = List.of("TRANSFER", "BILL_PAYMENT", "LOAN_REPAYMENT", "CARD");
+    /** Action types that move money, so they count toward the caps. */
+    static final String MOVING = "('TRANSFER', 'BUY', 'ROUND_UP_SWEEP')";
 
     record Claimed(UUID runId) {
     }
@@ -80,6 +86,7 @@ public class AutopilotEngine implements EventConsumer {
     private final JdbcTemplate jdbc;
     private final AutopilotService rules;
     private final RuleRenderer renderer;
+    private final RuleInputs inputs;
     private final AccountService accounts;
     private final LedgerService ledger;
     private final TransferService transfers;
@@ -91,13 +98,15 @@ public class AutopilotEngine implements EventConsumer {
     private final TransactionTemplate tx;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-    AutopilotEngine(JdbcTemplate jdbc, AutopilotService rules, RuleRenderer renderer, AccountService accounts,
+    AutopilotEngine(JdbcTemplate jdbc, AutopilotService rules, RuleRenderer renderer, RuleInputs inputs,
+                    AccountService accounts,
                     LedgerService ledger, TransferService transfers, OrderService orders, IdempotencyService idempotency,
                     NotificationService notifications, FeatureFlagService flags, Clock clock,
                     PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
         this.rules = rules;
         this.renderer = renderer;
+        this.inputs = inputs;
         this.accounts = accounts;
         this.ledger = ledger;
         this.transfers = transfers;
@@ -170,6 +179,20 @@ public class AutopilotEngine implements EventConsumer {
                 }
             }
         }
+        if (SPEND_TYPES.contains(type)) {
+            LocalDate today = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE));
+            for (JsonNode line : p.path("lines")) {
+                if ("DEBIT".equals(line.path("direction").asString())) {
+                    UUID accountId = UUID.fromString(line.path("ledgerAccountId").asString());
+                    for (ActiveRule rule : active("BUDGET_THRESHOLD", accountId)) {
+                        UUID run = budgetCheck(rule, today);
+                        if (run != null) {
+                            claimed.add(run);
+                        }
+                    }
+                }
+            }
+        }
         executeAfterCommit(claimed);
     }
 
@@ -184,7 +207,10 @@ public class AutopilotEngine implements EventConsumer {
         }
     }
 
-    /** Claims and runs every SCHEDULE rule due on {@code day} and every BALANCE_ABOVE rule above its threshold. */
+    /**
+     * Claims and runs every SCHEDULE rule due on {@code day}, every BALANCE_ABOVE rule above its threshold and every
+     * BUDGET_THRESHOLD rule whose budget is past its line.
+     */
     public int runDaily(LocalDate day) {
         if (!enabled()) {
             return 0;
@@ -212,6 +238,13 @@ public class AutopilotEngine implements EventConsumer {
                 if (run != null) {
                     runs.add(run);
                 }
+            }
+        }
+        // Spending normally fires these from the outbox; this catches a lowered budget or a recategorized spend.
+        for (ActiveRule rule : active("BUDGET_THRESHOLD", null)) {
+            UUID run = tx.execute(st -> budgetCheck(rule, day));
+            if (run != null) {
+                runs.add(run);
             }
         }
         runs.forEach(this::executeRun);
@@ -253,6 +286,18 @@ public class AutopilotEngine implements EventConsumer {
         }
     }
 
+    /** Claims a BUDGET_THRESHOLD run once the month's spending is past the line: at most once per rule per month. */
+    private UUID budgetCheck(ActiveRule rule, LocalDate day) {
+        Trigger t = rule.dsl().trigger();
+        RuleInputs.BudgetUse use = inputs.budgetUse(rule.userId(), t.category(), day);
+        if (use == null || use.pct() < t.percent()) {
+            return null;
+        }
+        String summary = CategoryService.label(t.category()) + " budget at " + use.pct() + "% (" + Inr.format(use.spent())
+                + " of " + Inr.format(use.limit()) + ")";
+        return claim(rule, "budget:" + t.category() + ":" + YearMonth.from(day), summary, use.spent());
+    }
+
     // ------------------------------------------------------------------ claiming
 
     /**
@@ -269,7 +314,7 @@ public class AutopilotEngine implements EventConsumer {
         }
         BigDecimal planned = BigDecimal.ZERO;
         for (Action a : dsl.actions()) {
-            planned = planned.add(amountFor(a, triggerAmount));
+            planned = planned.add(amountFor(dsl, a, triggerAmount, eventId));
         }
         List<UUID> inserted = jdbc.queryForList("""
                 INSERT INTO autopilot_runs (rule_id, user_id, rule_version, trigger_event_id, trigger_summary, trigger_amount,
@@ -312,7 +357,7 @@ public class AutopilotEngine implements EventConsumer {
     private BigDecimal moved(String who, UUID id, LocalDate since) {
         BigDecimal sum = jdbc.queryForObject("SELECT COALESCE(sum(a.amount), 0) FROM autopilot_run_actions a "
                         + "JOIN autopilot_runs x ON x.id = a.run_id WHERE " + who + " AND a.status = 'DONE' "
-                        + "AND a.type IN ('TRANSFER', 'BUY') AND a.created_at >= ?", BigDecimal.class, id,
+                        + "AND a.type IN " + MOVING + " AND a.created_at >= ?", BigDecimal.class, id,
                 Timestamp.from(since.atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant()));
         return sum == null ? BigDecimal.ZERO : sum;
     }
@@ -346,7 +391,7 @@ public class AutopilotEngine implements EventConsumer {
 
     private void doExecute(UUID runId) {
         Map<String, Object> run = jdbc.queryForMap("SELECT r.rule_id, r.user_id, r.rule_version, r.trigger_amount, "
-                + "r.finished_at, ru.name FROM autopilot_runs r JOIN autopilot_rules ru ON ru.id = r.rule_id WHERE r.id = ?", runId);
+                + "r.trigger_event_id, r.finished_at, ru.name FROM autopilot_runs r JOIN autopilot_rules ru ON ru.id = r.rule_id WHERE r.id = ?", runId);
         if (run.get("finished_at") != null) {
             return;
         }
@@ -354,9 +399,10 @@ public class AutopilotEngine implements EventConsumer {
         UUID userId = (UUID) run.get("user_id");
         String ruleName = (String) run.get("name");
         BigDecimal triggerAmount = (BigDecimal) run.get("trigger_amount");
+        String eventId = (String) run.get("trigger_event_id");
         RuleDsl dsl = rules.version(ruleId, ((Number) run.get("rule_version")).intValue());
         BigDecimal movedThisRun = jdbc.queryForObject("SELECT COALESCE(sum(amount), 0) FROM autopilot_run_actions "
-                + "WHERE run_id = ? AND status = 'DONE' AND type IN ('TRANSFER', 'BUY')", BigDecimal.class, runId);
+                + "WHERE run_id = ? AND status = 'DONE' AND type IN " + MOVING, BigDecimal.class, runId);
         String failure = jdbc.queryForList("SELECT error FROM autopilot_run_actions WHERE run_id = ? AND status = 'FAILED'",
                 String.class, runId).stream().findFirst().orElse(null);
         for (int i = 0; i < dsl.actions().size() && failure == null; i++) {
@@ -367,7 +413,7 @@ public class AutopilotEngine implements EventConsumer {
                 continue;
             }
             Action a = dsl.actions().get(i);
-            BigDecimal amount = amountFor(a, triggerAmount);
+            BigDecimal amount = amountFor(dsl, a, triggerAmount, eventId);
             BigDecimal soFar = movedThisRun;
             try {
                 BigDecimal moved = tx.execute(st -> runAction(runId, idx, userId, ruleName, a, amount, soFar, dsl));
@@ -395,7 +441,7 @@ public class AutopilotEngine implements EventConsumer {
                 record(runId, idx, a.type(), null, "DONE", null, null);
                 return BigDecimal.ZERO;
             }
-            case "TRANSFER" -> {
+            case "TRANSFER", "ROUND_UP_SWEEP" -> {
                 if (amount.compareTo(BigDecimal.ONE) < 0) {
                     record(runId, idx, a.type(), amount, "SKIPPED", null, null);
                     return BigDecimal.ZERO;
@@ -494,8 +540,15 @@ public class AutopilotEngine implements EventConsumer {
 
     // ------------------------------------------------------------------ amounts and rules
 
-    /** The amount an action moves now (EXCESS_ABOVE reads the live balance of its source account). */
-    BigDecimal amountFor(Action a, BigDecimal triggerAmount) {
+    /**
+     * The amount an action moves now. EXCESS_ABOVE reads the live balance of its source account; a round-up sweep
+     * sums the window ending on the scheduled day in {@code eventId}, so a resumed run gets the same amount.
+     */
+    BigDecimal amountFor(RuleDsl dsl, Action a, BigDecimal triggerAmount, String eventId) {
+        if ("ROUND_UP_SWEEP".equals(a.type())) {
+            LocalDate due = LocalDate.parse(eventId.substring("schedule:".length()));
+            return inputs.roundUps(a.fromAccountId(), a.roundTo(), dsl.trigger(), due);
+        }
         if (a.amount() == null) {
             return BigDecimal.ZERO;
         }

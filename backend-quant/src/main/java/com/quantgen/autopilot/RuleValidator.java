@@ -35,10 +35,11 @@ class RuleValidator {
 
     static final BigDecimal MAX_CAP = new BigDecimal("100000.00");
     static final Duration PAYEE_AGE = Duration.ofHours(24);
-    static final List<String> TRIGGERS = List.of("MONEY_RECEIVED", "SCHEDULE", "BALANCE_ABOVE", "PRICE_CROSSES");
-    static final List<String> LATER_TRIGGERS = List.of("BUDGET_THRESHOLD");
-    static final List<String> ACTIONS = List.of("TRANSFER", "BUY", "NOTIFY");
-    static final List<String> LATER_ACTIONS = List.of("PAY_BILL", "ROUND_UP_SWEEP");
+    static final List<String> TRIGGERS = List.of("MONEY_RECEIVED", "SCHEDULE", "BALANCE_ABOVE", "PRICE_CROSSES",
+            "BUDGET_THRESHOLD");
+    static final List<String> ACTIONS = List.of("TRANSFER", "BUY", "NOTIFY", "ROUND_UP_SWEEP");
+    static final List<String> LATER_ACTIONS = List.of("PAY_BILL");
+    static final List<Integer> ROUND_TO = List.of(10, 50, 100);
     static final List<String> WEEKDAYS = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
     static final List<String> CREDIT_TYPES = List.of("DEPOSIT", "TRANSFER", "TOPUP", "INTEREST", "REFUND", "LOAN_DISBURSAL");
 
@@ -129,10 +130,6 @@ class RuleValidator {
             return null;
         }
         String type = t.path("type").asString("");
-        if (LATER_TRIGGERS.contains(type)) {
-            fe.add(new FieldError(p + ".type", type + " triggers aren't supported yet"));
-            return null;
-        }
         if (!TRIGGERS.contains(type)) {
             fe.add(new FieldError(p + ".type", "must be one of " + String.join(", ", TRIGGERS)));
             return null;
@@ -147,7 +144,7 @@ class RuleValidator {
                 if (txType != null && !CREDIT_TYPES.contains(txType)) {
                     fe.add(new FieldError(p + ".transactionType", "must be one of " + String.join(", ", CREDIT_TYPES)));
                 }
-                yield new Trigger(type, acc, min, contains, txType, null, null, null, null, null, null, null);
+                yield new Trigger(type, acc, min, contains, txType, null, null, null, null, null, null, null, null, null);
             }
             case "SCHEDULE" -> {
                 String freq = t.path("frequency").asString("");
@@ -156,13 +153,13 @@ class RuleValidator {
                     if (!d.isIntegralNumber() || d.asInt() < 1 || d.asInt() > 28) {
                         fe.add(new FieldError(p + ".dayOfMonth", "must be 1–28"));
                     }
-                    yield new Trigger(type, null, null, null, null, freq, d.asInt(), null, null, null, null, null);
+                    yield new Trigger(type, null, null, null, null, freq, d.asInt(), null, null, null, null, null, null, null);
                 } else if (freq.equals("WEEKLY")) {
                     String wd = t.path("weekday").asString("");
                     if (!WEEKDAYS.contains(wd)) {
                         fe.add(new FieldError(p + ".weekday", "must be one of " + String.join(", ", WEEKDAYS)));
                     }
-                    yield new Trigger(type, null, null, null, null, freq, null, wd, null, null, null, null);
+                    yield new Trigger(type, null, null, null, null, freq, null, wd, null, null, null, null, null, null);
                 }
                 fe.add(new FieldError(p + ".frequency", "must be MONTHLY or WEEKLY"));
                 yield null;
@@ -170,7 +167,21 @@ class RuleValidator {
             case "BALANCE_ABOVE" -> {
                 UUID acc = ownAccount(userId, t, "accountId", p, fe, true);
                 BigDecimal threshold = money(t, "threshold", p, BigDecimal.ZERO, new BigDecimal("100000000.00"), fe);
-                yield new Trigger(type, acc, null, null, null, null, null, null, threshold, null, null, null);
+                yield new Trigger(type, acc, null, null, null, null, null, null, threshold, null, null, null, null, null);
+            }
+            case "BUDGET_THRESHOLD" -> {
+                String category = t.path("category").asString("");
+                List<BigDecimal> budget = jdbc.queryForList("SELECT monthly_limit FROM budgets WHERE user_id = ? "
+                        + "AND category = ?", BigDecimal.class, userId, category);
+                if (budget.isEmpty()) {
+                    fe.add(new FieldError(p + ".category", "set a monthly budget for this category first"));
+                }
+                JsonNode pct = t.path("percent");
+                if (!pct.isIntegralNumber() || pct.asInt() < 1 || pct.asInt() > 200) {
+                    fe.add(new FieldError(p + ".percent", "must be a whole percentage 1–200"));
+                }
+                yield new Trigger(type, null, null, null, null, null, null, null, null, null, null, null, category,
+                        pct.asInt());
             }
             default -> { // PRICE_CROSSES
                 String symbol = symbol(t, p, fe);
@@ -179,7 +190,7 @@ class RuleValidator {
                     fe.add(new FieldError(p + ".direction", "must be ABOVE or BELOW"));
                 }
                 BigDecimal price = money(t, "price", p, new BigDecimal("0.01"), new BigDecimal("10000000.00"), fe);
-                yield new Trigger(type, null, null, null, null, null, null, null, null, symbol, dir, price);
+                yield new Trigger(type, null, null, null, null, null, null, null, null, symbol, dir, price, null, null);
             }
         };
     }
@@ -231,20 +242,45 @@ class RuleValidator {
                     }
                 }
                 Amount amount = amount(a, p, trigger, fe);
-                return new Action(type, from, to, payee, null, null, amount, null);
+                return new Action(type, from, to, payee, null, null, amount, null, null);
             }
             case "BUY" -> {
                 UUID acc = ownAccount(userId, a, "accountId", p, fe, true);
                 String symbol = symbol(a, p, fe);
                 Amount amount = amount(a, p, trigger, fe);
-                return new Action(type, null, null, null, acc, symbol, amount, null);
+                return new Action(type, null, null, null, acc, symbol, amount, null, null);
+            }
+            case "ROUND_UP_SWEEP" -> {
+                // The window is "since the previous scheduled day", so it needs a schedule to have one.
+                if (trigger != null && !"SCHEDULE".equals(trigger.type())) {
+                    fe.add(new FieldError(p + ".type", "round-up sweeps run on a schedule trigger"));
+                }
+                UUID from = ownAccount(userId, a, "fromAccountId", p, fe, true);
+                UUID to = ownAccount(userId, a, "toAccountId", p, fe, false);
+                Optional<AccountRef> toAcc = to == null ? Optional.empty() : accounts.findById(to);
+                if (toAcc.isPresent() && toAcc.get().type() == AccountType.FIXED_DEPOSIT) {
+                    fe.add(new FieldError(p + ".toAccountId", "a fixed deposit can't receive money"));
+                }
+                if (to != null && to.equals(from)) {
+                    fe.add(new FieldError(p + ".toAccountId", "must be different from the source account"));
+                }
+                if (from != null && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM round_up_settings "
+                        + "WHERE account_id = ? AND enabled)", Boolean.class, from))) {
+                    // Both would save the same spare change twice.
+                    fe.add(new FieldError(p + ".fromAccountId", "this account already saves its round-ups every night"));
+                }
+                JsonNode r = a.path("roundTo");
+                if (!r.isIntegralNumber() || !ROUND_TO.contains(r.asInt())) {
+                    fe.add(new FieldError(p + ".roundTo", "must be 10, 50 or 100"));
+                }
+                return new Action(type, from, to, null, null, null, null, null, r.asInt());
             }
             default -> { // NOTIFY
                 String message = optionalText(a, "message", p, 140, fe);
                 if (message == null) {
                     fe.add(new FieldError(p + ".message", "write the message (up to 140 characters)"));
                 }
-                return new Action(type, null, null, null, null, null, null, message);
+                return new Action(type, null, null, null, null, null, null, message, null);
             }
         }
     }

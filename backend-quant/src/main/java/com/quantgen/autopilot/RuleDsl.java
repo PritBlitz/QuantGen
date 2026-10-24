@@ -18,7 +18,8 @@ public record RuleDsl(int dslVersion, Trigger trigger, List<Condition> condition
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Trigger(String type, UUID accountId, BigDecimal minAmount, String counterpartyContains,
                           String transactionType, String frequency, Integer dayOfMonth, String weekday,
-                          BigDecimal threshold, String symbol, String direction, BigDecimal price) {
+                          BigDecimal threshold, String symbol, String direction, BigDecimal price, String category,
+                          Integer percent) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -31,7 +32,7 @@ public record RuleDsl(int dslVersion, Trigger trigger, List<Condition> condition
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Action(String type, UUID fromAccountId, UUID toAccountId, UUID toBeneficiaryId, UUID accountId,
-                         String symbol, Amount amount, String message) {
+                         String symbol, Amount amount, String message, Integer roundTo) {
     }
 
     public record Caps(BigDecimal perRun, BigDecimal perMonth) {

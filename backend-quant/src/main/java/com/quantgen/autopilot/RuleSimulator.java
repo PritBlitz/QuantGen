@@ -26,6 +26,7 @@ import com.quantgen.autopilot.RuleDsl.Trigger;
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.money.Inr;
+import com.quantgen.insights.CategoryService;
 
 /**
  * F-AUTO-3 replay: dry-runs a rule against the user's real ledger history for the last N days (90 by default) with a
@@ -52,22 +53,24 @@ class RuleSimulator {
 
     private final JdbcTemplate jdbc;
     private final RuleRenderer renderer;
+    private final RuleInputs inputs;
     private final Clock clock;
 
-    RuleSimulator(JdbcTemplate jdbc, RuleRenderer renderer, Clock clock) {
+    RuleSimulator(JdbcTemplate jdbc, RuleRenderer renderer, RuleInputs inputs, Clock clock) {
         this.jdbc = jdbc;
         this.renderer = renderer;
+        this.inputs = inputs;
         this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public SimulationDto simulate(RuleDsl rule, int days) {
+    public SimulationDto simulate(UUID userId, RuleDsl rule, int days) {
         if (days < 1 || days > 180) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "days", "must be 1–180");
         }
         LocalDate today = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE));
         LocalDate first = today.minusDays(days);
-        List<Event> events = events(rule.trigger(), first, today);
+        List<Event> events = events(userId, rule.trigger(), first, today);
 
         Map<UUID, BigDecimal> delta = new HashMap<>(); // simulated movements per account
         Map<String, BigDecimal> monthUsed = new HashMap<>();
@@ -89,7 +92,7 @@ class RuleSimulator {
             List<BigDecimal> amounts = new ArrayList<>();
             BigDecimal planned = BigDecimal.ZERO;
             for (Action a : rule.actions()) {
-                BigDecimal amt = amount(a, e, delta);
+                BigDecimal amt = amount(rule, a, e, delta);
                 amounts.add(amt);
                 planned = planned.add(amt);
             }
@@ -113,7 +116,7 @@ class RuleSimulator {
                 }
                 String reason = null;
                 switch (a.type()) {
-                    case "TRANSFER" -> {
+                    case "TRANSFER", "ROUND_UP_SWEEP" -> {
                         if (balance(a.fromAccountId(), e.at(), delta).compareTo(amt) < 0) {
                             reason = "Not enough money in " + renderer.account(a.fromAccountId()) + " that day";
                         } else if (amt.signum() > 0) {
@@ -164,7 +167,7 @@ class RuleSimulator {
 
     // ------------------------------------------------------------------ history
 
-    private List<Event> events(Trigger t, LocalDate first, LocalDate today) {
+    private List<Event> events(UUID userId, Trigger t, LocalDate first, LocalDate today) {
         List<Event> out = new ArrayList<>();
         switch (t.type()) {
             case "MONEY_RECEIVED" -> {
@@ -210,6 +213,23 @@ class RuleSimulator {
                     }
                 }
             }
+            case "BUDGET_THRESHOLD" -> {
+                // Like the engine: the first day each month the spending is past the line, against today's budget.
+                String firedIn = null;
+                for (LocalDate d = first; !d.isAfter(today); d = d.plusDays(1)) {
+                    String month = d.toString().substring(0, 7);
+                    if (month.equals(firedIn)) {
+                        continue;
+                    }
+                    RuleInputs.BudgetUse use = inputs.budgetUse(userId, t.category(), d);
+                    if (use != null && use.pct() >= t.percent()) {
+                        firedIn = month;
+                        out.add(new Event(d.plusDays(1).atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant().minusSeconds(1),
+                                CategoryService.label(t.category()) + " budget at " + use.pct() + "% ("
+                                        + Inr.format(use.spent()) + " of " + Inr.format(use.limit()) + ")", use.spent()));
+                    }
+                }
+            }
             default -> jdbc.query("""
                     SELECT (ts AT TIME ZONE 'Asia/Kolkata')::date AS day, min(price) AS lo, max(price) AS hi
                       FROM price_ticks WHERE symbol = ? AND ts >= ? GROUP BY 1 ORDER BY 1
@@ -234,7 +254,11 @@ class RuleSimulator {
         return base.add(delta.getOrDefault(accountId, BigDecimal.ZERO));
     }
 
-    private BigDecimal amount(Action a, Event e, Map<UUID, BigDecimal> delta) {
+    private BigDecimal amount(RuleDsl rule, Action a, Event e, Map<UUID, BigDecimal> delta) {
+        if ("ROUND_UP_SWEEP".equals(a.type())) {
+            return inputs.roundUps(a.fromAccountId(), a.roundTo(), rule.trigger(),
+                    LocalDate.ofInstant(e.at(), TimeConfig.BUSINESS_ZONE));
+        }
         if (a.amount() == null) {
             return BigDecimal.ZERO;
         }

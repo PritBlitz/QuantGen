@@ -72,7 +72,13 @@ public class AutopilotService {
             new TemplateDto("rent", "Pay rent on the 1st", "Rent goes out on the 1st, automatically, within your caps.",
                     "On the 1st of every month move ₹12,000 to my landlord", null),
             new TemplateDto("buy-the-dip", "Buy the dip", "Buy a stock you like when it falls below a price.",
-                    "When QGEN drops below ₹1,200 buy ₹10,000 of it", null));
+                    "When QGEN drops below ₹1,200 buy ₹10,000 of it", null),
+            new TemplateDto("round-up-saver", "Round-up saver",
+                    "Every week, the spare change from your spends goes to a goal.",
+                    "Every Sunday move the round-ups to the next ₹10 on my spends from savings to my goal", null),
+            new TemplateDto("budget-guard", "Budget guard",
+                    "Get a nudge, or top up from savings, when a budget runs hot.",
+                    "When my food spending reaches 90% of its budget, notify me", null));
 
     private final JdbcTemplate jdbc;
     private final RuleValidator validator;
@@ -290,7 +296,7 @@ public class AutopilotService {
                    (SELECT max(started_at) FROM autopilot_runs x WHERE x.rule_id = r.id) AS last_run_at,
                    (SELECT count(*) FROM autopilot_runs x WHERE x.rule_id = r.id) AS run_count,
                    (SELECT COALESCE(sum(a.amount), 0) FROM autopilot_run_actions a JOIN autopilot_runs x ON x.id = a.run_id
-                     WHERE x.rule_id = r.id AND a.status = 'DONE' AND a.type IN ('TRANSFER', 'BUY')
+                     WHERE x.rule_id = r.id AND a.status = 'DONE' AND a.type IN ('TRANSFER', 'BUY', 'ROUND_UP_SWEEP')
                        AND a.created_at >= ?) AS moved
               FROM autopilot_rules r JOIN autopilot_rule_versions v ON v.rule_id = r.id AND v.version = r.version
             """;

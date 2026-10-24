@@ -82,7 +82,7 @@ public class AutopilotController {
     public SimulationDto simulate(@AuthenticationPrincipal AuthUser user, @RequestBody SimulateRequest request) {
         autopilot.requireEnabled();
         RuleDsl rule = autopilot.requireValid(user.id(), request.rule());
-        return simulator.simulate(rule, request.days() == null ? 90 : request.days());
+        return simulator.simulate(user.id(), rule, request.days() == null ? 90 : request.days());
     }
 
     @PostMapping("/api/v1/autopilot/rules")
