@@ -23,6 +23,8 @@ public enum ErrorCode {
     RULE_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "The rule is not valid"),
     KYC_REQUIRED(HttpStatus.FORBIDDEN, "KYC details are required for this action"),
     FEATURE_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "This feature is currently switched off"),
+    AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The assistant isn't available right now"),
+    BUDGET_EXHAUSTED(HttpStatus.TOO_MANY_REQUESTS, "The assistant's usage limit is reached; try again later"),
     PAYMENT_VERIFICATION_FAILED(HttpStatus.BAD_REQUEST, "The payment could not be verified"),
     GATEWAY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The payment gateway is unavailable"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");

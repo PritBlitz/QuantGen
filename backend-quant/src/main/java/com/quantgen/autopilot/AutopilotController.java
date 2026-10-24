@@ -28,6 +28,7 @@ import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.flags.FeatureFlagService;
 import com.quantgen.common.security.AuthUser;
 import com.quantgen.common.web.PageDto;
+import com.quantgen.copilot.CopilotService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,22 +54,32 @@ public class AutopilotController {
     private final AutopilotService autopilot;
     private final RuleSimulator simulator;
     private final FeatureFlagService flags;
+    private final CopilotService copilot;
 
-    public AutopilotController(AutopilotService autopilot, RuleSimulator simulator, FeatureFlagService flags) {
+    public AutopilotController(AutopilotService autopilot, RuleSimulator simulator, FeatureFlagService flags,
+                               CopilotService copilot) {
         this.autopilot = autopilot;
         this.simulator = simulator;
         this.flags = flags;
+        this.copilot = copilot;
+    }
+
+    public record CompileDto(RuleDsl rule, String rendering, List<String> warnings) {
     }
 
     @PostMapping("/api/v1/autopilot/compile")
-    @Operation(summary = "Plain language → DSL via the Planner agent (needs the ai flag and agent-quant)")
-    public void compile(@RequestBody CompileRequest request) {
+    @Operation(summary = "Plain language → DSL via the Planner agent (needs the ai flag and agent-quant). The draft is "
+            + "validated like any rule (422 RULE_INVALID) and rendered by the server.")
+    public CompileDto compile(@AuthenticationPrincipal AuthUser user, @RequestBody CompileRequest request) {
         autopilot.requireEnabled();
         if (!flags.isEnabled("ai")) {
             throw new ApiException(ErrorCode.FEATURE_DISABLED, "The AI layer is switched off; build the rule with the form");
         }
         AutopilotService.requireText(request.text());
-        throw new ApiException(ErrorCode.FEATURE_DISABLED, "The Planner isn't available yet; build the rule with the form");
+        CopilotService.Draft draft = copilot.compile(user.id(), request.text().strip());
+        // The model's rule is a proposal: validated against the user's own data and rendered by the server (D-024).
+        RuleDsl rule = autopilot.requireValid(user.id(), draft.rule());
+        return new CompileDto(rule, autopilot.render(rule), draft.warnings());
     }
 
     @PostMapping("/api/v1/autopilot/validate")

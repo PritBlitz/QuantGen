@@ -4,6 +4,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 
+import jakarta.servlet.DispatcherType;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,6 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.quantgen.common.error.ApiErrorWriter;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.security.AccessTokenVerifier;
+import com.quantgen.common.security.AgentAuthenticationFilter;
+import com.quantgen.common.security.AgentTokenVerifier;
 import com.quantgen.common.security.JwtAuthenticationFilter;
 import com.quantgen.common.security.PatAuthenticationFilter;
 import com.quantgen.common.security.PersonalTokenAuthenticator;
@@ -39,12 +43,15 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorWriter errorWriter,
-                                           AccessTokenVerifier tokenVerifier, PersonalTokenAuthenticator personalTokens)
+                                           AccessTokenVerifier tokenVerifier, PersonalTokenAuthenticator personalTokens,
+                                           AgentTokenVerifier agentTokens)
             throws Exception {
         http
                 .addFilterBefore(new JwtAuthenticationFilter(tokenVerifier), UsernamePasswordAuthenticationFilter.class)
                 // Personal access tokens (qg_pat_…) are checked after JWTs and confined to their read routes.
                 .addFilterAfter(new PatAuthenticationFilter(personalTokens, errorWriter), JwtAuthenticationFilter.class)
+                // Delegated agent tokens (aud=agent) are never accepted as access tokens; this confines them to 🤖 routes.
+                .addFilterAfter(new AgentAuthenticationFilter(agentTokens, errorWriter), PatAuthenticationFilter.class)
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {
                 })
@@ -60,6 +67,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, ex) -> errorWriter.write(req, res, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((req, res, ex) -> errorWriter.write(req, res, ErrorCode.FORBIDDEN)))
                 .authorizeHttpRequests(auth -> auth
+                        // The async re-dispatch that completes an SSE response (copilot) was authorized as a request.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()

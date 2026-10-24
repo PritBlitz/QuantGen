@@ -142,6 +142,16 @@ public class IntentService {
                 (rs, i) -> row(rs).dto(), args.toArray());
     }
 
+    /** These intents of this user, in the order given (unknown or someone else's ids are skipped). */
+    public List<IntentDto> byIds(UUID userId, List<UUID> ids) {
+        List<IntentDto> out = new ArrayList<>();
+        for (UUID id : ids) {
+            jdbc.query(SELECT + " WHERE id = ? AND user_id = ?", (rs, i) -> row(rs).dto(), id, userId).stream()
+                    .findFirst().ifPresent(out::add);
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ decide
 
     public IdempotencyService.Result<IntentDto> approve(UUID userId, UUID key, String fingerprint, UUID intentId,

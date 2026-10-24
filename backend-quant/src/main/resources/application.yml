@@ -57,6 +57,14 @@ springdoc:
   packages-to-scan: com.quantgen
 
 qg:
+  agent:
+    # agent-quant (D-044, D-045). The shared secret has no default outside dev: without it every turn is refused.
+    url: ${QG_AGENT_URL:http://localhost:8090}
+    secret: ${QG_AGENT_SECRET:}
+  ai:
+    # D-039 budgets in tokens (free tier: prices 0, so cost is 0).
+    user-daily-tokens: ${QG_AI_USER_DAILY_TOKENS:200000}
+    monthly-tokens: ${QG_AI_MONTHLY_TOKENS:5000000}
   market:
     simulator-enabled: true
     tick-millis: 3000

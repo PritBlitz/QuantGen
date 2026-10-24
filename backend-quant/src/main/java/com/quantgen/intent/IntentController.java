@@ -25,6 +25,7 @@ import com.quantgen.common.error.ApiException;
 import com.quantgen.common.idempotency.IdempotencyService;
 import com.quantgen.common.idempotency.Idempotent;
 import com.quantgen.common.security.AuthUser;
+import com.quantgen.common.security.AgentAuthenticationFilter;
 import com.quantgen.common.security.PatAuthenticationFilter;
 import com.quantgen.common.web.TextRules;
 import com.quantgen.intent.IntentService.IntentDto;
@@ -56,10 +57,13 @@ public class IntentController {
     public ResponseEntity<IntentDto> propose(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody ProposeRequest body,
                                              HttpServletRequest http) {
         UUID tokenId = (UUID) http.getAttribute(PatAuthenticationFilter.TOKEN_ID_ATTRIBUTE);
+        UUID agentConversation = (UUID) http.getAttribute(AgentAuthenticationFilter.CONVERSATION_ATTRIBUTE);
         // A token-proposed intent is always labelled as such; the agent name can't be chosen by the client.
         String agent = tokenId != null ? "MCP_CLIENT" : body.agent() == null ? "CONCIERGE" : body.agent();
+        // An agent token proposes only into the conversation it was minted for.
+        UUID conversationId = agentConversation != null ? agentConversation : body.conversationId();
         return ResponseEntity.status(HttpStatus.CREATED).body(intents.propose(user.id(), tokenId, agent, body.kind(),
-                body.payload(), body.conversationId(), rationale(body.rationale())));
+                body.payload(), conversationId, rationale(body.rationale())));
     }
 
     /** Model text: line breaks become spaces; any other control character is refused (log-forging, D-023). */

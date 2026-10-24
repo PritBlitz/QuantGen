@@ -7,6 +7,9 @@ spring:
     password: ${QG_DB_PASSWORD:quantgen}
 
 qg:
+  agent:
+    # Dev-only default; agent-quant's dev profile uses the same value. Prod reads QG_AGENT_SECRET.
+    secret: ${QG_AGENT_SECRET:dev-only-agent-secret-do-not-use-in-prod}
   jwt:
     # Dev-only default. Prod reads QG_JWT_SECRET from the environment.
     secret: ${QG_JWT_SECRET:ZGV2LW9ubHktcXVhbnRnZW4tand0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2QtMDEyMzQ1Njc4OQ==}

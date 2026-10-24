@@ -1,4 +1,8 @@
 qg:
+  agent:
+    secret: test-only-agent-secret
+    # FakeAgent (support) listens here during CopilotIT.
+    url: http://localhost:18091
   crypto:
     field-key: dGVzdC1vbmx5LWZpZWxkLWtleS1ub3QtZm9yLXByb2Q=
     index-key: dGVzdC1vbmx5LWluZGV4LWtleS1ub3QtZm9yLXByb2Q=

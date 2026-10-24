@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import com.quantgen.auth.domain.Role;
 import com.quantgen.common.security.AccessTokenVerifier;
+import com.quantgen.common.security.AgentTokenVerifier;
 import com.quantgen.common.security.AuthUser;
 
 import io.jsonwebtoken.Claims;
@@ -22,15 +23,21 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 
-/** Issues and verifies HS256 access tokens: {@code sub=userId, role, jti, iat, exp, iss}. */
+/**
+ * Issues and verifies HS256 access tokens: {@code sub=userId, role, jti, iat, exp, iss}. Also delegated agent tokens
+ * (D-022): {@code aud=agent, act=agent-quant, scope, conv}, 15 minutes. A token with an audience is never accepted as
+ * an access token, so an agent token can't be used as the user's own.
+ */
 @Service
-public class JwtService implements AccessTokenVerifier {
+public class JwtService implements AccessTokenVerifier, AgentTokenVerifier {
 
     private static final Logger log = LoggerFactory.getLogger(JwtService.class);
     private static final String ISSUER = "quantgen";
     private static final String ROLE_CLAIM = "role";
     private static final String SESSION_CLAIM = "sid";
     private static final int MIN_KEY_BYTES = 32;
+    static final String AGENT_AUDIENCE = "agent";
+    static final java.time.Duration AGENT_TTL = java.time.Duration.ofMinutes(15);
 
     private final SecretKey key;
     private final AuthProperties props;
@@ -79,6 +86,9 @@ public class JwtService implements AccessTokenVerifier {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+            if (claims.getAudience() != null && !claims.getAudience().isEmpty()) {
+                return Optional.empty(); // a delegated agent token is never a user's access token
+            }
             UUID userId = UUID.fromString(claims.getSubject());
             Role role = Role.valueOf(claims.get(ROLE_CLAIM, String.class));
             String sid = claims.get(SESSION_CLAIM, String.class);
@@ -86,6 +96,45 @@ public class JwtService implements AccessTokenVerifier {
         } catch (JwtException | IllegalArgumentException | NullPointerException e) {
             // Never log the token itself.
             log.debug("Rejected access token: {}", e.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    /** A delegated token for one conversation turn (D-022): read + propose only, enforced by the security chain. */
+    public String issueAgentToken(UUID userId, UUID conversationId) {
+        Instant now = clock.instant();
+        return Jwts.builder()
+                .issuer(ISSUER)
+                .subject(userId.toString())
+                .audience().add(AGENT_AUDIENCE).and()
+                .claim("act", "agent-quant")
+                .claim("scope", "agent:read agent:propose")
+                .claim("conv", conversationId.toString())
+                .id(UUID.randomUUID().toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(AGENT_TTL)))
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
+    }
+
+    @Override
+    public Optional<AgentPrincipal> verifyAgent(String token) {
+        if (token == null || token.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .requireIssuer(ISSUER)
+                    .requireAudience(AGENT_AUDIENCE)
+                    .clock(() -> Date.from(clock.instant()))
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return Optional.of(new AgentPrincipal(UUID.fromString(claims.getSubject()),
+                    UUID.fromString(claims.get("conv", String.class))));
+        } catch (JwtException | IllegalArgumentException | NullPointerException e) {
+            log.debug("Rejected agent token: {}", e.getClass().getSimpleName());
             return Optional.empty();
         }
     }

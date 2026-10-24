@@ -48,8 +48,8 @@ you make a new one.
 | D-016 | Razorpay (test mode) for gateway top-ups, not Stripe | Accepted (built in V2-M2) |
 | D-017 | Agents never move money: they propose *intents* | Proposed |
 | D-018 | Separate `agent-quant` service, in Java | Proposed |
-| D-019 | Self-hosted agent loop on the Claude API, not Managed Agents | Proposed |
-| D-020 | Model tiers: Opus 5.5 for reasoning, Haiku 5.5 for bulk work | Proposed |
+| D-019 | Self-hosted agent loop on the Claude API, not Managed Agents | Superseded by D-044 (own loop kept; provider changed) |
+| D-020 | Model tiers: Opus 5.5 for reasoning, Haiku 5.5 for bulk work | Superseded by D-044 |
 | D-021 | Orchestrator + specialist agents ("agents as tools") | Proposed |
 | D-022 | Delegated, scoped agent tokens | Proposed |
 | D-023 | Intent summaries rendered by the server, never by the LLM | Proposed |
@@ -73,6 +73,8 @@ you make a new one.
 | D-041 | v2 approved; frontend redesign "Signal" | Accepted |
 | D-042 | Sandbox KYC, reusable step-up tokens, keyed PIN hashes | Accepted |
 | D-043 | Analytics computed live; the nightly roll-up waits for a slow query | Accepted |
+| D-044 | Free-tier LLM through an OpenAI-compatible client (Gemini by default) | Accepted |
+| D-045 | `agent-quant` is stateless; the core stores conversations and traces | Accepted |
 
 ---
 
@@ -481,3 +483,32 @@ you make a new one.
   Numbers are always exact and there is no roll-up to drift or backfill.
 - **Revisit when:** any analytics endpoint exceeds its p95 budget (500 ms), or shows up in the money-path p95 →
   add the `daily_metrics` roll-up (PRD §13) for closed days, then a read replica.
+
+### D-044 · Free-tier LLM through an OpenAI-compatible client (Gemini by default)
+- **Date / status:** 2026-10-24 · Accepted (owner: "we do not have money"; chose the Gemini free tier)
+- **Context:** D-019/D-020 assumed the paid Claude API. Every other part of the plan is free or open source, so the
+  AI layer is the only spend, and there is no budget for it.
+- **Options:** (A) Claude API (paid); (B) Gemini free tier; (C) Groq free tier; (D) Ollama locally ($0, but needs
+  RAM this laptop doesn't have next to the stack); (E) no AI, deterministic forms only.
+- **Decision:** (B) by default, through one small OpenAI-compatible chat-completions client with tool calling.
+  Gemini, Groq and Ollama all speak that API, so switching is config (`QG_AI_BASE_URL`, `QG_AI_MODEL`,
+  `QG_AI_API_KEY`), never code. The loop is still our own (D-019's reasoning stands: every tool call passes our
+  authz and tracing). With no key configured the copilot answers "not configured" and the app works as with
+  the `ai` flag off (E stays the fallback).
+- **Trade-off:** free tiers have low requests-per-minute/day limits, so a busy demo hits them (provider 429 →
+  "the assistant is busy", never a blind retry). The free tier may use prompts to improve the provider's products,
+  so the consent copy must say so, and masking (no full account numbers, no PAN) matters even more. The
+  model is less capable than Opus, so prompts stay short and tools narrow. `costUsd` is 0; budgets are in tokens.
+- **Revisit when:** there is money for a paid tier → point the config at it; evals decide which model.
+
+### D-045 · `agent-quant` is stateless; the core stores conversations and traces
+- **Date / status:** 2026-10-24 · Accepted (refines D-018 and ARCHITECTURE §12.7)
+- **Context:** ARCHITECTURE planned a separate agent schema. The dev laptop already runs out of memory with the
+  core, Postgres and the frontend, and a second database user, schema and migration set is more to secure.
+- **Options:** agent schema + own DB credentials; agent-quant stateless, the core persists everything.
+- **Decision:** `agent-quant` has no database at all. The core owns conversations, messages, `agent_runs` and
+  `agent_steps`: it sends the conversation history with each turn and records the (already redacted) steps the
+  agent streams back. The agent holds only the provider key and the internal shared secret.
+- **Trade-off:** the core's DB grows with chat data (deleted after 30 days, F-AGT-7), and the internal turn
+  request carries the recent history each time (capped). Simpler ops, one fewer place holding customer data.
+- **Revisit when:** back-office agents need long-running state of their own.

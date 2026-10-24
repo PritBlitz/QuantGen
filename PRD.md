@@ -1229,6 +1229,28 @@ Backend notes (remaining kinds, implemented 2026-10-24; every `kind` in `IntentD
   `PENDING` for an admin, nothing is disbursed. `LOAN_NOT_ELIGIBLE` / `KYC_REQUIRED` at approval → `FAILED`.
   `resultRef.type` `LOAN`.
 
+Backend notes (copilot, core side, implemented 2026-10-25; D-044 free-tier provider, D-045 stateless agent):
+- **Before the stream** (normal §7.1 JSON): `503 FEATURE_DISABLED` (`ai` off), `503 AI_UNAVAILABLE` (new code: agent
+  down, not configured, or no shared secret), `429 BUDGET_EXHAUSTED` (your tokens today ≥ `QG_AI_USER_DAILY_TOKENS`,
+  default 200,000, or everyone's this month ≥ `QG_AI_MONTHLY_TOKENS`, default 5,000,000), `429 RATE_LIMITED` (30
+  turns/hour), `400 text` (1–2000 chars; line breaks allowed, other control characters not), `404` (not yours).
+- **Stream:** `token`, `tool`, `intent` (the core re-reads the intent, so only the user's own intent proposed in this
+  conversation is sent, rendered by the server), `citation` (only the listed types; id `[A-Za-z0-9._:-]{1,64}`, label
+  ≤ 80 chars), then `done {runId, usage}` or `error {code, message}`. Mid-stream codes: `AI_BUSY` (provider rate
+  limit), `AI_UNAVAILABLE`, `TOOL_LIMIT`, `INTERNAL`; the message is the core's own text, never the provider's. Tokens
+  arrive in bursts (the provider call isn't streamed). Response header `X-Accel-Buffering: no` for nginx.
+- **Storage:** the user's message is stored once the agent accepts the turn; the assistant's (with intents,
+  citations, `runId`, partial text on error) before the stream closes. The title is the first message (≤ 60 chars).
+  Conversations and runs untouched for 30 days are deleted nightly (03:15 IST); `DELETE` removes everything at once.
+- **Delegated tokens (D-022):** `aud=agent`, 15 min, one conversation. They are never accepted as access tokens.
+  They reach only the 🤖 read routes (a personal access token's, plus beneficiaries, billers, saved billers,
+  Autopilot rules and templates) and `POST /intents`, `/autopilot/validate`, `/autopilot/simulate` and `/loans/quote`.
+  Everything else is `403`. An intent proposed with one always gets the token's conversation id.
+- **Traces:** the customer's trace omits `detail`; `/admin/ai/runs/{id}` includes it (the agent redacts it). Usage:
+  `costUsd` is computed from configured prices, `"0.00"` on the free tier; `budget.usedPct` is the share of the
+  monthly token cap. `/autopilot/compile` asks the Planner, then validates and renders the draft like any rule
+  (`422 RULE_INVALID` if the model's rule doesn't hold); a provider failure → `503 AI_UNAVAILABLE`.
+
 ### 12.7 Autopilot
 | Method | Path | Body | Response |
 |---|---|---|---|

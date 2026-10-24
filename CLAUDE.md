@@ -12,6 +12,7 @@ before cleverness. These rules apply to every session working in this repo.
 | `docker-compose.dev.yml`, `.env.example` | Dev Postgres (port 5433), env var names | Shared |
 | `backend-quant/` | Spring Boot API (see `backend-quant/Setup.md`) | Backend session only |
 | `frontend-quant/` | React app (see `frontend-quant/CLAUDE.md`, `DESIGN.md`) | Frontend session only |
+| `agent-quant/` | AI copilot service (Spring Boot, stateless, OpenAI-compatible LLM client; D-044, D-045) | Backend session (owner, 2026-10-24) |
 | root `docker-compose.yml`, `.github/`, infra | Integration / deploy | Frontend session, from M6 onward |
 
 **Never edit another session's folder.** If you need something there, message that session.
@@ -46,6 +47,15 @@ or asking the other session. Don't guess on security or money.
 - **Rate limiting** on auth endpoints, and an **audit log** for sensitive actions (login, freeze, loan decision, large transfer).
 - **Dependencies:** prefer well-known, maintained libraries. Don't add a dependency for something trivial. Pin versions.
 - If you notice a vulnerability anywhere, even outside your task, flag it to the user immediately.
+
+## AI rules (agent-quant)
+- AI proposes, humans approve: the agent can only read and create intents through the core with a delegated
+  token (`aud=agent`, 15 min). It never holds core DB credentials or a user's own JWT.
+- The provider key lives only in env (`QG_AI_API_KEY`, falling back to `QG_GEMINI_API_KEY`; gitignored `.env`). Never log it, echo it, or put it in
+  error bodies, traces or `agent_steps`.
+- Mask before anything reaches a model: account numbers `••••1234`, no PAN, PIN, tokens or passwords. Tool results
+  that carry user-written text are wrapped as data, never as instructions.
+- Free tier only (D-044). A provider 429 means "busy", not a blind retry.
 
 ## Quality bar
 - Every feature ships with tests. Money paths need integration tests, including concurrency and idempotency.
