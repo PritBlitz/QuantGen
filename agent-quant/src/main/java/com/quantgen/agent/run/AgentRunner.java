@@ -1,0 +1,269 @@
+package com.quantgen.agent.run;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Component;
+
+import com.quantgen.agent.Settings;
+import com.quantgen.agent.core.CoreClient;
+import com.quantgen.agent.llm.LlmClient;
+import com.quantgen.agent.llm.LlmClient.Reply;
+import com.quantgen.agent.tools.Tool;
+import com.quantgen.agent.tools.ToolBox;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Our own agent loop (D-019, kept by D-044): model call → tool calls → model call, until the model answers. Every
+ * tool call is counted against the turn's budget (10), reported to the core as a redacted step, and executed with
+ * the delegated token. The Concierge's tools are the specialists themselves ("agents as tools", D-021).
+ */
+@Component
+public class AgentRunner {
+
+    /** The turn needed more tool calls than allowed (F-AGT-4). */
+    public static final class ToolLimitException extends RuntimeException {
+        ToolLimitException() {
+            super("tool limit", null, false, false);
+        }
+    }
+
+    public record HistoryItem(String role, String text) {
+    }
+
+    static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    private static final Pattern CITATION = Pattern.compile("\\[\\[(ACCOUNT|TRANSACTION|INSTRUMENT|LOAN|RULE):"
+            + "([A-Za-z0-9._:-]{1,64})\\|([^\\]\\[]{1,80})]]");
+    private static final int MODEL_ROUNDS = 6;
+
+    private final LlmClient llm;
+    private final ToolBox tools;
+    private final CoreClient core;
+    private final Settings settings;
+    private final JsonMapper json;
+
+    AgentRunner(LlmClient llm, ToolBox tools, CoreClient core, Settings settings, JsonMapper json) {
+        this.llm = llm;
+        this.tools = tools;
+        this.core = core;
+        this.settings = settings;
+        this.json = json;
+    }
+
+    // ------------------------------------------------------------------ chat
+
+    /** A whole chat turn: the Concierge answers; its text is cleaned, cited and streamed as tokens. */
+    public void chat(Turn turn, List<HistoryItem> history, String text) {
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "user", "content", "(Today is " + LocalDate.now(IST) + " IST.)"));
+        messages.add(Map.of("role", "assistant", "content", "Noted."));
+        for (HistoryItem h : history) {
+            messages.add(Map.of("role", "assistant".equals(h.role()) ? "assistant" : "user",
+                    "content", Redactor.mask(h.text())));
+        }
+        messages.add(Map.of("role", "user", "content", Redactor.mask(text)));
+        String answer = run(Agents.CONCIERGE, messages, turn);
+        stream(turn, cite(turn, answer));
+    }
+
+    /** Runs one agent to its final text. Specialists run nested, as tools of the Concierge. */
+    String run(Agents.Spec spec, List<Map<String, Object>> conversation, Turn turn) {
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", spec.prompt()));
+        messages.addAll(conversation);
+        List<Map<String, Object>> defs = spec.tools().stream().map(this::definition).toList();
+        for (int round = 0; round < MODEL_ROUNDS; round++) {
+            long t0 = System.nanoTime();
+            Reply reply;
+            try {
+                reply = llm.chat(messages, defs, false);
+            } catch (RuntimeException e) {
+                step(turn, spec.name(), "MODEL", settings.aiModel(), false, t0, 0, 0, "failed");
+                throw e;
+            }
+            turn.inputTokens += reply.inputTokens();
+            turn.outputTokens += reply.outputTokens();
+            step(turn, spec.name(), "MODEL", settings.aiModel(), true, t0, reply.inputTokens(), reply.outputTokens(), null);
+            JsonNode calls = reply.message().path("tool_calls");
+            if (!calls.isArray() || calls.isEmpty()) {
+                return reply.message().path("content").asString("").strip();
+            }
+            messages.add(json.convertValue(reply.message(), Map.class));
+            for (JsonNode call : calls) {
+                messages.add(Map.of("role", "tool", "tool_call_id", call.path("id").asString(""),
+                        "content", execute(spec, call, turn)));
+            }
+        }
+        return "I couldn't finish that in time. Could you ask something more specific?";
+    }
+
+    private String execute(Agents.Spec spec, JsonNode call, Turn turn) {
+        String name = call.path("function").path("name").asString("");
+        if (++turn.toolCalls > turn.maxToolCalls) {
+            throw new ToolLimitException();
+        }
+        JsonNode args;
+        try {
+            args = json.readTree(call.path("function").path("arguments").asString("{}"));
+        } catch (RuntimeException e) {
+            return "Your tool arguments were not valid JSON.";
+        }
+        if (!spec.tools().contains(name)) {
+            // Not this agent's tool: refused here whatever the model asked for (allowlist).
+            step(turn, spec.name(), "TOOL", clip(name, 60), false, System.nanoTime(), 0, 0, "not allowed");
+            return "That tool isn't available to you.";
+        }
+        Agents.Spec specialist = Agents.SPECIALISTS.get(name);
+        String shownAgent = specialist != null ? specialist.name() : spec.name();
+        turn.sink().emit("tool", Map.of("agent", shownAgent, "tool", name, "status", "STARTED"));
+        long t0 = System.nanoTime();
+        String previous = turn.agent;
+        try {
+            String result;
+            if (specialist != null) {
+                turn.agent = specialist.name();
+                String question = Redactor.mask(args.path("question").asString(""));
+                result = run(specialist, List.of(Map.of("role", "user", "content",
+                        "(Today is " + LocalDate.now(IST) + " IST.) " + question)), turn);
+            } else {
+                Tool tool = tools.get(name);
+                String raw = tool.handler().call(args, turn);
+                turn.saw(raw);
+                result = Redactor.asData(raw);
+            }
+            boolean ok = !result.startsWith("<bank_data>\n{\"error\"");
+            turn.sink().emit("tool", Map.of("agent", shownAgent, "tool", name, "status", ok ? "DONE" : "FAILED"));
+            step(turn, spec.name(), "TOOL", name, ok, t0, 0, 0, detail(name, args));
+            return result;
+        } catch (ToolLimitException | com.quantgen.agent.llm.LlmException e) {
+            turn.sink().emit("tool", Map.of("agent", shownAgent, "tool", name, "status", "FAILED"));
+            throw e;
+        } finally {
+            turn.agent = previous;
+        }
+    }
+
+    // ------------------------------------------------------------------ Autopilot compile
+
+    static final String DSL = """
+            Autopilot DSL v1 (JSON): {"dslVersion":1, "trigger":T, "conditions":[C...], "actions":[A...],
+             "caps":{"perRun":"<amount>","perMonth":"<amount>"}}. Amounts are strings with 2 decimals.
+            T is one of: {"type":"MONEY_RECEIVED","accountId","minAmount"?,"counterpartyContains"?} |
+             {"type":"SCHEDULE","frequency":"MONTHLY","dayOfMonth":1-28} | {"type":"SCHEDULE","frequency":"WEEKLY",
+             "weekday":"MON".."SUN"} | {"type":"BALANCE_ABOVE","accountId","threshold"} |
+             {"type":"PRICE_CROSSES","symbol","direction":"ABOVE"|"BELOW","price"} |
+             {"type":"BUDGET_THRESHOLD","category","percent":1-200}.
+            C: {"type":"BALANCE_AT_LEAST","accountId","amount"} (at most 3).
+            A (1-5): {"type":"TRANSFER","fromAccountId","toAccountId"|"toBeneficiaryId","amount":{"mode":"FIXED"|
+             "PERCENT_OF_TRIGGER"|"EXCESS_ABOVE","value"}} | {"type":"BUY","accountId","symbol","amount":{...}} |
+             {"type":"PAY_BILL","savedBillerId","fromAccountId"} | {"type":"ROUND_UP_SWEEP","fromAccountId",
+             "toAccountId","roundTo":10|50|100} (SCHEDULE only) | {"type":"NOTIFY","message"}.
+            PERCENT_OF_TRIGGER only with MONEY_RECEIVED. perRun <= 100000.00 and <= perMonth.""";
+
+    /**
+     * The Planner turns a sentence into a DSL draft as JSON {rule, warnings}. It sees the user's accounts, payees and
+     * saved billers (masked) to fill in ids. The core validates and renders whatever comes back (D-024).
+     */
+    public JsonNode compile(Turn turn, String text) {
+        StringBuilder context = new StringBuilder();
+        for (String[] t : List.of(new String[] {"accounts", "/api/v1/accounts"},
+                new String[] {"saved payees", "/api/v1/beneficiaries"},
+                new String[] {"saved billers", "/api/v1/saved-billers"})) {
+            long t0 = System.nanoTime();
+            CoreClient.CoreResponse res = core.get(turn.token(), t[1]);
+            step(turn, "PLANNER", "TOOL", "get_" + t[0].replace(' ', '_'), res.ok(), t0, 0, 0, null);
+            context.append(t[0]).append(": ").append(Redactor.asData(res.ok() ? res.body() : "[]")).append('\n');
+        }
+        List<Map<String, Object>> messages = List.of(
+                Map.of("role", "system", "content", "You write Autopilot rules for QuantGen bank. Answer ONLY a JSON "
+                        + "object {\"rule\": <DSL v1>, \"warnings\": [<short notes on anything you assumed>]}. Use only "
+                        + "ids from the data. If the request can't be a rule, answer {\"rule\": null, \"warnings\": "
+                        + "[\"why\"]}.\n" + DSL + "\n" + Agents.SHARED_RULES),
+                Map.of("role", "user", "content", context + "\nToday is " + LocalDate.now(IST) + " IST.\nRequest: "
+                        + Redactor.mask(text)));
+        long t0 = System.nanoTime();
+        Reply reply;
+        try {
+            reply = llm.chat(messages, List.of(), true);
+        } catch (RuntimeException e) {
+            step(turn, "PLANNER", "MODEL", settings.aiModel(), false, t0, 0, 0, "failed");
+            throw e;
+        }
+        turn.inputTokens += reply.inputTokens();
+        turn.outputTokens += reply.outputTokens();
+        step(turn, "PLANNER", "MODEL", settings.aiModel(), true, t0, reply.inputTokens(), reply.outputTokens(), null);
+        String content = reply.message().path("content").asString("").strip()
+                .replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "");
+        try {
+            return json.readTree(content);
+        } catch (RuntimeException e) {
+            return json.readTree("{\"rule\":null,\"warnings\":[\"The answer wasn't valid JSON\"]}");
+        }
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    /** Turns [[TYPE:id|label]] into citation events for ids the tools really returned; the label stays in the text. */
+    String cite(Turn turn, String answer) {
+        Matcher m = CITATION.matcher(answer);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            if (turn.wasSeen(m.group(2))) {
+                turn.sink().emit("citation", Map.of("type", m.group(1), "id", m.group(2), "label", m.group(3).strip()));
+            }
+            m.appendReplacement(out, Matcher.quoteReplacement(m.group(3).strip()));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /** The answer as token events, in small chunks (the provider call itself isn't streamed). */
+    static void stream(Turn turn, String text) {
+        for (int i = 0; i < text.length(); i += 48) {
+            turn.sink().emit("token", Map.of("text", text.substring(i, Math.min(text.length(), i + 48))));
+        }
+    }
+
+    private Map<String, Object> definition(String name) {
+        Agents.Spec s = Agents.SPECIALISTS.get(name);
+        if (s != null) {
+            return Map.of("type", "function", "function", Map.of("name", name,
+                    "description", "Ask the " + s.name().toLowerCase().replace('_', ' ') + " a self-contained question",
+                    "parameters", Map.of("type", "object", "properties", Map.of("question",
+                            Map.of("type", "string", "description", "The question, with all details needed")),
+                            "required", List.of("question"))));
+        }
+        return tools.get(name).definition();
+    }
+
+    /** What a step's trace shows: the tool and its arguments, masked and short. Never the token. */
+    private String detail(String name, JsonNode args) {
+        return clip(Redactor.mask(name + " " + args.toString()), 200);
+    }
+
+    private void step(Turn turn, String agent, String kind, String name, boolean ok, long t0, int in, int out,
+                      String detail) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("agent", agent);
+        s.put("kind", kind);
+        s.put("name", name);
+        s.put("status", ok ? "OK" : "ERROR");
+        s.put("latencyMs", (int) ((System.nanoTime() - t0) / 1_000_000));
+        s.put("inputTokens", in);
+        s.put("outputTokens", out);
+        s.put("detail", detail);
+        turn.sink().emit("step", s);
+    }
+
+    private static String clip(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+}

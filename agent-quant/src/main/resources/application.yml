@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: agent-quant
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${QG_AGENT_PORT:8090}
+  # Internal only: listen on loopback unless the deploy binds it to the private network.
+  address: ${QG_AGENT_BIND:127.0.0.1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+qg:
+  ai:
+    # D-044: any OpenAI-compatible endpoint. Default: Gemini's free tier.
+    base-url: ${QG_AI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+    model: ${QG_AI_MODEL:gemini-2.5-flash}
+    # Never logged. QG_AI_API_KEY wins; QG_GEMINI_API_KEY is the name used in the root .env.
+    api-key: ${QG_AI_API_KEY:${QG_GEMINI_API_KEY:}}
+    max-tool-calls: 10
+    timeout: PT40S
+  agent:
+    # Shared with the core (QG_AGENT_SECRET). No default outside dev: every call is refused without it.
+    secret: ${QG_AGENT_SECRET:}
+  core:
+    url: ${QG_CORE_URL:http://localhost:8080}

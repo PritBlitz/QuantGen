@@ -1,0 +1,4 @@
+# Dev profile: the same dev-only shared secret as backend-quant's dev profile. Prod reads QG_AGENT_SECRET.
+qg:
+  agent:
+    secret: ${QG_AGENT_SECRET:dev-only-agent-secret-do-not-use-in-prod}

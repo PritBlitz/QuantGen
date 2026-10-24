@@ -16,6 +16,9 @@ Thumbs.db
 # Backend
 backend-quant/target/
 backend-quant/scaffold.zip
+
+# Agent service
+agent-quant/target/
 *.log
 
 # Frontend
