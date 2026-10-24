@@ -21,5 +21,6 @@ docker run --rm -i -v "$PWD/infra/k6:/k6" grafana/k6:1.0.0 run /k6/orders.js
 
 Results on 2026-10-24 (dev laptop, backend `5ac903a`):
 - `transfers.js` (6 VUs, 20 s): 770 transfers, 0 failures, 73 replays all returned the original transfer, p95 274 ms. Ledger balanced.
-- `orders.js` (5 VUs, 15 s): **fails its checks threshold.** About 4% of orders get `409 INVALID_STATE` when they land
-  during a price tick. Reported to the backend; no money is affected (ledger balanced).
+- `orders.js` (5 VUs, 15 s), backend `5ac903a`: about 4% of orders got `409 INVALID_STATE` when they landed
+  during a price tick. **Fixed in backend `8d59c77`:** 342/342 filled in 20 s, ledger balanced. p95 was 778 ms, close to the
+  800 ms threshold on a busy laptop; recheck it on a quiet machine.
