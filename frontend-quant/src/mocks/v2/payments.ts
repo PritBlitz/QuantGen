@@ -319,7 +319,7 @@ export const paymentHandlers = [
     if (!new RegExp(biller.consumerNumberPattern).test(n)) return invalid(request, 'consumerNumber', `isn't a valid ${biller.consumerNumberLabel.toLowerCase()}`)
     const nick = typeof b.nickname === 'string' && b.nickname.trim() ? b.nickname.trim() : null
     // eslint-disable-next-line no-control-regex
-    if (nick && (nick.length > 40 || /[ -]/.test(nick))) return invalid(request, 'nickname', 'must be 1–40 characters')
+    if (nick && (nick.length > 40 || /[\u0000-\u001f\u007f]/.test(nick))) return invalid(request, 'nickname', 'must be 1–40 characters')
     const mine = db.v2.savedBillers.filter((s) => s.userId === r.user.id)
     if (mine.some((s) => s.billerId === biller.id && s.consumerNumber === n)) return error(409, 'INVALID_STATE', 'You already saved this biller', request, [{ field: 'consumerNumber', message: 'is already saved' }])
     if (mine.length >= 20) return error(422, 'LIMIT_EXCEEDED', 'You can save up to 20 billers', request)
