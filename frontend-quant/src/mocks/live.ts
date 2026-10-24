@@ -63,6 +63,8 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   // Backend 5ac903a (announced 2026-10-19): V2-M5 Autopilot core. /autopilot/compile stays mocked
   // (it needs the Planner in agent-quant; live it answers 503 and the builder falls back to the form).
   { prefix: '/api/v1/autopilot/', milestone: 'V2-M5' },
+  // Backend 71f7715 (announced 2026-10-24): saved billers (+ /saved-billers/{id}/fetch) and Autopilot PAY_BILL.
+  { prefix: '/api/v1/saved-billers', milestone: 'V2-M5-bills' },
   // /intents went live with backend 660de61 (V2-M4 core) but stays MOCKED here on purpose: the
   // scripted Copilot mock proposes intents in the in-browser db with mock account ids, so a live
   // /intents would 404 every card it shows. Flip /intents together with /copilot/ once agent-quant

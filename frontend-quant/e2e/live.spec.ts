@@ -9,6 +9,10 @@ import { expect, test, type APIRequest, type Page } from '@playwright/test'
  * Tests that need a feature flag turn it on through the admin API and restore it in `finally`.
  */
 test.skip(!process.env.QG_LIVE, 'set QG_LIVE=1 with the backend running on :8080')
+// Feature flags are global server state: two tests toggling the same flag in parallel undo each other
+// (seen 2026-10-24: one test's `finally` turned `autopilot`/`mcp` off mid-way through another). Run this
+// file's tests in order in one worker, whatever --workers says.
+test.describe.configure({ mode: 'default' })
 
 async function go(page: Page, name: string) {
   await page
@@ -537,8 +541,8 @@ test('autopilot: build a rule by hand, replay, switch on with step-up, it fires 
 
     await signIn(page, me.email, me.password, /\/dashboard$/)
     await page.goto('/autopilot/new')
-    // ai is off live, so the form is offered without the sentence box.
-    await page.getByRole('button', { name: 'Start from a simple rule' }).click()
+    // "Start from a simple rule" with ai off, "Build it myself" with ai on; both open the form.
+    await page.getByRole('button', { name: /Start from a simple rule|Build it myself/ }).click()
     await page.getByRole('combobox', { name: 'Trigger' }).click()
     await page.getByRole('option', { name: 'Money arrives' }).click()
     await page.getByLabel('Of at least (optional)').fill('1000')
@@ -569,6 +573,58 @@ test('autopilot: build a rule by hand, replay, switch on with step-up, it fires 
 
     await page.reload()
     await expect(page.getByText('Done', { exact: true }).first()).toBeVisible()
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: wasOn } })
+    await Promise.all([admin.dispose(), me.ctx.dispose()])
+  }
+})
+
+// V2-M5-bills: save a biller after a fetch, pay it from the saved list (the UI never sees the full
+// number), and an Autopilot PAY_BILL rule can point at it.
+test('saved billers: save, pay from the saved list once, use in an Autopilot rule, remove', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(150_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).autopilot as boolean
+  await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: true } })
+  const me = await apiCustomer(playwright, baseURL, 'biller')
+  try {
+    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '20000.00' } })).ok()).toBe(true)
+    const consumer = `${Date.now()}`.slice(-9)
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/pay/bills')
+    await page.getByRole('button', { name: /Meshnet Broadband/ }).click()
+    await page.getByLabel('Customer ID').fill(consumer)
+    await page.getByRole('button', { name: /Fetch bill/ }).click()
+    await page.getByLabel('Save as (optional)').fill('Home wifi')
+    await page.getByRole('button', { name: /Save biller/ }).click()
+    await expect(page.getByText(/Saved\. It’s under “Your billers”/)).toBeVisible()
+
+    const saved = page.locator('section', { hasText: 'Your billers' })
+    await expect(saved.getByText(`••••${consumer.slice(-4)}`)).toBeVisible()
+    await expect(saved.getByText(consumer)).toHaveCount(0)
+    await saved.getByRole('button', { name: 'Pay Home wifi' }).click()
+    await page.getByRole('button', { name: /Fetch this month’s bill/ }).click()
+    await page.getByRole('button', { name: 'Review' }).click()
+    await page.getByRole('button', { name: /^Pay ₹/ }).click()
+    await expect(page.getByRole('img', { name: 'Bill paid' })).toBeVisible()
+    const paid = (await (await me.ctx.get('/api/v1/bill-payments', { headers: me.headers })).json()).content
+    expect(paid).toHaveLength(1)
+
+    // This month's bill is paid: fetching it again is refused, and the rule still validates.
+    const list = (await (await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })).json()) as Array<{ id: string; consumerNumberMasked: string }>
+    expect(list).toHaveLength(1)
+    expect(JSON.stringify(list)).not.toContain(consumer)
+    expect((await me.ctx.post(`/api/v1/saved-billers/${list[0]!.id}/fetch`, { headers: me.headers })).status()).toBe(409)
+    const rule = { dslVersion: 1, trigger: { type: 'SCHEDULE', frequency: 'MONTHLY', dayOfMonth: 5 }, conditions: [], actions: [{ type: 'PAY_BILL', savedBillerId: list[0]!.id, fromAccountId: me.account.id }], caps: { perRun: '5000.00', perMonth: '5000.00' } }
+    const v = await (await me.ctx.post('/api/v1/autopilot/validate', { headers: me.headers, data: { rule } })).json()
+    expect(v).toMatchObject({ valid: true })
+    expect(v.rendering).toContain('(Home wifi)')
+
+    await saved.getByRole('button', { name: 'Remove Home wifi' }).click()
+    await expect(saved).toHaveCount(0)
+    expect(await (await me.ctx.get('/api/v1/saved-billers', { headers: me.headers })).json()).toEqual([])
   } finally {
     await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: wasOn } })
     await Promise.all([admin.dispose(), me.ctx.dispose()])
