@@ -52,6 +52,15 @@ public class BillService {
     static final Duration BILL_VALIDITY = Duration.ofHours(24);
     static final int DUE_DAY = 20;
     static final UserRateLimiter.Limit FETCH_LIMIT = new UserRateLimiter.Limit("bill-fetch", 30, Duration.ofMinutes(1));
+    public static final int MAX_SAVED = 20;
+
+    public record SavedBillerDto(UUID id, UUID billerId, String billerName, String category, String consumerNumberLabel,
+                                 String consumerNumberMasked, String nickname, Instant createdAt) {
+    }
+
+    /** A saved biller with its full consumer number, for paying it (never returned to the client). */
+    public record SavedBiller(UUID id, BillerDto biller, String consumerNumber, String nickname) {
+    }
 
     public record BillerDto(UUID id, String name, String category, String consumerNumberLabel,
                             String consumerNumberPattern) {
@@ -105,8 +114,7 @@ public class BillService {
         }
         rateLimiter.acquire(FETCH_LIMIT, userId);
         LocalDate today = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE));
-        // The bill for a month is due on the 20th; after that, next month's bill is the one to pay.
-        YearMonth cycle = today.getDayOfMonth() <= DUE_DAY ? YearMonth.from(today) : YearMonth.from(today).plusMonths(1);
+        YearMonth cycle = cycle(today);
         Instant expiresAt = clock.instant().plus(BILL_VALIDITY);
         BigDecimal amount = simulatedAmount(billerId, consumerNumber, cycle);
         // One row per cycle: fetching again refreshes the validity window of an unpaid bill.
@@ -176,6 +184,106 @@ public class BillService {
         int size = pageable.getPageSize();
         return new PageDto<>(content, pageable.getPageNumber(), size, totalElements,
                 (int) ((totalElements + size - 1) / size));
+    }
+
+    // ------------------------------------------------------------------ saved billers
+
+    @Transactional(readOnly = true)
+    public List<SavedBillerDto> savedBillers(UUID userId) {
+        return jdbc.query(SAVED_SELECT + " WHERE s.user_id = ? ORDER BY s.created_at, s.id",
+                (rs, i) -> savedDto(savedRow(rs)), userId);
+    }
+
+    @Transactional
+    public SavedBillerDto saveBiller(UUID userId, UUID billerId, String rawConsumerNumber, String rawNickname) {
+        BillerDto biller = findBiller(billerId).orElseThrow(() -> ApiException.fieldError(HttpStatus.BAD_REQUEST,
+                "billerId", "unknown biller"));
+        String consumerNumber = rawConsumerNumber == null ? "" : rawConsumerNumber.trim();
+        if (!Pattern.compile(biller.consumerNumberPattern()).matcher(consumerNumber).matches()) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "consumerNumber",
+                    "is not a valid " + biller.consumerNumberLabel().toLowerCase(java.util.Locale.ROOT));
+        }
+        String nickname = rawNickname == null || rawNickname.isBlank() ? null : rawNickname.strip();
+        // Serialize this user's saves so two at once can't pass the cap together.
+        jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", UUID.class, userId);
+        Integer saved = jdbc.queryForObject("SELECT count(*) FROM saved_billers WHERE user_id = ?", Integer.class, userId);
+        if (saved != null && saved >= MAX_SAVED) {
+            throw new ApiException(ErrorCode.LIMIT_EXCEEDED, "You can save at most " + MAX_SAVED + " billers; remove one first");
+        }
+        List<UUID> id = jdbc.queryForList("""
+                INSERT INTO saved_billers (user_id, biller_id, consumer_number, nickname) VALUES (?, ?, ?, ?)
+                ON CONFLICT (user_id, biller_id, consumer_number) DO NOTHING RETURNING id
+                """, UUID.class, userId, billerId, consumerNumber, nickname);
+        if (id.isEmpty()) {
+            throw ApiException.fieldError(HttpStatus.CONFLICT, "consumerNumber", "is already saved for this biller");
+        }
+        return savedDto(savedRow(userId, id.getFirst()).orElseThrow());
+    }
+
+    /** Fetches this cycle's bill for a saved biller (the client never sees its full consumer number). */
+    @Transactional
+    public BillDto fetchSaved(UUID userId, UUID savedBillerId) {
+        SavedBiller saved = savedBiller(userId, savedBillerId).orElseThrow(() -> ApiException.notFound("Saved biller"));
+        return fetch(userId, saved.biller().id(), saved.consumerNumber());
+    }
+
+    /** Someone else's saved biller is 404, like one that doesn't exist. */
+    @Transactional
+    public void deleteSavedBiller(UUID userId, UUID id) {
+        if (jdbc.update("DELETE FROM saved_billers WHERE id = ? AND user_id = ?", id, userId) == 0) {
+            throw ApiException.notFound("Saved biller");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<SavedBiller> savedBiller(UUID userId, UUID id) {
+        return savedRow(userId, id).map(SavedRow::saved);
+    }
+
+    private Optional<SavedRow> savedRow(UUID userId, UUID id) {
+        return jdbc.query(SAVED_SELECT + " WHERE s.id = ? AND s.user_id = ?", (rs, i) -> savedRow(rs), id, userId)
+                .stream().findFirst();
+    }
+
+    /** Whether this user already paid the bill of the cycle that {@code day} falls in. */
+    @Transactional(readOnly = true)
+    public boolean paidFor(UUID userId, UUID billerId, String consumerNumber, LocalDate day) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM bill_payments p JOIN bills b ON b.id = p.bill_id
+                                WHERE b.user_id = ? AND b.biller_id = ? AND b.consumer_number = ? AND b.billing_month = ?)
+                """, Boolean.class, userId, billerId, consumerNumber, cycle(day).toString()));
+    }
+
+    /** The amount of the bill of the cycle that {@code day} falls in (what fetching it that day returns). */
+    public static BigDecimal amountDue(UUID billerId, String consumerNumber, LocalDate day) {
+        return simulatedAmount(billerId, consumerNumber, cycle(day));
+    }
+
+    /** The bill for a month is due on the 20th; after that, next month's bill is the one to pay. */
+    public static YearMonth cycle(LocalDate day) {
+        return day.getDayOfMonth() <= DUE_DAY ? YearMonth.from(day) : YearMonth.from(day).plusMonths(1);
+    }
+
+    private static final String SAVED_SELECT = """
+            SELECT s.id, s.consumer_number, s.nickname, s.created_at, b.id AS biller_id, b.name, b.category,
+                   b.consumer_number_label, b.consumer_number_pattern
+              FROM saved_billers s JOIN billers b ON b.id = s.biller_id
+            """;
+
+    private record SavedRow(SavedBiller saved, Instant createdAt) {
+    }
+
+    private static SavedRow savedRow(ResultSet rs) throws SQLException {
+        BillerDto biller = new BillerDto(rs.getObject("biller_id", UUID.class), rs.getString("name"),
+                rs.getString("category"), rs.getString("consumer_number_label"), rs.getString("consumer_number_pattern"));
+        return new SavedRow(new SavedBiller(rs.getObject("id", UUID.class), biller, rs.getString("consumer_number"),
+                rs.getString("nickname")), rs.getTimestamp("created_at").toInstant());
+    }
+
+    private static SavedBillerDto savedDto(SavedRow r) {
+        SavedBiller s = r.saved();
+        return new SavedBillerDto(s.id(), s.biller().id(), s.biller().name(), s.biller().category(),
+                s.biller().consumerNumberLabel(), AccountNumbers.mask(s.consumerNumber()), s.nickname(), r.createdAt());
     }
 
     /** ₹200.00 to ₹4,999.99, stable for (biller, consumer number, month) and spread evenly. */

@@ -27,6 +27,7 @@ import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.money.Inr;
 import com.quantgen.insights.CategoryService;
+import com.quantgen.payment.service.BillService;
 
 /**
  * F-AUTO-3 replay: dry-runs a rule against the user's real ledger history for the last N days (90 by default) with a
@@ -75,6 +76,7 @@ class RuleSimulator {
         Map<UUID, BigDecimal> delta = new HashMap<>(); // simulated movements per account
         Map<String, BigDecimal> monthUsed = new HashMap<>();
         Map<LocalDate, BigDecimal> dayUsed = new HashMap<>();
+        java.util.Set<String> billsPaid = new java.util.HashSet<>(); // simulated PAY_BILL payments, per bill cycle
         List<Firing> firings = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         int failures = 0;
@@ -116,6 +118,16 @@ class RuleSimulator {
                 }
                 String reason = null;
                 switch (a.type()) {
+                    case "PAY_BILL" -> {
+                        String cycle = a.savedBillerId() + ":" + BillService.cycle(date);
+                        if (amt.signum() == 0 || !billsPaid.add(cycle)) {
+                            amt = BigDecimal.ZERO; // that month's bill is already paid: skipped
+                        } else if (balance(a.fromAccountId(), e.at(), delta).compareTo(amt) < 0) {
+                            reason = "Not enough money in " + renderer.account(a.fromAccountId()) + " that day";
+                        } else {
+                            delta.merge(a.fromAccountId(), amt.negate(), BigDecimal::add);
+                        }
+                    }
                     case "TRANSFER", "ROUND_UP_SWEEP" -> {
                         if (balance(a.fromAccountId(), e.at(), delta).compareTo(amt) < 0) {
                             reason = "Not enough money in " + renderer.account(a.fromAccountId()) + " that day";
@@ -258,6 +270,9 @@ class RuleSimulator {
         if ("ROUND_UP_SWEEP".equals(a.type())) {
             return inputs.roundUps(a.fromAccountId(), a.roundTo(), rule.trigger(),
                     LocalDate.ofInstant(e.at(), TimeConfig.BUSINESS_ZONE));
+        }
+        if ("PAY_BILL".equals(a.type())) {
+            return inputs.billDue(a.savedBillerId(), LocalDate.ofInstant(e.at(), TimeConfig.BUSINESS_ZONE));
         }
         if (a.amount() == null) {
             return BigDecimal.ZERO;

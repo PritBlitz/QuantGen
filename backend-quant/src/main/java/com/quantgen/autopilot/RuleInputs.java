@@ -15,11 +15,12 @@ import com.quantgen.analytics.AnalyticsRange;
 import com.quantgen.autopilot.RuleDsl.Trigger;
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.insights.InsightsService;
+import com.quantgen.payment.service.BillService;
 
 /**
- * Inputs the engine and the replay must compute the same way: the round-ups swept by a ROUND_UP_SWEEP action and
- * how much of a budget a BUDGET_THRESHOLD trigger has used. Both depend only on the ledger and the trigger's date,
- * so a resumed run or a replay gets exactly the same number.
+ * Inputs the engine and the replay must compute the same way: the round-ups swept by a ROUND_UP_SWEEP action, the
+ * bill a PAY_BILL action pays, and how much of a budget a BUDGET_THRESHOLD trigger has used. Each depends only on
+ * stored data and a date, so a resumed run or a replay gets exactly the same number.
  */
 @Component
 class RuleInputs {
@@ -30,10 +31,23 @@ class RuleInputs {
 
     private final JdbcTemplate jdbc;
     private final InsightsService insights;
+    private final BillService bills;
 
-    RuleInputs(JdbcTemplate jdbc, InsightsService insights) {
+    RuleInputs(JdbcTemplate jdbc, InsightsService insights, BillService bills) {
         this.jdbc = jdbc;
         this.insights = insights;
+        this.bills = bills;
+    }
+
+    /** The bill a PAY_BILL action pays on {@code day}: zero if that cycle is paid or the biller was removed. */
+    BigDecimal billDue(UUID savedBillerId, LocalDate day) {
+        return jdbc.query("SELECT user_id, biller_id, consumer_number FROM saved_billers WHERE id = ?", (rs, i) -> {
+            UUID user = rs.getObject(1, UUID.class);
+            UUID biller = rs.getObject(2, UUID.class);
+            String consumer = rs.getString(3);
+            return bills.paidFor(user, biller, consumer, day) ? BigDecimal.ZERO
+                    : BillService.amountDue(biller, consumer, day).setScale(2, RoundingMode.UNNECESSARY);
+        }, savedBillerId).stream().findFirst().orElse(BigDecimal.ZERO);
     }
 
     /** The scheduled day before {@code due} for this SCHEDULE trigger (a month or a week earlier). */

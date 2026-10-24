@@ -136,6 +136,61 @@ class BillPaymentsIT extends IntegrationTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    void savedBillersAreMaskedPrivateAndCapped() {
+        TestUsers.Session alice = TestUsers.registerAndLogin(this);
+        TestUsers.Session eve = TestUsers.registerAndLogin(this);
+
+        assertThat(save(alice, UUID.randomUUID().toString(), "9876543210", null).status()).isEqualTo(400);
+        assertThat(save(alice, POWER, "12", null).jsonBody().get("fieldErrors").get(0).get("field").asString())
+                .isEqualTo("consumerNumber");
+        assertThat(save(alice, POWER, "9876543210", "Home\u0007").status()).isEqualTo(400);
+
+        Response ok = save(alice, POWER, " 9876543210 ", "Home");
+        assertThat(ok.status()).isEqualTo(201);
+        JsonNode saved = ok.jsonBody();
+        assertThat(saved.get("billerName").asString()).isEqualTo("Metro Power Distribution");
+        assertThat(saved.get("consumerNumberMasked").asString()).isEqualTo("••••3210");
+        assertThat(saved.get("nickname").asString()).isEqualTo("Home");
+        assertThat(saved.toString()).doesNotContain("9876543210");
+        Response dup = save(alice, POWER, "9876543210", "Again");
+        assertThat(dup.status()).isEqualTo(409);
+        assertThat(dup.jsonBody().get("fieldErrors").get(0).get("field").asString()).isEqualTo("consumerNumber");
+
+        // Private: Eve sees none and can't fetch or delete Alice's.
+        assertThat(get("/api/v1/saved-billers", eve.accessToken()).jsonBody().size()).isZero();
+        String id = saved.get("id").asString();
+        assertThat(postJson("/api/v1/saved-billers/" + id + "/fetch", "", Bank.auth(eve)).status()).isEqualTo(404);
+        assertThat(delete("/api/v1/saved-billers/" + id, eve.accessToken()).status()).isEqualTo(404);
+
+        // Fetching a saved biller gives the same bill as fetching by number, ready for POST /bill-payments.
+        JsonNode bill = postJson("/api/v1/saved-billers/" + id + "/fetch", "", Bank.auth(alice)).jsonBody();
+        assertThat(bill.get("billId").asString()).isEqualTo(fetch(alice, POWER, "9876543210").jsonBody().get("billId")
+                .asString());
+
+        for (int i = 1; i < 20; i++) {
+            assertThat(save(alice, POWER, String.format("10000000%02d", i), null).status()).isEqualTo(201);
+        }
+        Response capped = save(alice, POWER, "1000000099", null);
+        assertThat(capped.status()).isEqualTo(422);
+        assertThat(capped.jsonBody().get("code").asString()).isEqualTo("LIMIT_EXCEEDED");
+        JsonNode list = get("/api/v1/saved-billers", alice.accessToken()).jsonBody();
+        assertThat(list.size()).isEqualTo(20);
+        assertThat(list.get(0).get("id").asString()).isEqualTo(id); // oldest first
+
+        assertThat(delete("/api/v1/saved-billers/" + id, alice.accessToken()).status()).isEqualTo(204);
+        assertThat(delete("/api/v1/saved-billers/" + id, alice.accessToken()).status()).isEqualTo(404);
+        assertThat(get("/api/v1/saved-billers", alice.accessToken()).jsonBody().size()).isEqualTo(19);
+    }
+
+    private Response save(TestUsers.Session s, String billerId, String consumer, String nickname) {
+        Map<String, Object> body = new java.util.HashMap<>(Map.of("billerId", billerId, "consumerNumber", consumer));
+        if (nickname != null) {
+            body.put("nickname", nickname);
+        }
+        return postJson("/api/v1/saved-billers", body, Bank.auth(s));
+    }
+
     private Response fetch(TestUsers.Session s, String billerId, String consumer) {
         return postJson("/api/v1/billers/" + billerId + "/fetch", Map.of("consumerNumber", consumer), Bank.auth(s));
     }

@@ -22,6 +22,7 @@ import com.quantgen.autopilot.RuleDsl.Condition;
 import com.quantgen.autopilot.RuleDsl.Trigger;
 import com.quantgen.common.error.ApiError.FieldError;
 import com.quantgen.common.web.TextRules;
+import com.quantgen.payment.service.BillService;
 
 import tools.jackson.databind.JsonNode;
 
@@ -37,8 +38,7 @@ class RuleValidator {
     static final Duration PAYEE_AGE = Duration.ofHours(24);
     static final List<String> TRIGGERS = List.of("MONEY_RECEIVED", "SCHEDULE", "BALANCE_ABOVE", "PRICE_CROSSES",
             "BUDGET_THRESHOLD");
-    static final List<String> ACTIONS = List.of("TRANSFER", "BUY", "NOTIFY", "ROUND_UP_SWEEP");
-    static final List<String> LATER_ACTIONS = List.of("PAY_BILL");
+    static final List<String> ACTIONS = List.of("TRANSFER", "BUY", "NOTIFY", "ROUND_UP_SWEEP", "PAY_BILL");
     static final List<Integer> ROUND_TO = List.of(10, 50, 100);
     static final List<String> WEEKDAYS = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
     static final List<String> CREDIT_TYPES = List.of("DEPOSIT", "TRANSFER", "TOPUP", "INTEREST", "REFUND", "LOAN_DISBURSAL");
@@ -51,11 +51,13 @@ class RuleValidator {
     }
 
     private final AccountService accounts;
+    private final BillService bills;
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
-    RuleValidator(AccountService accounts, JdbcTemplate jdbc, Clock clock) {
+    RuleValidator(AccountService accounts, BillService bills, JdbcTemplate jdbc, Clock clock) {
         this.accounts = accounts;
+        this.bills = bills;
         this.jdbc = jdbc;
         this.clock = clock;
     }
@@ -197,10 +199,6 @@ class RuleValidator {
 
     private Action action(UUID userId, JsonNode a, String p, Trigger trigger, List<FieldError> fe) {
         String type = a.path("type").asString("");
-        if (LATER_ACTIONS.contains(type)) {
-            fe.add(new FieldError(p + ".type", type + " actions aren't supported yet"));
-            return null;
-        }
         if (!ACTIONS.contains(type)) {
             fe.add(new FieldError(p + ".type", "must be one of " + String.join(", ", ACTIONS)));
             return null;
@@ -242,13 +240,13 @@ class RuleValidator {
                     }
                 }
                 Amount amount = amount(a, p, trigger, fe);
-                return new Action(type, from, to, payee, null, null, amount, null, null);
+                return new Action(type, from, to, payee, null, null, amount, null, null, null);
             }
             case "BUY" -> {
                 UUID acc = ownAccount(userId, a, "accountId", p, fe, true);
                 String symbol = symbol(a, p, fe);
                 Amount amount = amount(a, p, trigger, fe);
-                return new Action(type, null, null, null, acc, symbol, amount, null, null);
+                return new Action(type, null, null, null, acc, symbol, amount, null, null, null);
             }
             case "ROUND_UP_SWEEP" -> {
                 // The window is "since the previous scheduled day", so it needs a schedule to have one.
@@ -273,14 +271,22 @@ class RuleValidator {
                 if (!r.isIntegralNumber() || !ROUND_TO.contains(r.asInt())) {
                     fe.add(new FieldError(p + ".roundTo", "must be 10, 50 or 100"));
                 }
-                return new Action(type, from, to, null, null, null, null, null, r.asInt());
+                return new Action(type, from, to, null, null, null, null, null, r.asInt(), null);
+            }
+            case "PAY_BILL" -> {
+                UUID from = ownAccount(userId, a, "fromAccountId", p, fe, true);
+                UUID saved = uuid(a, "savedBillerId");
+                if (saved == null || bills.savedBiller(userId, saved).isEmpty()) {
+                    fe.add(new FieldError(p + ".savedBillerId", "pick one of your saved billers"));
+                }
+                return new Action(type, from, null, null, null, null, null, null, null, saved);
             }
             default -> { // NOTIFY
                 String message = optionalText(a, "message", p, 140, fe);
                 if (message == null) {
                     fe.add(new FieldError(p + ".message", "write the message (up to 140 characters)"));
                 }
-                return new Action(type, null, null, null, null, null, null, message, null);
+                return new Action(type, null, null, null, null, null, null, message, null, null);
             }
         }
     }

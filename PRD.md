@@ -959,6 +959,10 @@ Backend notes (V2-M1, implemented 2026-10-18):
 | POST | `/billers/{id}/fetch` | `{consumerNumber}` | `200 {billId, amount, dueDate, customerNameMasked}` |
 | POST 🔒💰 | `/bill-payments` | `{billId, fromAccountId}` | `201 BillPaymentDto` |
 | GET | `/bill-payments` | `?page&size` | `200 Page<BillPaymentDto>` |
+| GET | `/saved-billers` | | `200 SavedBillerDto[]` (added 2026-10-24) |
+| POST | `/saved-billers` | `{billerId, consumerNumber, nickname?}` | `201 SavedBillerDto` (added 2026-10-24) |
+| POST | `/saved-billers/{id}/fetch` | | `200 {billId, amount, dueDate, customerNameMasked}` (added 2026-10-24) |
+| DELETE | `/saved-billers/{id}` | | `204` (added 2026-10-24) |
 | POST / GET | `/split-groups` · `/split-groups/{id}` | `{name, memberHandles[]}` | `GroupDto` |
 | POST | `/split-groups/{id}/expenses` | `{paidByHandle, amount, description, split: {type: "EQUAL"\|"EXACT"\|"PERCENT", shares?}}` | `201 ExpenseDto` |
 | POST | `/split-groups/{id}/settle` | | `200 PaymentRequestDto[]` |
@@ -1015,7 +1019,15 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
   window → `409` (fetch again). It posts one `BILL_PAYMENT` entry, your account → system account
   `BILLER_CLEARING`, which shows in history as `type: "BILL_PAYMENT"` with the biller's name as `counterparty`;
   `transactionId` is that line's `TransactionDto.id`. No step-up, and bill payments don't count toward the transfer
-  limits (the money stays in the bank's clearing account). Saved billers have no endpoint in §12.4 and are not built.
+  limits (the money stays in the bank's clearing account).
+- **Saved billers (added 2026-10-24, F-PAY-11):** `SavedBillerDto = {id, billerId, billerName, category,
+  consumerNumberLabel, consumerNumberMasked, nickname, createdAt}` (the full consumer number is never returned).
+  Save: unknown `billerId` → `400` field `billerId`; the consumer number must match the biller's pattern (`400` field
+  `consumerNumber`); `nickname` ≤ 40 chars, no control characters, optional; the same biller + number again → `409`
+  field `consumerNumber`; at most 20 per user (`422 LIMIT_EXCEEDED`). List: oldest first. Fetch: same as
+  `/billers/{id}/fetch` for that biller and number (same rate limit, same `billId`), then pay with `/bill-payments`.
+  Fetch or delete of someone else's or an unknown one → `404`. No money moves, so no Idempotency-Key. A saved biller is the target of the Autopilot `PAY_BILL`
+  action (§12.7); deleting one makes such a rule's next run fail with "The saved biller was removed".
 - **Analytics after part 3:** bill payments count as spending (`topCategory` can be `BILLS`); top-ups count as
   income and as deposits (`NET_INFLOW`, the funnel's "funded" step, `FUNDING_SOURCE` row `RAZORPAY`).
 - **Split groups (part 4):** creating a group needs a handle (`409 INVALID_STATE`); `name` 1–40 chars;
@@ -1249,9 +1261,16 @@ Backend notes (V2-M5 core, implemented 2026-10-19; `/autopilot/compile` needs th
   FEATURE_DISABLED`, and the engine runs nothing; list, get, runs, pause and delete keep working. `compile` with the
   flag on answers `503` too (no Planner yet; `400 text` first if the text isn't 8–500 chars).
 - **Supported now:** triggers `MONEY_RECEIVED`, `SCHEDULE`, `BALANCE_ABOVE`, `PRICE_CROSSES`, `BUDGET_THRESHOLD`;
-  actions `TRANSFER`, `BUY`, `NOTIFY`, `ROUND_UP_SWEEP`; condition `BALANCE_AT_LEAST` (≤ 3). `PAY_BILL` is still
-  `RULE_INVALID` "not supported yet" (it needs saved billers). `RuleRunDto` also carries `triggerSummary`; `outcome`
-  is `null` while a run is in progress.
+  actions `TRANSFER`, `BUY`, `NOTIFY`, `ROUND_UP_SWEEP`, `PAY_BILL`; condition `BALANCE_AT_LEAST` (≤ 3).
+  `RuleRunDto` also carries `triggerSummary`; `outcome` is `null` while a run is in progress. A skipped action (under
+  ₹1, or a bill already paid) has `amount: null` and no `error`.
+- **`PAY_BILL` (added 2026-10-24):** `{type, savedBillerId, fromAccountId (savings/checking)}`, no `amount`. The saved
+  biller (§12.4) must be yours (`rule.actions[i].savedBillerId` "pick one of your saved billers"). Any trigger. At run
+  time it fetches this cycle's bill and pays it like `POST /bill-payments` (idempotent on the action's key); if this
+  cycle's bill is already paid it is skipped. The amount (₹200–₹4,999.99, simulated) counts toward the caps; the
+  replay uses the same simulated amount per bill cycle. A deleted saved biller fails the run ("The saved biller was
+  removed"). Rendering: "pay the Metro Power Distribution bill (Home power) from Savings ••••1234 (if it isn't paid
+  yet)", with the masked consumer number when there is no nickname.
 - **`BUDGET_THRESHOLD` (added 2026-10-24):** `{type, category, percent}`. `percent` is a whole number 1–200, and the
   user must have a budget for `category` (`rule.trigger.category` "set a monthly budget for this category first").
   Fires when this IST month's spending in the category (same numbers as `/budgets`) reaches `percent`% of the budget,

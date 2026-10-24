@@ -116,7 +116,7 @@ class AutopilotIT extends IntegrationTest {
         assertThat(bad.get("valid").asBoolean()).isFalse();
         assertThat(bad.get("fieldErrors").toString()).contains("rule.trigger.dayOfMonth")
                 .contains("rule.actions[0].toAccountId").contains("rule.actions[0].amount")
-                .contains("rule.actions[1].type").contains("rule.caps.perRun");
+                .contains("rule.actions[1].savedBillerId").contains("rule.caps.perRun");
 
         JsonNode ok = postJson("/api/v1/autopilot/validate", Map.of("rule", rule(
                 Map.of("type", "SCHEDULE", "frequency", "MONTHLY", "dayOfMonth", 1),
@@ -399,6 +399,54 @@ class AutopilotIT extends IntegrationTest {
         // The week after has no spends in its window: under ₹1 is skipped, nothing moves.
         engine.runDaily(due.plusWeeks(1));
         assertThat(Bank.balance(this, s, UUID.fromString(g))).isEqualTo("9.60");
+    }
+
+    @Test
+    void payBillPaysThisCyclesBillOnceAndSkipsWhenPaid() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session other = TestUsers.registerAndLogin(this);
+        UUID savings = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, savings, "10000.00");
+        String power = "b1000000-0000-4000-8000-000000000001";
+        String saved = postJson("/api/v1/saved-billers", Map.of("billerId", power, "consumerNumber", "9876543210",
+                "nickname", "Home power"), Bank.auth(s)).jsonBody().get("id").asString();
+        String theirs = postJson("/api/v1/saved-billers", Map.of("billerId", power, "consumerNumber", "1111111111"),
+                Bank.auth(other)).jsonBody().get("id").asString();
+        Map<String, Object> trigger = Map.of("type", "SCHEDULE", "frequency", "MONTHLY", "dayOfMonth", 3);
+
+        JsonNode bad = postJson("/api/v1/autopilot/validate", Map.of("rule", rule(trigger, List.of(Map.of("type",
+                "PAY_BILL", "savedBillerId", theirs, "fromAccountId", savings.toString())), "5000.00", "5000.00")),
+                Bank.auth(s)).jsonBody();
+        assertThat(bad.get("fieldErrors").toString()).contains("rule.actions[0].savedBillerId");
+
+        JsonNode created = activate(s, "Power bill", rule(trigger, List.of(Map.of("type", "PAY_BILL", "savedBillerId",
+                saved, "fromAccountId", savings.toString())), "5000.00", "5000.00")).jsonBody();
+        assertThat(created.get("rendering").asString()).contains("pay the Metro Power Distribution bill (Home power) "
+                + "from Savings ••••" + Bank.firstAccountNumber(this, s).substring(8) + " (if it isn't paid yet)");
+        String ruleId = created.get("id").asString();
+
+        engine.runDaily(LocalDate.of(2027, 5, 3));
+        JsonNode run = get("/api/v1/autopilot/rules/" + ruleId + "/runs", s.accessToken()).jsonBody().get("content").get(0);
+        assertThat(run.get("outcome").asString()).isEqualTo("SUCCEEDED");
+        BigDecimal paid = new BigDecimal(run.get("actions").get(0).get("amount").asString());
+        assertThat(new BigDecimal(Bank.balance(this, s, savings))).isEqualByComparingTo(new BigDecimal("10000.00")
+                .subtract(paid));
+        assertThat(get("/api/v1/bill-payments", s.accessToken()).jsonBody().get("totalElements").asLong()).isEqualTo(1);
+
+        // Another due day in the same bill cycle: already paid, so the action is skipped and nothing moves.
+        engine.runDaily(LocalDate.of(2027, 6, 3));
+        JsonNode again = get("/api/v1/autopilot/rules/" + ruleId + "/runs", s.accessToken()).jsonBody().get("content").get(0);
+        assertThat(again.get("outcome").asString()).isEqualTo("SUCCEEDED");
+        assertThat(again.get("actions").get(0).get("amount").isNull()).isTrue(); // skipped
+        assertThat(again.get("actions").get(0).get("error").isNull()).isTrue();
+        assertThat(get("/api/v1/bill-payments", s.accessToken()).jsonBody().get("totalElements").asLong()).isEqualTo(1);
+
+        // A removed biller fails the next run with a clear reason instead of silently skipping.
+        assertThat(delete("/api/v1/saved-billers/" + saved, s.accessToken()).status()).isEqualTo(204);
+        engine.runDaily(LocalDate.of(2027, 7, 3));
+        JsonNode failed = get("/api/v1/autopilot/rules/" + ruleId + "/runs", s.accessToken()).jsonBody().get("content").get(0);
+        assertThat(failed.get("outcome").asString()).isEqualTo("FAILED");
+        assertThat(failed.get("actions").get(0).get("error").asString()).isEqualTo("The saved biller was removed");
     }
 
     // ------------------------------------------------------------------ replay, lifecycle, intents

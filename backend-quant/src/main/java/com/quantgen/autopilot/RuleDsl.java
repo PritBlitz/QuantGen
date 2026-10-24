@@ -32,7 +32,7 @@ public record RuleDsl(int dslVersion, Trigger trigger, List<Condition> condition
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Action(String type, UUID fromAccountId, UUID toAccountId, UUID toBeneficiaryId, UUID accountId,
-                         String symbol, Amount amount, String message, Integer roundTo) {
+                         String symbol, Amount amount, String message, Integer roundTo, UUID savedBillerId) {
     }
 
     public record Caps(BigDecimal perRun, BigDecimal perMonth) {

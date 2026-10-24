@@ -69,6 +69,8 @@ class RuleRenderer {
             case "TRANSFER" -> "move " + amount(a.amount()) + " from " + account(a.fromAccountId()) + " to "
                     + (a.toBeneficiaryId() != null ? payee(a.toBeneficiaryId()) : account(a.toAccountId()));
             case "BUY" -> "buy " + amount(a.amount()) + " of " + a.symbol() + " (whole shares)";
+            case "PAY_BILL" -> "pay " + bill(a.savedBillerId()) + " from " + account(a.fromAccountId())
+                    + " (if it isn't paid yet)";
             case "ROUND_UP_SWEEP" -> "move the round-ups to the next ₹" + a.roundTo()
                     + " on spends from " + account(a.fromAccountId()) + " since the previous scheduled day to "
                     + account(a.toAccountId());
@@ -86,6 +88,14 @@ class RuleRenderer {
             return goal.getFirst();
         }
         return accounts.findById(id).map(RuleRenderer::label).orElse("an account");
+    }
+
+    /** "the Metro Power Distribution bill (Home)", or with the masked consumer number when there's no nickname. */
+    private String bill(UUID savedBillerId) {
+        return jdbc.query("SELECT b.name, s.nickname, s.consumer_number FROM saved_billers s JOIN billers b "
+                        + "ON b.id = s.biller_id WHERE s.id = ?", (rs, i) -> "the " + rs.getString(1) + " bill ("
+                        + (rs.getString(2) != null ? rs.getString(2) : AccountNumbers.mask(rs.getString(3))) + ")",
+                savedBillerId).stream().findFirst().orElse("a saved biller's bill");
     }
 
     private String payee(UUID id) {

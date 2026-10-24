@@ -7,10 +7,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,10 +26,12 @@ import com.quantgen.common.idempotency.IdempotencyService;
 import com.quantgen.common.idempotency.Idempotent;
 import com.quantgen.common.security.AuthUser;
 import com.quantgen.common.web.PageDto;
+import com.quantgen.common.web.TextRules;
 import com.quantgen.payment.service.BillService;
 import com.quantgen.payment.service.BillService.BillDto;
 import com.quantgen.payment.service.BillService.BillPaymentDto;
 import com.quantgen.payment.service.BillService.BillerDto;
+import com.quantgen.payment.service.BillService.SavedBillerDto;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,6 +47,11 @@ public class BillController {
     }
 
     public record PayRequest(@NotNull UUID billId, @NotNull UUID fromAccountId) {
+    }
+
+    public record SaveRequest(@NotNull UUID billerId, @NotBlank @Size(max = 20) String consumerNumber,
+                              @Size(max = 40) @Pattern(regexp = TextRules.NO_CONTROL_CHARS,
+                                      message = TextRules.NO_CONTROL_CHARS_MESSAGE) String nickname) {
     }
 
     private final BillService bills;
@@ -73,6 +83,33 @@ public class BillController {
         return Idempotent.created(bills.pay(user.id(), idempotencyKey,
                 idempotency.fingerprint(http.getMethod(), http.getRequestURI(), request), request.billId(),
                 request.fromAccountId()));
+    }
+
+    @GetMapping("/api/v1/saved-billers")
+    @Operation(summary = "Your saved billers, oldest first (consumer numbers masked)")
+    public List<SavedBillerDto> savedBillers(@AuthenticationPrincipal AuthUser user) {
+        return bills.savedBillers(user.id());
+    }
+
+    @PostMapping("/api/v1/saved-billers")
+    @Operation(summary = "Save a biller and consumer number (at most 20)")
+    public ResponseEntity<SavedBillerDto> saveBiller(@AuthenticationPrincipal AuthUser user,
+                                                     @Valid @RequestBody SaveRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bills.saveBiller(user.id(), request.billerId(),
+                request.consumerNumber(), request.nickname()));
+    }
+
+    @PostMapping("/api/v1/saved-billers/{id}/fetch")
+    @Operation(summary = "Fetch this month's bill for a saved biller; pay it with POST /bill-payments")
+    public BillDto fetchSaved(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id) {
+        return bills.fetchSaved(user.id(), id);
+    }
+
+    @DeleteMapping("/api/v1/saved-billers/{id}")
+    @Operation(summary = "Remove a saved biller")
+    public ResponseEntity<Void> deleteSavedBiller(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id) {
+        bills.deleteSavedBiller(user.id(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/api/v1/bill-payments")

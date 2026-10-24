@@ -296,7 +296,8 @@ public class AutopilotService {
                    (SELECT max(started_at) FROM autopilot_runs x WHERE x.rule_id = r.id) AS last_run_at,
                    (SELECT count(*) FROM autopilot_runs x WHERE x.rule_id = r.id) AS run_count,
                    (SELECT COALESCE(sum(a.amount), 0) FROM autopilot_run_actions a JOIN autopilot_runs x ON x.id = a.run_id
-                     WHERE x.rule_id = r.id AND a.status = 'DONE' AND a.type IN ('TRANSFER', 'BUY', 'ROUND_UP_SWEEP')
+                     WHERE x.rule_id = r.id AND a.status = 'DONE'
+                       AND a.type IN ('TRANSFER', 'BUY', 'ROUND_UP_SWEEP', 'PAY_BILL')
                        AND a.created_at >= ?) AS moved
               FROM autopilot_rules r JOIN autopilot_rule_versions v ON v.rule_id = r.id AND v.version = r.version
             """;

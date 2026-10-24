@@ -46,6 +46,7 @@ import com.quantgen.insights.CategoryService;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.payment.api.PaymentDtos.TransferDto;
 import com.quantgen.payment.domain.TransferSource;
+import com.quantgen.payment.service.BillService;
 import com.quantgen.payment.service.TransferService;
 import com.quantgen.trading.api.TradingDtos.OrderDto;
 import com.quantgen.trading.api.TradingDtos.OrderRequest;
@@ -75,7 +76,7 @@ public class AutopilotEngine implements EventConsumer {
     /** Journal types that count as spending for budgets (as for the budget alerts). */
     static final List<String> SPEND_TYPES = List.of("TRANSFER", "BILL_PAYMENT", "LOAN_REPAYMENT", "CARD");
     /** Action types that move money, so they count toward the caps. */
-    static final String MOVING = "('TRANSFER', 'BUY', 'ROUND_UP_SWEEP')";
+    static final String MOVING = "('TRANSFER', 'BUY', 'ROUND_UP_SWEEP', 'PAY_BILL')";
 
     record Claimed(UUID runId) {
     }
@@ -91,6 +92,7 @@ public class AutopilotEngine implements EventConsumer {
     private final LedgerService ledger;
     private final TransferService transfers;
     private final OrderService orders;
+    private final BillService bills;
     private final IdempotencyService idempotency;
     private final NotificationService notifications;
     private final FeatureFlagService flags;
@@ -100,7 +102,8 @@ public class AutopilotEngine implements EventConsumer {
 
     AutopilotEngine(JdbcTemplate jdbc, AutopilotService rules, RuleRenderer renderer, RuleInputs inputs,
                     AccountService accounts,
-                    LedgerService ledger, TransferService transfers, OrderService orders, IdempotencyService idempotency,
+                    LedgerService ledger, TransferService transfers, OrderService orders, BillService bills,
+                    IdempotencyService idempotency,
                     NotificationService notifications, FeatureFlagService flags, Clock clock,
                     PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
@@ -111,6 +114,7 @@ public class AutopilotEngine implements EventConsumer {
         this.ledger = ledger;
         this.transfers = transfers;
         this.orders = orders;
+        this.bills = bills;
         this.idempotency = idempotency;
         this.notifications = notifications;
         this.flags = flags;
@@ -455,6 +459,20 @@ public class AutopilotEngine implements EventConsumer {
                 record(runId, idx, a.type(), amount, "DONE", t.id(), null);
                 return amount;
             }
+            case "PAY_BILL" -> {
+                BillService.SavedBiller saved = bills.savedBiller(userId, a.savedBillerId()).orElseThrow(() ->
+                        new ApiException(ErrorCode.NOT_FOUND, "The saved biller was removed"));
+                if (amount.compareTo(BigDecimal.ONE) < 0) {
+                    record(runId, idx, a.type(), null, "SKIPPED", null, null); // this cycle's bill is already paid
+                    return BigDecimal.ZERO;
+                }
+                requireWithinRunCap(amount, movedThisRun, dsl);
+                // Fetching pins this cycle's bill; paying it is idempotent on the action's key.
+                BillService.BillDto bill = bills.fetch(userId, saved.biller().id(), saved.consumerNumber());
+                bills.pay(userId, key, fingerprint, bill.billId(), a.fromAccountId());
+                record(runId, idx, a.type(), bill.amount(), "DONE", null, null);
+                return bill.amount();
+            }
             default -> { // BUY: rupee amount → whole shares, rounded down
                 BigDecimal price = jdbc.queryForObject("SELECT price FROM instruments WHERE symbol = ?", BigDecimal.class,
                         a.symbol());
@@ -548,6 +566,10 @@ public class AutopilotEngine implements EventConsumer {
         if ("ROUND_UP_SWEEP".equals(a.type())) {
             LocalDate due = LocalDate.parse(eventId.substring("schedule:".length()));
             return inputs.roundUps(a.fromAccountId(), a.roundTo(), dsl.trigger(), due);
+        }
+        if ("PAY_BILL".equals(a.type())) {
+            // This cycle's bill, or nothing when it's already paid (then the action is skipped, not failed).
+            return inputs.billDue(a.savedBillerId(), LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE)));
         }
         if (a.amount() == null) {
             return BigDecimal.ZERO;
