@@ -518,3 +518,59 @@ test('intents from a connected app are approvable on the Developer tab with ai o
     await Promise.all([admin.dispose(), me.ctx.dispose(), friend.ctx.dispose()])
   }
 })
+
+// V2-M5 core: a salary-splitter rule built with the form (no AI), replayed, switched on with PIN
+// step-up; money arriving fires it exactly once and moves exactly 20%.
+test('autopilot: build a rule by hand, replay, switch on with step-up, it fires once', async ({ page, playwright, baseURL }) => {
+  test.setTimeout(150_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', { data: { email: 'admin@quantgen.dev', password: 'Admin@1234' } })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json()).autopilot as boolean
+  await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: true } })
+  const me = await apiCustomer(playwright, baseURL, 'autopilot')
+  try {
+    const opened = await me.ctx.post('/api/v1/accounts', { headers: me.headers, data: { type: 'CHECKING' } })
+    expect(opened.status()).toBe(201)
+    const checking = (await opened.json()) as { id: string }
+    expect((await me.ctx.put('/api/v1/users/me/pin', { headers: me.headers, data: { pin: '246810', password: me.password } })).ok()).toBe(true)
+
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/autopilot/new')
+    // ai is off live, so the form is offered without the sentence box.
+    await page.getByRole('button', { name: 'Start from a simple rule' }).click()
+    await page.getByRole('combobox', { name: 'Trigger' }).click()
+    await page.getByRole('option', { name: 'Money arrives' }).click()
+    await page.getByLabel('Of at least (optional)').fill('1000')
+    await page.getByRole('combobox', { name: 'How much' }).click()
+    await page.getByRole('option', { name: '% of the money received' }).click()
+    await page.getByLabel('Percent').fill('20')
+
+    await page.getByRole('button', { name: 'Replay the last 90 days' }).click()
+    await expect(page.getByText('Times it ran')).toBeVisible()
+    await page.getByLabel('Rule name').fill('Salary splitter e2e')
+    await page.getByRole('button', { name: 'Switch on' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await expect(page.getByRole('heading', { level: 1, name: 'Salary splitter e2e' })).toBeVisible()
+    // The sentence is the server's rendering of what will run.
+    await expect(page.getByText(/move 20% of it from Savings/)).toBeVisible()
+
+    // ₹10,000 arrives → one run moves ₹2,000 to checking. Never twice.
+    expect((await me.ctx.post(`/api/v1/accounts/${me.account.id}/deposit`, { headers: { ...me.headers, 'Idempotency-Key': crypto.randomUUID() }, data: { amount: '10000.00' } })).ok()).toBe(true)
+    const rules = (await (await me.ctx.get('/api/v1/autopilot/rules', { headers: me.headers })).json()) as Array<{ id: string }>
+    expect(rules).toHaveLength(1)
+    await expect
+      .poll(async () => (await (await me.ctx.get(`/api/v1/autopilot/rules/${rules[0]!.id}/runs`, { headers: me.headers })).json()).content.map((r: { outcome: string | null }) => r.outcome), { timeout: 30_000 })
+      .toEqual(['SUCCEEDED'])
+    const balances = (await (await me.ctx.get('/api/v1/accounts', { headers: me.headers })).json()) as Array<{ id: string; balance: string }>
+    expect(balances.find((a) => a.id === checking.id)!.balance).toMatch(/^2000(\.0+)?$/)
+    expect(balances.find((a) => a.id === me.account.id)!.balance).toMatch(/^8000(\.0+)?$/)
+
+    await page.reload()
+    await expect(page.getByText('Done', { exact: true }).first()).toBeVisible()
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/autopilot', { headers: auth, data: { enabled: wasOn } })
+    await Promise.all([admin.dispose(), me.ctx.dispose()])
+  }
+})

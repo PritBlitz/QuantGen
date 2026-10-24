@@ -236,9 +236,9 @@ function NewSchedule() {
           <AmountInput label="Amount" value={amount} onValueChange={setAmount} error={errors.amount} />
           <div className="space-y-1.5">
             <Label>How often</Label>
-            <Segmented label="Frequency" value={frequency} onValueChange={setFrequency} options={(['ONCE', 'WEEKLY', 'MONTHLY'] as const).map((f) => ({ value: f, label: FREQ_LABEL[f] }))} />
+            <Segmented label="Frequency" className="flex w-full *:flex-1" value={frequency} onValueChange={setFrequency} options={(['ONCE', 'WEEKLY', 'MONTHLY'] as const).map((f) => ({ value: f, label: FREQ_LABEL[f] }))} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={frequency === 'ONCE' ? 'On' : 'Starting'} type="date" min={tomorrowIst()} value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
             {frequency !== 'ONCE' && <FormField label="Times (optional)" inputMode="numeric" placeholder="Forever" value={count} onChange={(e) => setCount(e.target.value.replace(/\D/g, '').slice(0, 3))} error={errors.count} />}
           </div>
