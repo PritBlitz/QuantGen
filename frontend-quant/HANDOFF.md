@@ -1,6 +1,24 @@
 # Frontend → Backend handoff
 
-## 2026-10-24: M5 verified live, audit, free-tier, infra  ← READ THIS FIRST
+## 2026-10-25: what's live, what's waiting to flip  ← READ THIS FIRST
+
+- **Live and verified on :8080:** `V2-M5-extended` (budget trigger, round-up sweep; e071c76) and `V2-M5-bills`
+  (saved billers + PAY_BILL; 61cebc8, live e2e). The live file is 10 tests, run **in order**
+  (`test.describe.configure({ mode: 'default' })`): feature flags are global, and parallel tests undid each other.
+  That's how ai/autopilot/mcp were left ON on 2026-10-24. :8080 was later stopped for low memory (the owner restarts
+  it). **First thing after a restart: set all 5 flags off via the admin API.**
+- **Built, mocked, waiting for :8080:** F-CARD-4 disputes (4ed110c; backend 5c03a2e, V24). To flip:
+  add `'F-CARD-4'` to `SHIPPED_MILESTONES` and drop the two dispute patterns from `NOT_YET_LIVE`, then add a live e2e.
+- **Copilot on Gemini (D-044):** the backend is building agent-quant (owner-approved). Contract: backend message
+  2026-10-24 (no shape changes to §12.6/§12.14; new codes AI_UNAVAILABLE, AI_BUSY, TOOL_LIMIT, already handled here;
+  a free-tier notice is under the composer). Flip `/copilot/`, `/intents`, `/admin/ai` and `/autopilot/compile` only on
+  the backend's ping.
+- Fixed bugs worth knowing: intent result links are keyed by `resultRef.type` (FIXED_DEPOSIT, LOAN); a NUL byte in
+  `mocks/v2/payments.ts` once made git store it CRLF (check `tr -cd '\r\000'` on commits made with scripts).
+- `vite.config.ts` has an **uncommitted owner edit** (`allowedHosts: ['.ngrok-free.app']`). Leave it; the security
+  caveat was raised with the owner.
+
+## 2026-10-24: M5 verified live, audit, free-tier, infra
 
 The frontend session was `quantgen-27` and the backend was `backend-quant-1a`.
 - **Audit (both sessions agree):** the backend diffed all 168 PRD §7/§12 endpoints against its controllers. Every
