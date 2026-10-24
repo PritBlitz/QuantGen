@@ -20,7 +20,7 @@ qg:
   ai:
     # D-044: any OpenAI-compatible endpoint. Default: Gemini's free tier.
     base-url: ${QG_AI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
-    model: ${QG_AI_MODEL:gemini-2.5-flash}
+    model: ${QG_AI_MODEL:gemini-3.5-flash}
     # Never logged. QG_AI_API_KEY wins; QG_GEMINI_API_KEY is the name used in the root .env.
     api-key: ${QG_AI_API_KEY:${QG_GEMINI_API_KEY:}}
     max-tool-calls: 10

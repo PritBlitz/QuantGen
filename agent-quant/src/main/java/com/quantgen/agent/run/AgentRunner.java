@@ -166,7 +166,9 @@ public class AgentRunner {
              "PERCENT_OF_TRIGGER"|"EXCESS_ABOVE","value"}} | {"type":"BUY","accountId","symbol","amount":{...}} |
              {"type":"PAY_BILL","savedBillerId","fromAccountId"} | {"type":"ROUND_UP_SWEEP","fromAccountId",
              "toAccountId","roundTo":10|50|100} (SCHEDULE only) | {"type":"NOTIFY","message"}.
-            PERCENT_OF_TRIGGER only with MONEY_RECEIVED. perRun <= 100000.00 and <= perMonth.""";
+            PERCENT_OF_TRIGGER only with MONEY_RECEIVED. "caps" is REQUIRED on every rule, even NOTIFY-only ones:
+             perRun from "1.00" to "100000.00" and <= perMonth. If the user gave no limit, use the largest amount the
+             rule moves (or "1.00" when it moves nothing) and say so in warnings.""";
 
     /**
      * The Planner turns a sentence into a DSL draft as JSON {rule, warnings}. It sees the user's accounts, payees and
