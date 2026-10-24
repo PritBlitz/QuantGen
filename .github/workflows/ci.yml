@@ -77,9 +77,30 @@ jobs:
           path: backend-quant/target/*-reports
           retention-days: 7
 
+  agent:
+    name: Agent (agent-quant unit tests; no model calls, no API key in CI)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: agent-quant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - run: ./mvnw -B -ntp verify
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: agent-surefire-reports
+          path: agent-quant/target/*-reports
+          retention-days: 7
+
   images:
     name: Images (build, scan, push on main)
-    needs: [frontend, backend]
+    needs: [frontend, backend, agent]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -89,6 +110,7 @@ jobs:
         app:
           - { name: web, context: frontend-quant }
           - { name: api, context: backend-quant }
+          - { name: agent, context: agent-quant }
     steps:
       - uses: actions/checkout@v4
       - name: Image name (registry paths must be lowercase)

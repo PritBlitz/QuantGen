@@ -52,6 +52,10 @@ services:
       QG_INDEX_KEY: ${QG_INDEX_KEY:?set QG_INDEX_KEY in .env (openssl rand -base64 32)}
       # Same-origin through nginx; only needed if the SPA is served from elsewhere.
       QG_CORS_ORIGINS: ${QG_CORS_ORIGINS:-http://localhost:8088}
+      # Copilot (D-044/D-045). Without the `ai` profile (or with no secret) the copilot answers
+      # 503 AI_UNAVAILABLE and everything else works (D-039).
+      QG_AGENT_URL: http://agent:8090
+      QG_AGENT_SECRET: ${QG_AGENT_SECRET:-}
       TZ: UTC
     volumes:
       # Loan documents (PRD §12.8). The image creates this dir owned by uid 10001, and a fresh
@@ -83,6 +87,32 @@ services:
     tmpfs:
       - /tmp:uid=101,gid=101
       - /etc/nginx/conf.d:uid=101,gid=101
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  # AI layer (agent-quant), opt-in: docker compose --profile ai up -d
+  # Never published: the browser only talks to the core (ARCHITECTURE §12.1). It sits on `backend` to
+  # reach the API and on `egress` to reach the Gemini API; `backend` is internal and has no internet.
+  agent:
+    profiles: [ai]
+    build: ./agent-quant
+    image: ${QG_IMAGE_PREFIX:-quantgen}-agent:${QG_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Same value as the API's. Empty → the agent refuses every call (fails closed).
+      QG_AGENT_SECRET: ${QG_AGENT_SECRET:-}
+      QG_CORE_URL: http://api:8080
+      # Read from env only, never logged (CLAUDE.md). Free tier: prompts may be used by Google (D-044).
+      QG_GEMINI_API_KEY: ${QG_GEMINI_API_KEY:-}
+      TZ: UTC
+    networks: [backend, egress]
+    read_only: true
+    tmpfs:
+      - /tmp:uid=10001,gid=10001
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
 
@@ -136,6 +166,8 @@ networks:
     internal: true
   edge: {}
   obs: {}
+  # Outbound internet for the agent only (Gemini API). Nothing on it is published.
+  egress: {}
 
 volumes:
   pgdata:
