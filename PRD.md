@@ -1433,8 +1433,45 @@ with `Idempotent-Replayed: true`), because they place, settle or return money. T
 - **Insights/analytics:** `CARD` debits are spending (category from the merchant: GROCERY→GROCERIES, DINING→FOOD,
   TRAVEL→TRAVEL, ELECTRONICS→SHOPPING, GAMBLING→ENTERTAINMENT, FUEL→TRANSPORT, ENTERTAINMENT→ENTERTAINMENT,
   OTHER→SHOPPING); refunds net out of that spending like reversals. Card payments count toward budgets.
-- **Not done:** F-CARD-4 disputes (P2, no endpoints in this table); no auto-capture job (the store captures);
+- **Not done:** F-CARD-4 disputes (P2; contract **PROPOSED** below, not built); no auto-capture job (the store captures);
   card spends don't count toward the transfer limits.
+
+**F-CARD-4 disputes: ACCEPTED 2026-10-24 (drafted by the frontend, reviewed by the backend). Not built yet (P2).**
+Additive: new endpoints, one new notification type, two new audit actions. No v1 shape changes.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/cards/{id}/payments` | `?page&size` | `200 Page<CardPaymentDto>` (captured / refunded / disputed payments on your own card, newest first) |
+| POST 🔒 | `/cards/{id}/payments/{authId}/dispute` | `{reason, amount?, note?}` | `201 CardDisputeDto` |
+| GET | `/card-disputes` | | `200 CardDisputeDto[]` (your own, newest first) |
+| GET (ADMIN) | `/admin/card-disputes` | `?status=OPEN&page&size` | `200 Page<CardDisputeDto + {customerId}>` |
+| POST 🔒💰 (ADMIN) | `/admin/card-disputes/{id}/resolve` | `{outcome: "REFUNDED"\|"REJECTED", reason}` | `200 CardDisputeDto` |
+
+- `CardPaymentDto = {authId, merchant, category, amount, capturedAmount, refundedAmount, disputableAmount, status:
+  "CAPTURED"|"REFUNDED", capturedAt, openDisputeId?}`. Here `disputableAmount` = captured − refunded − open disputes.
+- `CardDisputeDto = {id, cardId, authId, last4, merchant, amount, reason: "NOT_RECEIVED"|"NOT_AS_DESCRIBED"|"DUPLICATE"|
+  "NOT_RECOGNISED"|"OTHER", note?, status: "OPEN"|"REFUNDED"|"REJECTED", resolutionReason?, createdAt, resolvedAt?}`.
+- **Who:** only the cardholder (the owner of the card's account) may dispute or see a dispute. Another user's card,
+  payment or dispute answers `404`. Being the "merchant" who ran the authorize gives no dispute rights. Only an admin resolves.
+- **Validation:** `amount` > 0, ≤ `disputableAmount`, 2 dp (default = all of it, else `400`). `note` ≤ 280 chars, treated as
+  untrusted text (never shown as HTML). Disputes must be raised within 60 days of capture (`409 INVALID_STATE`).
+  One open dispute per payment (`409 INVALID_STATE`). An auth that was never captured can't be disputed (`404`).
+- **Abuse limits:** opening a dispute is rate-limited to 10/min per user, with at most 20 `OPEN` disputes per user
+  (`422 LIMIT_EXCEEDED`). `note` follows the same no-control-characters rule as other notes. A frozen card or frozen
+  account can still raise a dispute.
+- **Locks:** opening a dispute locks the auth row `FOR UPDATE` and computes `disputableAmount` under that lock. Resolve
+  locks the dispute row, then the auth, then ledger accounts (via `LedgerService`). A sandbox refund locks the auth and
+  only reads open disputes, so the lock order has no cycle.
+- **Resolve:** the dispute must be `OPEN` (`409` otherwise). `REFUNDED` posts a `REFUND` entry `CARD_CLEARING` →
+  customer for the dispute amount (description "Dispute refund <merchant>") and adds it to the auth's `refundedAmount`,
+  all in one transaction, so a later sandbox refund can't return the same money twice. A credit to a `FROZEN` account
+  is allowed. If the account is `CLOSED`, `REFUNDED` answers `409 INVALID_STATE` and the dispute stays `OPEN` for the
+  admin to reject. `REJECTED` moves no money. Both outcomes need an `Idempotency-Key` (one per dispute + outcome) and a
+  `reason` (1–280 chars). Both are audited (`CARD_DISPUTE_RESOLVED`) and notify the customer (`CARD_DISPUTE_RESOLVED`).
+- **Refunds while a dispute is open:** the sandbox refund caps at captured − refunded − open dispute amount (`400` above it).
+- **Audit:** `CARD_DISPUTE_OPENED` / `CARD_DISPUTE_RESOLVED` hold last 4, amount, reason code and (for resolve) the
+  admin's reason. Never the PAN, and never the customer's note (untrusted free text). Transactions show the credit as
+  `type: REFUND`, so analytics and insights net it out of spending. The 60-day window was agreed with the backend.
 
 ### 12.12 Developer access
 | Method | Path | Body | Response |
