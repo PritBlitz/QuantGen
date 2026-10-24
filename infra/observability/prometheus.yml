@@ -1,0 +1,12 @@
+# Scrapes the API's Micrometer endpoint over the private compose network (PRD F-OPS-1).
+# /actuator/prometheus answers only private/loopback callers and nginx never proxies /actuator,
+# so these metrics are never reachable from the internet.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: quantgen-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api:8080"]

@@ -86,11 +86,59 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
 
+  # Observability (PRD F-OPS-1), opt-in: docker compose --profile observability up -d
+  # Prometheus scrapes /actuator/prometheus over the private network. Grafana is the only one
+  # published, on loopback by default, at http://localhost:${QG_GRAFANA_PORT:-3001}.
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    networks: [backend, obs]
+    security_opt: ["no-new-privileges:true"]
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana-oss:12.1.0
+    restart: unless-stopped
+    depends_on: [prometheus]
+    # Not ":?" in the variable: compose interpolates every service even when this profile is off,
+    # so a required variable would break a plain `docker compose up`. Refuse to start here instead,
+    # never with Grafana's admin/admin default.
+    entrypoint: ["/bin/sh", "-c", "[ -n \"$$GF_SECURITY_ADMIN_PASSWORD\" ] || { echo 'set QG_GRAFANA_PASSWORD in .env' >&2; exit 1; }; exec /run.sh"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${QG_GRAFANA_PASSWORD:-}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      # Own bind, not QG_WEB_BIND: a server sets that to 0.0.0.0, and Grafana must stay private (use an SSH tunnel).
+      - "${QG_GRAFANA_BIND:-127.0.0.1}:${QG_GRAFANA_PORT:-3001}:3000"
+    networks: [obs]
+    security_opt: ["no-new-privileges:true"]
+
 networks:
   backend:
     internal: true
   edge: {}
+  obs: {}
 
 volumes:
   pgdata:
   loandocs:
+  promdata:
+  grafanadata:

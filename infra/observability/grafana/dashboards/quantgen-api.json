@@ -1,0 +1,73 @@
+{
+  "uid": "qg-api",
+  "title": "QuantGen API",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["quantgen"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Transfers / min",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (kind) (rate(qg_transfers_total[5m])) * 60", "legendFormat": "{{kind}}" }]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Orders filled / min",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (side) (rate(qg_orders_total[5m])) * 60", "legendFormat": "{{side}}" }]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Logins / min by result",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (result) (rate(qg_auth_logins_total[5m])) * 60", "legendFormat": "{{result}}" }]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "LedgerService.post latency (p50 / p95 / p99)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(qg_ledger_post_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(qg_ledger_post_seconds_bucket[5m])))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(qg_ledger_post_seconds_bucket[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Ledger posts / min by type and outcome",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (type, outcome) (rate(qg_ledger_post_seconds_count[5m])) * 60", "legendFormat": "{{type}} {{outcome}}" }]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "HTTP 5xx / min by route",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (uri) (rate(http_server_requests_seconds_count{status=~\"5..\"}[5m])) * 60", "legendFormat": "{{uri}}" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "HTTP p95 latency by route",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "qg-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket[5m])))", "legendFormat": "{{uri}}" }]
+    }
+  ]
+}
