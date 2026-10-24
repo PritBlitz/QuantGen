@@ -92,7 +92,7 @@ export function defaultAction(type: RuleAction['type'], accounts: AccountDto[]):
     case 'BUY':
       return { type, accountId: from, symbol: 'QGEN', amount: { mode: 'FIXED', value: '5000.00' } }
     case 'PAY_BILL':
-      return { type, fromAccountId: from, billerId: '', consumerNumber: '' }
+      return { type, savedBillerId: '', fromAccountId: from }
     case 'ROUND_UP_SWEEP':
       return { type, fromAccountId: from, toAccountId: goal || (spendable(accounts)[1]?.id ?? ''), roundTo: 10 }
     case 'NOTIFY':

@@ -7,6 +7,7 @@ import type {
   AdminFeatureFlagDto,
   BacktestDto,
   BillerDto,
+  SavedBillerDto,
   BillPaymentDto,
   CardDto,
   Category,
@@ -66,6 +67,7 @@ export interface V2State {
   blocked: Array<{ userId: string; blockedHandle: string }>
   scheduled: Array<Owned<ScheduledTransferDto> & { toAccountNumber: string }>
   billers: BillerDto[]
+  savedBillers: Array<Owned<SavedBillerDto> & { consumerNumber: string }>
   bills: Map<string, { userId: string; billerId: string; consumerNumber: string; amount: string; dueDate: string }>
   billPayments: Array<Owned<BillPaymentDto>>
   groups: Array<GroupDto & { memberIds: string[] }>
@@ -226,6 +228,7 @@ export function createV2State(): V2State {
       [DEMO_GOAL_GOA, { name: 'Goa in December', target: '60000.0000', targetDate: isoDate(55), emoji: '🏖️' }],
       [DEMO_GOAL_EMERGENCY, { name: 'Emergency fund', target: '300000.0000', targetDate: null, emoji: '🛟' }],
     ]),
+    savedBillers: [],
     roundUps: new Map([[DEMO_CHECKING, { enabled: true, roundTo: 10, goalAccountId: DEMO_GOAL_GOA }]]),
     fds: [
       { id: 'f5000000-0000-4000-8000-000000000001', userId: PEOPLE.demo.id, fromAccountId: DEMO_SAVINGS, accountNumberMasked: '••••7712', principal: '100000.0000', annualRate: '7.10', tenureDays: 365, startDate: isoDate(-120), maturityDate: isoDate(245), accruedInterest: '2334.2500', maturityAmount: '107100.0000', onMaturity: 'PAYOUT', status: 'ACTIVE' },

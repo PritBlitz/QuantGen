@@ -1,9 +1,12 @@
-import { Droplets, Flame, Loader2, Receipt, ReceiptText, Satellite, ShieldPlus, Smartphone, Wifi, Zap, CreditCard, type LucideIcon } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { BookmarkPlus, Droplets, Flame, Loader2, Receipt, ReceiptText, Satellite, ShieldPlus, Smartphone, Trash2, Wifi, Zap, CreditCard, type LucideIcon } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
+import { backendHas } from '@/api/capabilities'
 import { payApi } from '@/api/endpoints.v2'
 import { errorMessage, toApiError } from '@/api/errors'
 import { useAccounts } from '@/api/queries'
-import type { BillDto, BillerCategory, BillerDto, BillPaymentDto } from '@/api/types'
+import type { BillDto, BillerCategory, BillerDto, BillPaymentDto, SavedBillerDto } from '@/api/types'
 import { FormField } from '@/components/FormField'
 import { Money } from '@/components/Money'
 import { MoneyErrorAlert } from '@/components/money/MoneyErrorAlert'
@@ -22,7 +25,10 @@ import { moneyErrorCopy } from '@/lib/moneyErrors'
 import { formatDate, formatRelative } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { PayTabs } from './components/PayBits'
-import { useBillers, useBillPayments, useInvalidatePayments } from './hooks'
+import { payKeys, useBillers, useBillPayments, useInvalidatePayments, useSavedBillers } from './hooks'
+
+/** Saved billers (PRD §12.4) ship with the backend's V2-M5-bills; an older backend has no /saved-billers. */
+const SAVED = backendHas('V2-M5-bills')
 
 const CAT: Record<BillerCategory, { label: string; icon: LucideIcon }> = {
   ELECTRICITY: { label: 'Electricity', icon: Zap },
@@ -41,6 +47,11 @@ export function BillsPage() {
   const history = useBillPayments()
   const [category, setCategory] = useState<BillerCategory | null>(null)
   const [biller, setBiller] = useState<BillerDto | null>(null)
+  const [saved, setSaved] = useState<SavedBillerDto | null>(null)
+  const pick = (b: BillerDto) => {
+    setSaved(null)
+    setBiller(b)
+  }
 
   const shown = (billers.data ?? []).filter((b) => !category || b.category === category)
   return (
@@ -49,6 +60,15 @@ export function BillsPage() {
       <PayTabs />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="space-y-4 lg:col-span-7">
+          {SAVED && (
+            <SavedBillers
+              selectedId={saved?.id}
+              onPay={(s) => {
+                setSaved(s)
+                setBiller((billers.data ?? []).find((b) => b.id === s.billerId) ?? null)
+              }}
+            />
+          )}
           <div className="flex flex-wrap gap-2" role="group" aria-label="Bill category">
             {(Object.keys(CAT) as BillerCategory[]).map((c) => {
               const { label, icon: Icon } = CAT[c]
@@ -77,8 +97,8 @@ export function BillsPage() {
                   <li key={b.id}>
                     <button
                       type="button"
-                      onClick={() => setBiller(b)}
-                      className={cn('flex w-full items-center gap-3 rounded-2xl bg-surface p-4 text-left hairline transition-colors hover:border-border-strong', biller?.id === b.id && 'border-accent')}
+                      onClick={() => pick(b)}
+                      className={cn('flex w-full items-center gap-3 rounded-2xl bg-surface p-4 text-left hairline transition-colors hover:border-border-strong', !saved && biller?.id === b.id && 'border-accent')}
                     >
                       <span className="grid size-10 place-items-center rounded-xl bg-surface-2 text-muted">
                         <Icon aria-hidden="true" className="size-5" />
@@ -95,7 +115,7 @@ export function BillsPage() {
           )}
         </div>
         <div className="space-y-4 lg:col-span-5">
-          {biller ? <PayBill key={biller.id} biller={biller} /> : <Panel title="Pay a bill"><EmptyState icon={<ReceiptText />} title="Pick a biller">Choose who you’re paying on the left.</EmptyState></Panel>}
+          {biller ? <PayBill key={saved?.id ?? biller.id} biller={biller} saved={saved} /> : <Panel title="Pay a bill"><EmptyState icon={<ReceiptText />} title="Pick a biller">Choose who you’re paying on the left.</EmptyState></Panel>}
           <Panel eyebrow="History" title="Recent bill payments">
             {!history.data ? (
               <Skeleton className="h-24 w-full" />
@@ -121,7 +141,55 @@ export function BillsPage() {
   )
 }
 
-function PayBill({ biller }: { biller: BillerDto }) {
+/** Saved billers: pay this cycle's bill in one tap, or remove one. Only the masked number is ever shown. */
+function SavedBillers({ selectedId, onPay }: { selectedId?: string; onPay: (s: SavedBillerDto) => void }) {
+  const list = useSavedBillers()
+  const qc = useQueryClient()
+  const [removing, setRemoving] = useState<string | null>(null)
+  if (list.isError) return <PanelError what="saved billers" onRetry={() => void list.refetch()} />
+  if (!list.data || list.data.length === 0) return null
+  async function remove(s: SavedBillerDto) {
+    setRemoving(s.id)
+    try {
+      await payApi.deleteSavedBiller(s.id)
+      await qc.invalidateQueries({ queryKey: payKeys.savedBillers })
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setRemoving(null)
+    }
+  }
+  return (
+    <Panel eyebrow="Saved" title="Your billers">
+      <ul className="divide-y divide-border">
+        {list.data.map((s) => {
+          const Icon = CAT[s.category].icon
+          const name = s.nickname ?? s.billerName
+          return (
+            <li key={s.id} className={cn('flex items-center gap-3 py-2.5', selectedId === s.id && 'text-accent')}>
+              <Icon aria-hidden="true" className="size-4 shrink-0 text-muted" />
+              <span className="min-w-0 flex-1 text-sm">
+                <span className="block truncate font-medium">{name}</span>
+                <span className="block truncate text-xs text-muted">
+                  {s.nickname ? `${s.billerName} · ` : ''}
+                  <span className="num">{s.consumerNumberMasked}</span>
+                </span>
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => onPay(s)} aria-label={`Pay ${name}`}>
+                Pay
+              </Button>
+              <Button size="icon-sm" variant="ghost" disabled={removing === s.id} onClick={() => void remove(s)} aria-label={`Remove ${name}`} className="text-muted">
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </Panel>
+  )
+}
+
+function PayBill({ biller, saved }: { biller: BillerDto; saved?: SavedBillerDto | null }) {
   const accounts = useAccounts()
   const invalidate = useInvalidatePayments()
   const senders = (accounts.data ?? []).filter((a) => a.status === 'ACTIVE' && (a.type === 'SAVINGS' || a.type === 'CHECKING'))
@@ -148,6 +216,21 @@ function PayBill({ biller }: { biller: BillerDto }) {
     }
   }
 
+  async function fetchSaved(e: FormEvent) {
+    e.preventDefault()
+    if (!saved) return
+    setError(null)
+    setFetching(true)
+    try {
+      setBill(await payApi.fetchSavedBill(saved.id))
+    } catch (err) {
+      const ae = toApiError(err)
+      setError(ae.fieldErrors[0]?.message ? `This ${ae.fieldErrors[0].message}.` : errorMessage(ae))
+    } finally {
+      setFetching(false)
+    }
+  }
+
   if (action.step === 'success' && action.result)
     return (
       <Panel title={biller.name}>
@@ -163,7 +246,21 @@ function PayBill({ biller }: { biller: BillerDto }) {
 
   return (
     <Panel eyebrow={CAT[biller.category].label} title={biller.name} tone="cyan">
-      {!bill ? (
+      {!bill && saved ? (
+        <form onSubmit={(e) => void fetchSaved(e)} className="space-y-4" noValidate>
+          <p className="text-sm text-muted">
+            {saved.nickname ?? saved.consumerNumberLabel} <span className="num">{saved.consumerNumberMasked}</span>
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
+          <Button type="submit" className="w-full" disabled={fetching}>
+            {fetching ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Receipt aria-hidden="true" />} Fetch this month’s bill
+          </Button>
+        </form>
+      ) : !bill ? (
         <form onSubmit={(e) => void fetchBill(e)} className="space-y-4" noValidate>
           <FormField label={biller.consumerNumberLabel} value={consumer} autoComplete="off" onChange={(e) => setConsumer(e.target.value.toUpperCase())} error={error ?? undefined} />
           <Button type="submit" className="w-full" disabled={fetching}>
@@ -177,6 +274,7 @@ function PayBill({ biller }: { biller: BillerDto }) {
             <ReviewRow label="Name on bill">{bill.customerNameMasked}</ReviewRow>
             <ReviewRow label="Due">{formatDate(bill.dueDate)}</ReviewRow>
           </ReviewRows>
+          {SAVED && !saved && action.step === 'form' && <SaveBiller billerId={biller.id} consumerNumber={consumer.trim()} />}
           {action.step === 'form' && (
             <div className="space-y-1.5">
               <Label>Pay from</Label>
@@ -203,5 +301,37 @@ function PayBill({ biller }: { biller: BillerDto }) {
         </div>
       )}
     </Panel>
+  )
+}
+
+/** Remember a biller after a successful fetch, so next month it's one tap (and usable by Autopilot). */
+function SaveBiller({ billerId, consumerNumber }: { billerId: string; consumerNumber: string }) {
+  const qc = useQueryClient()
+  const [nickname, setNickname] = useState('')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  if (state === 'saved') return <p className="text-sm text-gain">Saved. It’s under “Your billers”.</p>
+  async function save() {
+    setState('saving')
+    setError(null)
+    try {
+      await payApi.saveBiller({ billerId, consumerNumber, ...(nickname.trim() ? { nickname: nickname.trim() } : {}) })
+      await qc.invalidateQueries({ queryKey: payKeys.savedBillers })
+      setState('saved')
+    } catch (e) {
+      const ae = toApiError(e)
+      setError(ae.code === 'INVALID_STATE' ? 'You’ve already saved this biller.' : errorMessage(ae))
+      setState('idle')
+    }
+  }
+  return (
+    <div className="flex items-end gap-2">
+      <div className="min-w-0 flex-1">
+        <FormField label="Save as (optional)" placeholder="e.g. Home power" maxLength={40} value={nickname} onChange={(e) => setNickname(e.target.value)} error={error ?? undefined} />
+      </div>
+      <Button variant="secondary" disabled={state === 'saving'} onClick={() => void save()}>
+        <BookmarkPlus aria-hidden="true" /> Save biller
+      </Button>
+    </div>
   )
 }

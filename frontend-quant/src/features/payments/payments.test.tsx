@@ -92,3 +92,29 @@ describe('payment requests (F-PAY-8)', () => {
     expect(db.v2.blocked).toContainEqual(expect.objectContaining({ blockedHandle: 'meera@qg' }))
   })
 })
+
+describe('saved billers (F-PAY-11)', () => {
+  it('saves a biller after fetching, pays it from the saved list, and removes it', async () => {
+    signInAs('CUSTOMER')
+    const user = userEvent.setup()
+    renderApp('/pay/bills')
+    await user.click(await screen.findByRole('button', { name: /BESCOM/ }))
+    await user.type(screen.getByLabelText('Account ID'), '1234567890')
+    await user.click(screen.getByRole('button', { name: /Fetch bill/ }))
+    await user.type(await screen.findByLabelText('Save as (optional)', {}, { timeout: 5000 }), 'Home power')
+    await user.click(screen.getByRole('button', { name: /Save biller/ }))
+    expect(await screen.findByText(/Saved\. It’s under “Your billers”/)).toBeInTheDocument()
+
+    // The list shows only the masked number; paying fetches this month's bill without it.
+    const saved = (await screen.findByText('Your billers')).closest('section') as HTMLElement
+    expect(within(saved).getByText('••••7890')).toBeInTheDocument()
+    expect(within(saved).queryByText('1234567890')).not.toBeInTheDocument()
+    await user.click(within(saved).getByRole('button', { name: 'Pay Home power' }))
+    await user.click(await screen.findByRole('button', { name: /Fetch this month’s bill/ }))
+    expect(await screen.findByText('Amount due', {}, { timeout: 5000 })).toBeInTheDocument()
+
+    await user.click(within(saved).getByRole('button', { name: 'Remove Home power' }))
+    await waitFor(() => expect(screen.queryByText('Your billers')).not.toBeInTheDocument())
+    expect(db.v2.savedBillers).toHaveLength(0)
+  })
+})

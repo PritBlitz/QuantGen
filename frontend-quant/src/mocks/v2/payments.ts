@@ -303,6 +303,53 @@ export const paymentHandlers = [
     db.v2.bills.set(billId, { userId: r.user.id, billerId: biller.id, consumerNumber: n, amount, dueDate })
     return json({ billId, amount, dueDate, customerNameMasked: maskName(r.user.fullName) })
   }),
+  // Saved billers (PRD §12.4, V2-M5-bills). The full consumer number never leaves the mock "server".
+  http.get(`${BASE}/saved-billers`, ({ request }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    return json(db.v2.savedBillers.filter((s) => s.userId === r.user.id).map(({ userId: _u, consumerNumber: _c, ...s }) => s))
+  }),
+  http.post(`${BASE}/saved-billers`, async ({ request }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const b = (await request.json()) as { billerId?: unknown; consumerNumber?: unknown; nickname?: unknown }
+    const biller = db.v2.billers.find((x) => x.id === b.billerId)
+    if (!biller) return invalid(request, 'billerId', 'unknown biller')
+    const n = typeof b.consumerNumber === 'string' ? b.consumerNumber.trim() : ''
+    if (!new RegExp(biller.consumerNumberPattern).test(n)) return invalid(request, 'consumerNumber', `isn't a valid ${biller.consumerNumberLabel.toLowerCase()}`)
+    const nick = typeof b.nickname === 'string' && b.nickname.trim() ? b.nickname.trim() : null
+    // eslint-disable-next-line no-control-regex
+    if (nick && (nick.length > 40 || /[ -]/.test(nick))) return invalid(request, 'nickname', 'must be 1–40 characters')
+    const mine = db.v2.savedBillers.filter((s) => s.userId === r.user.id)
+    if (mine.some((s) => s.billerId === biller.id && s.consumerNumber === n)) return error(409, 'INVALID_STATE', 'You already saved this biller', request, [{ field: 'consumerNumber', message: 'is already saved' }])
+    if (mine.length >= 20) return error(422, 'LIMIT_EXCEEDED', 'You can save up to 20 billers', request)
+    const s = { id: crypto.randomUUID(), userId: r.user.id, consumerNumber: n, billerId: biller.id, billerName: biller.name, category: biller.category, consumerNumberLabel: biller.consumerNumberLabel, consumerNumberMasked: last4(n), nickname: nick, createdAt: new Date().toISOString() }
+    db.v2.savedBillers.push(s)
+    const { userId: _u, consumerNumber: _c, ...dto } = s
+    return json(dto, 201)
+  }),
+  http.delete(`${BASE}/saved-billers/:id`, ({ request, params }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const i = db.v2.savedBillers.findIndex((s) => s.id === params.id && s.userId === r.user.id)
+    if (i < 0) return notFound(request, 'Saved biller')
+    db.v2.savedBillers.splice(i, 1)
+    return new Response(null, { status: 204 })
+  }),
+  http.post(`${BASE}/saved-billers/:id/fetch`, async ({ request, params }) => {
+    await delay(500)
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const s = db.v2.savedBillers.find((x) => x.id === params.id && x.userId === r.user.id)
+    if (!s) return notFound(request, 'Saved biller')
+    const paidThisCycle = db.v2.billPayments.some((p) => p.userId === r.user.id && p.billerId === s.billerId && p.consumerNumberMasked === s.consumerNumberMasked && p.createdAt.slice(0, 7) === new Date().toISOString().slice(0, 7))
+    if (paidThisCycle) return error(409, 'INVALID_STATE', 'This month’s bill is already paid', request)
+    const billId = crypto.randomUUID()
+    const amount = money(billAmount(s.billerId, s.consumerNumber))
+    const dueDate = addDays(todayIst(), 9)
+    db.v2.bills.set(billId, { userId: r.user.id, billerId: s.billerId, consumerNumber: s.consumerNumber, amount, dueDate })
+    return json({ billId, amount, dueDate, customerNameMasked: maskName(r.user.fullName) })
+  }),
   http.post(`${BASE}/bill-payments`, async ({ request }) => {
     await delay(600)
     const r = requireUser(request)

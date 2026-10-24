@@ -17,6 +17,7 @@ import type {
   BillDto,
   BillerCategory,
   BillerDto,
+  SavedBillerDto,
   BillPaymentDto,
   BreakdownDimension,
   BreakdownDto,
@@ -206,6 +207,12 @@ export const payApi = {
         { headers: idempotencyHeader(idempotencyKey) },
       )
       .then(data),
+  savedBillers: () => api.get<SavedBillerDto[]>('/saved-billers').then(data),
+  saveBiller: (body: { billerId: string; consumerNumber: string; nickname?: string }) =>
+    api.post<SavedBillerDto>('/saved-billers', body).then(data),
+  /** This cycle's bill for a saved biller, so the UI never needs the full consumer number. */
+  fetchSavedBill: (id: string) => api.post<BillDto>(`/saved-billers/${seg(id)}/fetch`).then(data),
+  deleteSavedBiller: (id: string) => api.delete(`/saved-billers/${seg(id)}`).then(() => undefined),
   billPayments: (params: PageQuery = {}) =>
     api.get<Page<BillPaymentDto>>('/bill-payments', { params }).then(data),
   groups: () => api.get<GroupDto[]>('/split-groups').then(data),

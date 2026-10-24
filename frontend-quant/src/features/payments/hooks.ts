@@ -7,6 +7,7 @@ export const payKeys = {
   scheduled: ['pay', 'scheduled'] as const,
   billers: (category?: BillerCategory) => ['pay', 'billers', category ?? 'ALL'] as const,
   billPayments: ['pay', 'bill-payments'] as const,
+  savedBillers: ['pay', 'saved-billers'] as const,
   groups: ['pay', 'groups'] as const,
   group: (id: string) => ['pay', 'groups', id] as const,
 }
@@ -21,6 +22,8 @@ export const useRequests = (direction: 'INCOMING' | 'OUTGOING', status?: Payment
 export const useScheduled = () => useQuery({ queryKey: payKeys.scheduled, queryFn: payApi.scheduled })
 export const useBillers = (category?: BillerCategory) =>
   useQuery({ queryKey: payKeys.billers(category), queryFn: () => payApi.billers(category), staleTime: 5 * 60_000 })
+export const useSavedBillers = (enabled = true) =>
+  useQuery({ queryKey: payKeys.savedBillers, queryFn: payApi.savedBillers, enabled })
 export const useBillPayments = () =>
   useQuery({ queryKey: payKeys.billPayments, queryFn: () => payApi.billPayments({ page: 0, size: 20 }) })
 export const useGroups = () => useQuery({ queryKey: payKeys.groups, queryFn: payApi.groups })

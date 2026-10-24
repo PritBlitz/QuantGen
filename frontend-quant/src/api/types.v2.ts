@@ -239,6 +239,17 @@ export interface BillDto {
   dueDate: IsoDate
   customerNameMasked: string
 }
+/** A biller + consumer number the user saved (PRD §12.4, V2-M5-bills). The full number is never returned. */
+export interface SavedBillerDto {
+  id: Uuid
+  billerId: Uuid
+  billerName: string
+  category: BillerCategory
+  consumerNumberLabel: string
+  consumerNumberMasked: string
+  nickname: string | null
+  createdAt: IsoDateTime
+}
 export interface BillPaymentDto {
   id: Uuid
   billerId: Uuid
@@ -502,7 +513,8 @@ export type RuleAction =
       amount: RuleAmount
     }
   | { type: 'BUY'; accountId: Uuid; symbol: string; amount: RuleAmount }
-  | { type: 'PAY_BILL'; fromAccountId: Uuid; billerId: Uuid; consumerNumber: string }
+  /** Pays this cycle's bill of a saved biller; skipped (amount null) when it's already paid. Any trigger. */
+  | { type: 'PAY_BILL'; savedBillerId: Uuid; fromAccountId: Uuid }
   /** SCHEDULE trigger only; sweeps the round-ups on `fromAccountId`'s spends since the previous scheduled day.
    *  Refused if `fromAccountId` already has nightly round-ups on. */
   | { type: 'ROUND_UP_SWEEP'; fromAccountId: Uuid; toAccountId: Uuid; roundTo: 10 | 50 | 100 }

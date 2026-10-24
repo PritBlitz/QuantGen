@@ -1,12 +1,13 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import { useAccounts, useBeneficiaries, useInstruments } from '@/api/queries'
 import type { AccountDto, Category, RuleAction, RuleAmount, RuleCondition, RuleDsl, RuleTrigger, Weekday } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { FieldMessage, Input, Label } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { accountLabel } from '@/features/accounts/labels'
-import { useBillers } from '@/features/payments/hooks'
+import { useSavedBillers } from '@/features/payments/hooks'
 import { sanitizeAmount } from '@/lib/amount'
 import { BUDGETABLE, categoryOf } from '@/lib/categories'
 import { maskShort } from '@/lib/mask'
@@ -292,7 +293,7 @@ function ActionEditor({
 }) {
   const payees = useBeneficiaries().data ?? []
   const instruments = useInstruments().data ?? []
-  const billers = useBillers().data ?? []
+  const savedBillers = useSavedBillers(a.type === 'PAY_BILL').data ?? []
   const e = (k: string) => errors.at(`actions[${index}].${k}`)
   const own = accounts.filter((x) => x.status === 'ACTIVE' && x.type !== 'FIXED_DEPOSIT')
 
@@ -344,24 +345,27 @@ function ActionEditor({
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountField label="Pay from" value={a.fromAccountId} accounts={spendable(accounts)} onChange={(fromAccountId) => onChange({ ...a, fromAccountId })} error={e('fromAccountId')} />
-          <Field label="Biller" error={e('billerId')}>
+          <Field label="Saved biller" error={e('savedBillerId')}>
             {(id) => (
               <Select
                 id={id}
-                value={a.billerId}
-                placeholder="Choose a biller"
-                onValueChange={(billerId) => onChange({ ...a, billerId })}
-                options={billers.map((b) => ({ value: b.id, label: b.name, text: b.name }))}
+                value={a.savedBillerId}
+                placeholder={savedBillers.length ? 'Choose a saved biller' : 'No saved billers yet'}
+                onValueChange={(savedBillerId) => onChange({ ...a, savedBillerId })}
+                options={savedBillers.map((b) => {
+                  const text = `${b.nickname ?? b.billerName} · ${b.consumerNumberMasked}`
+                  return { value: b.id, label: text, text }
+                })}
               />
             )}
           </Field>
-          <TextField
-            label={billers.find((b) => b.id === a.billerId)?.consumerNumberLabel ?? 'Consumer number'}
-            value={a.consumerNumber}
-            maxLength={30}
-            onChange={(consumerNumber) => onChange({ ...a, consumerNumber })}
-            error={e('consumerNumber')}
-          />
+          <p className="text-xs text-muted sm:col-span-2">
+            Pays this month’s bill if it isn’t paid yet. Save a biller on{' '}
+            <Link to="/pay/bills" className="underline underline-offset-2">
+              Bills
+            </Link>{' '}
+            first.
+          </p>
         </div>
       )
     case 'ROUND_UP_SWEEP':

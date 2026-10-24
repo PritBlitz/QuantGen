@@ -38,7 +38,11 @@ function actionText(a: RuleAction): string {
     case 'BUY':
       return `buy ${amountText(a.amount)} of ${a.symbol} (whole shares)`
     case 'PAY_BILL':
-      return `pay the ${db.v2.billers.find((b) => b.id === a.billerId)?.name ?? 'saved'} bill`
+      {
+        // Backend (c)'s sentence: the nickname, else the masked consumer number.
+        const sb = db.v2.savedBillers.find((x) => x.id === a.savedBillerId)
+        return `pay the ${sb?.billerName ?? 'saved'} bill (${sb?.nickname ?? sb?.consumerNumberMasked ?? 'removed'}) from ${accName(a.fromAccountId)} (if it isn't paid yet)`
+      }
     case 'ROUND_UP_SWEEP':
       // Backend f5ab093's exact sentence.
       return `move the round-ups to the next ₹${a.roundTo} on spends from ${accName(a.fromAccountId)} since the previous scheduled day to ${accName(a.toAccountId)}`
@@ -99,6 +103,10 @@ function validate(userId: string, r: unknown): FieldError[] {
         if (!a.toAccountId && !a.toBeneficiaryId) fe.push({ field: `rule.actions[${i}]`, message: 'choose where the money goes' })
       }
       if (a.type === 'BUY' && !db.instruments.has(a.symbol)) fe.push({ field: `rule.actions[${i}].symbol`, message: 'unknown symbol' })
+      if (a.type === 'PAY_BILL') {
+        if (!db.v2.savedBillers.some((x) => x.id === a.savedBillerId && x.userId === userId)) fe.push({ field: `rule.actions[${i}].savedBillerId`, message: 'pick one of your saved billers' })
+        if (!own(a.fromAccountId)) fe.push({ field: `rule.actions[${i}].fromAccountId`, message: 'pick one of your accounts' })
+      }
       if (a.type === 'ROUND_UP_SWEEP') {
         if (rule.trigger?.type !== 'SCHEDULE') fe.push({ field: `rule.actions[${i}].type`, message: 'round-up sweeps run on a schedule trigger' })
         if (!own(a.fromAccountId)) fe.push({ field: `rule.actions[${i}].fromAccountId`, message: 'pick one of your accounts' })
