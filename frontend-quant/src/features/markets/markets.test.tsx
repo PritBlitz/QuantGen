@@ -33,7 +33,11 @@ async function openTicket(user: ReturnType<typeof userEvent.setup>, side: 'Buy' 
   const open = await screen.findByRole('button', { name: new RegExp(`^${side}$`) })
   await waitFor(() => expect(open).toBeEnabled())
   await user.click(open)
-  return screen.findByRole('dialog')
+  const sheet = await screen.findByRole('dialog')
+  // The sheet opens before the ticket's form renders (it waits for accounts and holdings); on a slow
+  // CI runner a getBy straight after found only the heading. Return once the form is there.
+  await within(sheet).findByRole('button', { name: /^Review / }, { timeout: 10_000 })
+  return sheet
 }
 
 describe('price feed parsing', () => {
