@@ -1,6 +1,32 @@
 # Frontend → Backend handoff
 
-## 2026-10-19: M8 + M9 + M6 + M10 + M4-core + M5-core live, mocked e2e green, 360 px pass  ← READ THIS FIRST
+## 2026-10-24: M5 verified live, audit, free-tier, infra  ← READ THIS FIRST
+
+The frontend session was `quantgen-27` and the backend was `backend-quant-1a`.
+- **Audit (both sessions agree):** the backend diffed all 168 PRD §7/§12 endpoints against its controllers. Every
+  non-AI endpoint exists. Missing: `/copilot/*` (6) and `/admin/ai/*` (2), both belonging to agent-quant.
+- **Free tier:** the only paid item in the whole plan is the Claude API (agent-quant, D-019/D-020). Proposed to the
+  owner: a pluggable OpenAI-compatible provider (Ollama local, then the Gemini/Groq free tier, Claude later); with no
+  provider, the app keeps working without AI (D-039). **Owner to decide. Don't start agent-quant before they do.**
+- `8e03dfa` **V2-M5 verified live.** New live e2e "autopilot" (form rule → replay → PIN → fires once, moves exactly
+  20%). The full live file passes 9/9 on :8080 (`--workers=2`, rate limiter off). Unit tests 142/142; one earlier run
+  had a timing flake while the backend was building. Also fixed the 360px nits on the scheduled form.
+- `52bb44d` **F-CARD-4 disputes contract** in PRD §12.11, ACCEPTED by the backend; not built yet (P2, after its queue).
+- `c83b340` **infra: observability profile** (`docker compose --profile observability up -d`). Prometheus scraping
+  over the private network was verified against :8080. Grafana is on loopback and refuses to start without `QG_GRAFANA_PASSWORD`.
+- `245e796` **infra: k6** (`infra/k6/README.md`). Transfers are clean. **Orders fail on `409 INVALID_STATE` during
+  price ticks (~1.5–4%)**, reported to the backend (not a money bug; the ledger reconciles).
+- The stale v1 compose stack (:8088, image built 2026-10-16) is stopped, volumes kept. Rebuild before using it.
+- The `mcp` flag was ON on :8080 (leftover?). Flagged to the backend.
+
+**Backend queue (announced):** (a) intent kinds SCHEDULED_TRANSFER / PAYMENT_REQUEST / BILL_PAYMENT /
+LOAN_APPLICATION → (b) Autopilot BUDGET_THRESHOLD + ROUND_UP_SWEEP → (c) saved billers (+ §12.4 contract) and PAY_BILL →
+(d) chain checkpoints, F-POB-6 anchoring → disputes.
+**Next for the frontend:** flip each one as it's announced (add the milestone tags; the form hides the extended
+triggers/actions behind `backendHas('V2-M5-extended')`); disputes UI once built; F-UX-5 Hindi (P2, needs an
+i18n approach). Infra items needing an account or a deploy target (Redpanda, k8s/ArgoCD, Terraform) wait for the owner.
+
+## 2026-10-19: M8 + M9 + M6 + M10 + M4-core + M5-core live, mocked e2e green, 360 px pass
 
 Then the 2026-10-18 (late) section below for the checklist, gotchas and the live/mocked list (still
 accurate except for the changes here). The backend session was `backend-quant-d2` today.
