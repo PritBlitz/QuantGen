@@ -16,7 +16,6 @@ import {
   amountModes,
   defaultAction,
   defaultTrigger,
-  goals,
   spendable,
   TRIGGER_LABEL,
   TRIGGER_OPTIONS,
@@ -266,7 +265,7 @@ function TriggerEditor({
                 id={id}
                 value={String(t.percent)}
                 onValueChange={(p) => onChange({ ...t, percent: Number.parseInt(p, 10) })}
-                options={[50, 75, 80, 90, 100].map((p) => ({ value: String(p), label: `${p}%`, text: `${p}%` }))}
+                options={[50, 75, 80, 90, 100, 120, 150, 200].map((p) => ({ value: String(p), label: `${p}%`, text: `${p}%` }))}
               />
             )}
           </Field>
@@ -366,7 +365,27 @@ function ActionEditor({
         </div>
       )
     case 'ROUND_UP_SWEEP':
-      return <AccountField label="Into goal" value={a.goalAccountId} accounts={goals(accounts)} onChange={(goalAccountId) => onChange({ ...a, goalAccountId })} error={e('goalAccountId')} />
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AccountField label="Round up spends from" value={a.fromAccountId} accounts={spendable(accounts)} onChange={(fromAccountId) => onChange({ ...a, fromAccountId })} error={e('fromAccountId')} />
+          <AccountField label="Move the change to" value={a.toAccountId} accounts={own.filter((x) => x.id !== a.fromAccountId)} onChange={(toAccountId) => onChange({ ...a, toAccountId })} error={e('toAccountId')} />
+          <Field label="Round to the next" error={e('roundTo')}>
+            {(id) => (
+              <Select
+                id={id}
+                value={String(a.roundTo)}
+                onValueChange={(v) => onChange({ ...a, roundTo: Number(v) as 10 | 50 | 100 })}
+                options={[10, 50, 100].map((n) => ({ value: String(n), label: `₹${n}`, text: `₹${n}` }))}
+              />
+            )}
+          </Field>
+          {/* The server refuses this action on any trigger but a schedule (path rule.actions[i].type). */}
+          <p className="self-end text-xs text-muted sm:pb-2">Runs on a schedule trigger only. Sweeps spends since the previous run.</p>
+          <div className="sm:col-span-2">
+            <FieldMessage id={`round-up-${index}-error`}>{e('type')}</FieldMessage>
+          </div>
+        </div>
+      )
     case 'NOTIFY':
       return <TextField label="Message" value={a.message} maxLength={140} placeholder="e.g. Salary’s in, budgets reset" onChange={(message) => onChange({ ...a, message })} error={e('message')} />
     default:

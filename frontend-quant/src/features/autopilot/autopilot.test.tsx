@@ -79,6 +79,22 @@ describe('Autopilot', () => {
     expect(screen.getByRole('button', { name: 'Replay the last 90 days' })).toBeDisabled()
   })
 
+  it('sweeps round-ups on a schedule, and explains why it can’t run on another trigger', async () => {
+    signInAs('CUSTOMER')
+    const user = userEvent.setup()
+    renderApp('/autopilot/new')
+    await user.click(await screen.findByRole('button', { name: /Build it myself/ }))
+    await user.click(await screen.findByRole('combobox', { name: 'Action type' }, { timeout: 8000 }))
+    await user.click(await screen.findByRole('option', { name: 'Sweep round-ups' }))
+    // The blank rule runs on a schedule, so the server renders the sweep in its own words.
+    expect(await screen.findByText(/move the round-ups to the next ₹10 on spends from/, {}, { timeout: 5000 })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox', { name: 'Trigger' }))
+    await user.click(await screen.findByRole('option', { name: 'Money arrives' }))
+    expect(await screen.findAllByText('round-up sweeps run on a schedule trigger', {}, { timeout: 5000 })).not.toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Replay the last 90 days' })).toBeDisabled()
+  })
+
   it('lists rules; pausing is instant but resuming asks for the PIN', async () => {
     signInAs('CUSTOMER')
     const calls = spyOnRuleWrites()

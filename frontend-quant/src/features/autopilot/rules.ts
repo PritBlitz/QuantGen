@@ -20,13 +20,16 @@ export const ACTION_LABEL: Record<RuleAction['type'], string> = {
 }
 
 /**
- * What the live engine runs today (backend V2-M5 core): BUDGET_THRESHOLD, PAY_BILL and ROUND_UP_SWEEP
- * get 422 RULE_INVALID there, so the form offers them only when every request is mocked.
+ * What the live engine runs (backend V2-M5 core): an older backend answers 422 RULE_INVALID for the
+ * rest, so the form offers them only once their milestone ships (or when every request is mocked).
+ * 'V2-M5-extended' (backend f5ab093) = BUDGET_THRESHOLD + ROUND_UP_SWEEP; 'V2-M5-bills' = PAY_BILL
+ * on saved billers.
  */
 const EXTENDED = backendHas('V2-M5-extended')
+const BILLS = backendHas('V2-M5-bills')
 export const TRIGGER_OPTIONS = (Object.keys(TRIGGER_LABEL) as Array<RuleTrigger['type']>).filter((t) => EXTENDED || t !== 'BUDGET_THRESHOLD')
 export const ACTION_OPTIONS = (Object.keys(ACTION_LABEL) as Array<RuleAction['type']>).filter(
-  (a) => EXTENDED || (a !== 'PAY_BILL' && a !== 'ROUND_UP_SWEEP'),
+  (a) => (EXTENDED || a !== 'ROUND_UP_SWEEP') && (BILLS || a !== 'PAY_BILL'),
 )
 
 export const WEEKDAYS: Array<{ value: Weekday; label: string }> = [
@@ -91,7 +94,7 @@ export function defaultAction(type: RuleAction['type'], accounts: AccountDto[]):
     case 'PAY_BILL':
       return { type, fromAccountId: from, billerId: '', consumerNumber: '' }
     case 'ROUND_UP_SWEEP':
-      return { type, goalAccountId: goal }
+      return { type, fromAccountId: from, toAccountId: goal || (spendable(accounts)[1]?.id ?? ''), roundTo: 10 }
     case 'NOTIFY':
       return { type, message: '' }
   }

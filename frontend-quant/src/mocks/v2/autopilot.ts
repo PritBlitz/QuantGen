@@ -7,6 +7,7 @@ import { delay, http } from 'msw'
 import type { FieldError, RuleAction, RuleAmount, RuleDsl, RuleDto, SimulationDto, TemplateDto } from '@/api/types'
 import { BASE, db, error, inr, last4, paginate } from '../handlers'
 import { addDays, Decimal, json, money, notFound, requireUser, stepUpGate, todayIst } from './common'
+import { categoryOf } from '@/lib/categories'
 import { DEMO_CHECKING, DEMO_GOAL_EMERGENCY, DEMO_GOAL_GOA, DEMO_SAVINGS, prng } from './state'
 
 const MONEY_RE = /^\d{1,9}(\.\d{1,2})?$/
@@ -39,7 +40,8 @@ function actionText(a: RuleAction): string {
     case 'PAY_BILL':
       return `pay the ${db.v2.billers.find((b) => b.id === a.billerId)?.name ?? 'saved'} bill`
     case 'ROUND_UP_SWEEP':
-      return `sweep round-ups into ${accName(a.goalAccountId)}`
+      // Backend f5ab093's exact sentence.
+      return `move the round-ups to the next ₹${a.roundTo} on spends from ${accName(a.fromAccountId)} since the previous scheduled day to ${accName(a.toAccountId)}`
     case 'NOTIFY':
       return `notify me: “${a.message}”`
   }
@@ -63,7 +65,7 @@ export function renderRule(r: RuleDsl): string {
       when = `When ${t.symbol} goes ${t.direction === 'ABOVE' ? 'above' : 'below'} ${inr(t.price)}`
       break
     case 'BUDGET_THRESHOLD':
-      when = `When my ${t.category.toLowerCase()} budget reaches ${t.percent}%`
+      when = `When your ${categoryOf(t.category).label.toLowerCase()} spending reaches ${t.percent}% of its monthly budget (once a month)`
       break
   }
   const cond = r.conditions.map((c) => `, if ${accName(c.accountId)} holds at least ${inr(c.amount)}`).join('')
@@ -82,6 +84,8 @@ function validate(userId: string, r: unknown): FieldError[] {
   else if ((t.type === 'MONEY_RECEIVED' || t.type === 'BALANCE_ABOVE') && !own(t.accountId)) fe.push({ field: 'rule.trigger.accountId', message: 'pick one of your accounts' })
   else if (t.type === 'SCHEDULE' && t.frequency === 'MONTHLY' && !(Number.isInteger(t.dayOfMonth) && t.dayOfMonth! >= 1 && t.dayOfMonth! <= 28)) fe.push({ field: 'rule.trigger.dayOfMonth', message: 'must be 1–28' })
   else if (t.type === 'PRICE_CROSSES' && !db.instruments.has(t.symbol)) fe.push({ field: 'rule.trigger.symbol', message: 'unknown symbol' })
+  else if (t.type === 'BUDGET_THRESHOLD' && !(Number.isInteger(t.percent) && t.percent >= 1 && t.percent <= 200)) fe.push({ field: 'rule.trigger.percent', message: 'must be a whole number 1–200' })
+  else if (t.type === 'BUDGET_THRESHOLD' && !(db.v2.budgets.get(userId) ?? []).some((b) => b.category === t.category)) fe.push({ field: 'rule.trigger.category', message: 'set a monthly budget for this category first' })
   if (!Array.isArray(rule.actions) || rule.actions.length < 1 || rule.actions.length > 5) fe.push({ field: 'rule.actions', message: 'add 1–5 actions' })
   else
     rule.actions.forEach((a, i) => {
@@ -95,6 +99,13 @@ function validate(userId: string, r: unknown): FieldError[] {
         if (!a.toAccountId && !a.toBeneficiaryId) fe.push({ field: `rule.actions[${i}]`, message: 'choose where the money goes' })
       }
       if (a.type === 'BUY' && !db.instruments.has(a.symbol)) fe.push({ field: `rule.actions[${i}].symbol`, message: 'unknown symbol' })
+      if (a.type === 'ROUND_UP_SWEEP') {
+        if (rule.trigger?.type !== 'SCHEDULE') fe.push({ field: `rule.actions[${i}].type`, message: 'round-up sweeps run on a schedule trigger' })
+        if (!own(a.fromAccountId)) fe.push({ field: `rule.actions[${i}].fromAccountId`, message: 'pick one of your accounts' })
+        else if (db.v2.roundUps.get(a.fromAccountId)?.enabled) fe.push({ field: `rule.actions[${i}].fromAccountId`, message: 'this account already has nightly round-ups on' })
+        if (!own(a.toAccountId) || a.toAccountId === a.fromAccountId) fe.push({ field: `rule.actions[${i}].toAccountId`, message: 'pick another of your accounts' })
+        if (![10, 50, 100].includes(a.roundTo)) fe.push({ field: `rule.actions[${i}].roundTo`, message: 'must be 10, 50 or 100' })
+      }
       if ('amount' in a && a.amount) {
         const ok = a.amount.mode === 'PERCENT_OF_TRIGGER' ? /^\d{1,3}(\.\d{1,2})?$/.test(a.amount.value) && new Decimal(a.amount.value).gt(0) && new Decimal(a.amount.value).lte(100) : MONEY_RE.test(a.amount.value)
         if (!ok) fe.push({ field: `rule.actions[${i}].amount`, message: a.amount.mode === 'PERCENT_OF_TRIGGER' ? 'must be 0–100%' : 'must be an amount' })
@@ -204,7 +215,8 @@ function simulate(userId: string, rule: RuleDsl, days: number): SimulationDto {
 
 const TEMPLATES: TemplateDto[] = [
   { id: 'salary-splitter', name: 'Salary splitter', description: 'Split every salary between goals, investments and bills the moment it lands.', prompt: 'When my salary arrives, move 20% to my Goa goal and buy ₹5,000 of QGEN', rule: null },
-  { id: 'round-up', name: 'Round-up saver', description: 'Every spend rounds up to the next ₹10; the change goes to a goal.', prompt: 'Sweep my round-ups into my Goa goal', rule: { dslVersion: 1, trigger: { type: 'SCHEDULE', frequency: 'WEEKLY', weekday: 'SUN' }, conditions: [], actions: [{ type: 'ROUND_UP_SWEEP', goalAccountId: DEMO_GOAL_GOA }], caps: { perRun: '2000.00', perMonth: '8000.00' } } },
+  { id: 'round-up-saver', name: 'Round-up saver', description: 'Every spend rounds up to the next ₹10; the change goes to a goal.', prompt: 'Every Sunday sweep the round-ups on my savings spends into my Goa goal', rule: { dslVersion: 1, trigger: { type: 'SCHEDULE', frequency: 'WEEKLY', weekday: 'SUN' }, conditions: [], actions: [{ type: 'ROUND_UP_SWEEP', fromAccountId: DEMO_SAVINGS, toAccountId: DEMO_GOAL_GOA, roundTo: 10 }], caps: { perRun: '2000.00', perMonth: '8000.00' } } },
+  { id: 'budget-guard', name: 'Budget guard', description: 'Get a heads-up when a budget is nearly spent.', prompt: 'Tell me when my food spending reaches 90% of its budget', rule: null },
   { id: 'sip', name: 'Monthly SIP', description: 'Invest a fixed amount on the same day every month.', prompt: 'Every month on the 5th buy ₹8,000 of TCS', rule: null },
   { id: 'lean-checking', name: 'Keep checking lean', description: 'Anything above a buffer is swept into savings every day.', prompt: 'Keep ₹50,000 in checking and sweep the rest to my emergency fund', rule: null },
   { id: 'rent', name: 'Pay rent on the 1st', description: 'Rent goes out on the 1st, automatically, within your caps.', prompt: 'On the 1st of every month move ₹12,000 to Meera', rule: null },

@@ -486,6 +486,7 @@ export type RuleTrigger =
   | { type: 'SCHEDULE'; frequency: 'MONTHLY' | 'WEEKLY'; dayOfMonth?: number; weekday?: Weekday }
   | { type: 'BALANCE_ABOVE'; accountId: Uuid; threshold: MoneyString }
   | { type: 'PRICE_CROSSES'; symbol: string; direction: 'ABOVE' | 'BELOW'; price: MoneyString }
+  /** `percent` is a whole number 1–200; the user needs a monthly budget for `category`. Fires once a month. */
   | { type: 'BUDGET_THRESHOLD'; category: Category; percent: number }
 export type RuleCondition = { type: 'BALANCE_AT_LEAST'; accountId: Uuid; amount: MoneyString }
 export type RuleAmount =
@@ -502,7 +503,9 @@ export type RuleAction =
     }
   | { type: 'BUY'; accountId: Uuid; symbol: string; amount: RuleAmount }
   | { type: 'PAY_BILL'; fromAccountId: Uuid; billerId: Uuid; consumerNumber: string }
-  | { type: 'ROUND_UP_SWEEP'; goalAccountId: Uuid }
+  /** SCHEDULE trigger only; sweeps the round-ups on `fromAccountId`'s spends since the previous scheduled day.
+   *  Refused if `fromAccountId` already has nightly round-ups on. */
+  | { type: 'ROUND_UP_SWEEP'; fromAccountId: Uuid; toAccountId: Uuid; roundTo: 10 | 50 | 100 }
   | { type: 'NOTIFY'; message: string }
 export interface RuleDsl {
   dslVersion: 1
