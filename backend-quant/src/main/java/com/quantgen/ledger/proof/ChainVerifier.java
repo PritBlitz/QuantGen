@@ -16,9 +16,11 @@ import com.quantgen.ledger.proof.ProofHashing.EntryData;
 import com.quantgen.ledger.proof.ProofHashing.LineData;
 
 /**
- * F-POB-4: recomputes the seal chain from genesis against the journal entries and lines as they are now. A
- * changed entry or line, a line added to a sealed entry, an edited or missing seal all show up as the first
- * position whose recomputed hash, prev_hash or position doesn't match.
+ * F-POB-4: recomputes the seal chain against the journal entries and lines as they are now. A changed entry or
+ * line, a line added to a sealed entry, an edited or missing seal all show up as the first position whose recomputed
+ * hash, prev_hash or position doesn't match. A full run starts from genesis; a checkpointed run starts after the
+ * latest checkpoint, whose seal must still carry the recorded hash, so it only covers what was sealed since (older
+ * entries are covered by the next full run). Every intact run records its head as a checkpoint (V29).
  */
 @Component
 public class ChainVerifier {
@@ -26,10 +28,14 @@ public class ChainVerifier {
     private static final Logger log = LoggerFactory.getLogger(ChainVerifier.class);
     private static final int PAGE = 1000;
 
-    public record ChainReport(boolean intact, long checkedUpTo, Long firstBrokenPosition) {
+    /** {@code fromPosition}: where recomputing started (1 = genesis). */
+    public record ChainReport(boolean intact, long checkedUpTo, Long firstBrokenPosition, long fromPosition) {
     }
 
     private record SealRow(long position, String prevHash, String hash, EntryData entry) {
+    }
+
+    private record Checkpoint(long position, String hash, String sealHash) {
     }
 
     private final JdbcTemplate jdbc;
@@ -42,20 +48,49 @@ public class ChainVerifier {
         this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
     }
 
+    /** From genesis. */
     public ChainReport verify() {
-        ChainReport report = readTx.execute(status -> verifyInSnapshot());
+        return verify(false);
+    }
+
+    public ChainReport verify(boolean fromCheckpoint) {
+        ChainReport report = readTx.execute(status -> verifyInSnapshot(fromCheckpoint));
         if (report != null && !report.intact()) {
             log.error("Ledger seal chain BROKEN at position {} (head {})", report.firstBrokenPosition(),
                     report.checkedUpTo());
+        } else if (report != null && report.checkedUpTo() > 0) {
+            jdbc.update("""
+                    INSERT INTO ledger_chain_checkpoints (position, hash)
+                    SELECT position, hash FROM ledger_seals WHERE position = ?
+                    ON CONFLICT (position) DO NOTHING
+                    """, report.checkedUpTo());
         }
         return report;
     }
 
-    private ChainReport verifyInSnapshot() {
+    private ChainReport verifyInSnapshot(boolean fromCheckpoint) {
         Long max = jdbc.queryForObject("SELECT COALESCE(MAX(position), 0) FROM ledger_seals", Long.class);
         long head = max == null ? 0 : max;
         long expected = 1;
         String prev = ProofHashing.GENESIS_HASH;
+        if (fromCheckpoint) {
+            List<Checkpoint> latest = jdbc.query("""
+                    SELECT c.position, c.hash, s.hash AS seal_hash FROM ledger_chain_checkpoints c
+                      LEFT JOIN ledger_seals s ON s.position = c.position
+                     WHERE c.position <= ? ORDER BY c.position DESC LIMIT 1
+                    """, (rs, i) -> new Checkpoint(rs.getLong("position"), rs.getString("hash"),
+                    rs.getString("seal_hash")), head);
+            if (!latest.isEmpty()) {
+                Checkpoint cp = latest.getFirst();
+                if (!cp.hash().equals(cp.sealHash())) {
+                    // The checkpointed seal was edited or removed since it was verified.
+                    return new ChainReport(false, head, cp.position(), cp.position());
+                }
+                expected = cp.position() + 1;
+                prev = cp.hash();
+            }
+        }
+        long from = expected;
         while (expected <= head) {
             List<SealRow> page = jdbc.query("""
                     SELECT s.position, s.prev_hash, s.hash,
@@ -68,23 +103,23 @@ public class ChainVerifier {
                     """, (rs, i) -> new SealRow(rs.getLong("position"), rs.getString("prev_hash"),
                     rs.getString("hash"), LedgerSealer.entry(rs, i)), expected, head, PAGE);
             if (page.isEmpty()) {
-                return new ChainReport(false, head, expected); // the rest of the chain is missing
+                return new ChainReport(false, head, expected, from); // the rest of the chain is missing
             }
             Map<UUID, List<LineData>> lines = LedgerSealer.linesOf(jdbc,
                     page.stream().map(r -> r.entry().id()).toList());
             for (SealRow row : page) {
                 if (row.position() != expected || !row.prevHash().equals(prev)) {
-                    return new ChainReport(false, head, expected);
+                    return new ChainReport(false, head, expected, from);
                 }
                 String recomputed = ProofHashing.sealHash(prev,
                         ProofHashing.canonical(row.entry(), lines.getOrDefault(row.entry().id(), List.of())));
                 if (!recomputed.equals(row.hash())) {
-                    return new ChainReport(false, head, expected);
+                    return new ChainReport(false, head, expected, from);
                 }
                 prev = row.hash();
                 expected++;
             }
         }
-        return new ChainReport(true, head, null);
+        return new ChainReport(true, head, null, from);
     }
 }

@@ -724,7 +724,8 @@ P1 = should ship, P2 = stretch.
 - **F-UX-2 (P0)** Command palette `⌘K`: navigate, run actions, ask the copilot.
 - **F-UX-3 (P1)** Onboarding checklist (passkey, handle, first goal, first rule).
 - **F-UX-4 (P1)** Accessibility pass to WCAG 2.2 AA; every new screen keyboard-operable.
-- **F-UX-5 (P2)** Hindi UI strings (i18n framework from the start, strings externalized).
+- **F-UX-5 (P2)** ~~Hindi UI strings (i18n framework from the start, strings externalized).~~ **Dropped by the
+  owner on 2026-10-25:** the UI stays English-only, with no i18n framework.
 
 #### 11.4.13 Platform — V2-M11 (can run in parallel from V2-M1, owned by the frontend/infra session)
 - **F-OPS-1 (P0)** Metrics (`/actuator/prometheus`, internal only), OpenTelemetry traces across
@@ -1484,7 +1485,7 @@ Backend notes (V2-M7, implemented 2026-10-18):
 |---|---|---|---|
 | GET | `/public/proofs/roots` | none | `200 [{date, root, totalLiabilities, leafCount, chainHead: {position, hash}}]` |
 | GET | `/proofs/accounts/{accountId}` | customer (own account) | `?date=` → `200 {date, leaf: {accountId, balance, salt}, path: [{hash, sum, side}], root, totalLiabilities}` |
-| GET | `/admin/ledger/verify-chain` | admin | `200 {intact, checkedUpTo, firstBrokenPosition?}` |
+| GET | `/admin/ledger/verify-chain` | admin, `?from=GENESIS\|CHECKPOINT` (added 2026-10-25, default `GENESIS`) | `200 {intact, checkedUpTo, firstBrokenPosition?, fromPosition}` (`fromPosition` added 2026-10-25) |
 | GET | `/admin/ledger/solvency` | admin | `200 {totalLiabilities, totalAssets, ratio}` |
 
 **Canonical hashing (exact; the browser recomputes it, so both sides must match byte for byte):**
@@ -1518,7 +1519,12 @@ Backend notes (V2-M8, implemented 2026-10-19; agreed with the frontend session t
   (`LEDGER_CHAIN_VERIFIED` / `LEDGER_CHAIN_BROKEN`). The nightly run (00:30 IST) also sends `LEDGER_INTEGRITY` to
   every admin on a break.
 - **Solvency:** live; liabilities = Σ customer balances; assets = `BANK_CASH` + `LOAN_RECEIVABLE` + `GATEWAY_CLEARING` (simulated reserves).
-- **Not done:** F-POB-6 (external anchoring, P2). Verification always starts from genesis (no checkpoints yet).
+- **Checkpoints (F-POB-4, added 2026-10-25, V29):** every intact run records its head `{position, hash}` (insert-only).
+  `from=CHECKPOINT` re-checks that the latest checkpoint's seal still has the recorded hash (else broken at that
+  position) and recomputes only the seals after it; `fromPosition` says where it started (`1` = genesis). An edit to
+  an entry *before* the checkpoint is only caught by a full run, so the admin default stays `GENESIS` and the nightly
+  job (00:30 IST) runs from the checkpoint Monday–Saturday and from genesis on Sundays. Other `from` → `400 from`.
+- **Not done:** F-POB-6 (external anchoring, P2).
 
 ### 12.11 Cards
 | Method | Path | Body | Response |

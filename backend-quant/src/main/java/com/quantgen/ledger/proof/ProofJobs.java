@@ -1,6 +1,7 @@
 package com.quantgen.ledger.proof;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -67,7 +68,9 @@ public class ProofJobs {
     @Scheduled(cron = "${qg.proofs.verify-cron:0 30 0 * * *}", zone = "Asia/Kolkata")
     void nightlyVerify() {
         try {
-            verifyAndRecord(null);
+            // From the last checkpoint on weekdays; the whole chain from genesis every Sunday.
+            boolean sunday = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE)).getDayOfWeek() == DayOfWeek.SUNDAY;
+            verifyAndRecord(null, !sunday);
         } catch (RuntimeException e) {
             log.error("Nightly ledger chain verification failed to run", e);
         }
@@ -77,9 +80,9 @@ public class ProofJobs {
      * Verifies the chain and audits the result ({@code actorId} null for the nightly job). A break also notifies
      * every admin.
      */
-    public ChainReport verifyAndRecord(UUID actorId) {
-        ChainReport report = verifier.verify();
-        String details = "intact=" + report.intact() + ", checkedUpTo=" + report.checkedUpTo()
+    public ChainReport verifyAndRecord(UUID actorId, boolean fromCheckpoint) {
+        ChainReport report = verifier.verify(fromCheckpoint);
+        String details = "intact=" + report.intact() + ", from=" + report.fromPosition() + ", checkedUpTo=" + report.checkedUpTo()
                 + (report.intact() ? "" : ", firstBrokenPosition=" + report.firstBrokenPosition());
         tx.executeWithoutResult(status -> {
             audit.record(actorId, report.intact() ? "LEDGER_CHAIN_VERIFIED" : "LEDGER_CHAIN_BROKEN", "LEDGER",

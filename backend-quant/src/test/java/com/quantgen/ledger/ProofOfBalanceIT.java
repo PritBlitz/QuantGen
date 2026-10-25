@@ -121,7 +121,7 @@ class ProofOfBalanceIT extends IntegrationTest {
             assertThat(report.get("checkedUpTo").asLong()).isGreaterThanOrEqualTo(position);
 
             // The nightly job (no actor) also audits it and notifies every admin.
-            jobs.verifyAndRecord(null);
+            jobs.verifyAndRecord(null, false);
             JsonNode notes = get("/api/v1/notifications", admin.accessToken()).jsonBody();
             assertThat(notes.toString()).contains("LEDGER_INTEGRITY");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action = 'LEDGER_CHAIN_BROKEN' "
@@ -145,6 +145,55 @@ class ProofOfBalanceIT extends IntegrationTest {
             jdbc.execute("ALTER TABLE ledger_seals ENABLE TRIGGER ledger_seals_immutable");
         }
         assertThat(verifier.verify().intact()).isTrue();
+    }
+
+    @Test
+    void aCheckpointedRunCoversOnlyWhatWasSealedSinceAndStillCatchesAnEditedCheckpoint() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        UUID acc = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, acc, "11.00");
+        sealer.sealPending(true);
+        TestUsers.Session admin = Bank.admin(this);
+        JsonNode full = get("/api/v1/admin/ledger/verify-chain", admin.accessToken()).jsonBody();
+        assertThat(full.get("intact").asBoolean()).isTrue();
+        assertThat(full.get("fromPosition").asLong()).isEqualTo(1);
+        long checkpoint = full.get("checkedUpTo").asLong();
+        UUID oldLine = jdbc.queryForObject("SELECT id FROM ledger_lines WHERE ledger_account_id = ? LIMIT 1", UUID.class, acc);
+
+        Bank.deposit(this, s, acc, "12.00");
+        sealer.sealPending(true);
+        JsonNode incremental = get("/api/v1/admin/ledger/verify-chain?from=CHECKPOINT", admin.accessToken()).jsonBody();
+        assertThat(incremental.get("intact").asBoolean()).isTrue();
+        assertThat(incremental.get("fromPosition").asLong()).isEqualTo(checkpoint + 1);
+        assertThat(incremental.get("checkedUpTo").asLong()).isGreaterThan(checkpoint);
+        assertThat(get("/api/v1/admin/ledger/verify-chain?from=YESTERDAY", admin.accessToken()).status()).isEqualTo(400);
+
+        // An edit before the checkpoint is the full run's job (the Sunday nightly and the admin default).
+        String counterparty = jdbc.queryForObject("SELECT counterparty FROM ledger_lines WHERE id = ?", String.class, oldLine);
+        jdbc.execute("ALTER TABLE ledger_lines DISABLE TRIGGER ledger_lines_immutable");
+        try {
+            jdbc.update("UPDATE ledger_lines SET counterparty = 'Mallory' WHERE id = ?", oldLine);
+            assertThat(verifier.verify(true).intact()).isTrue();
+            assertThat(verifier.verify(false).intact()).isFalse();
+        } finally {
+            jdbc.update("UPDATE ledger_lines SET counterparty = ? WHERE id = ?", counterparty, oldLine);
+            jdbc.execute("ALTER TABLE ledger_lines ENABLE TRIGGER ledger_lines_immutable");
+        }
+
+        // Rewriting the checkpointed seal itself is caught by a checkpointed run.
+        long latest = verifier.verify(false).checkedUpTo();
+        String hash = jdbc.queryForObject("SELECT hash FROM ledger_seals WHERE position = ?", String.class, latest);
+        jdbc.execute("ALTER TABLE ledger_seals DISABLE TRIGGER ledger_seals_immutable");
+        try {
+            jdbc.update("UPDATE ledger_seals SET hash = repeat('b', 64) WHERE position = ?", latest);
+            ChainReport report = verifier.verify(true);
+            assertThat(report.intact()).isFalse();
+            assertThat(report.firstBrokenPosition()).isEqualTo(latest);
+        } finally {
+            jdbc.update("UPDATE ledger_seals SET hash = ? WHERE position = ?", hash, latest);
+            jdbc.execute("ALTER TABLE ledger_seals ENABLE TRIGGER ledger_seals_immutable");
+        }
+        assertThat(verifier.verify(true).intact()).isTrue();
     }
 
     // ------------------------------------------------------------------ snapshots and proofs

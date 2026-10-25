@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.quantgen.common.error.ApiException;
 import com.quantgen.common.security.AuthUser;
 import com.quantgen.ledger.proof.BalanceSnapshotService.ProofDto;
 import com.quantgen.ledger.proof.BalanceSnapshotService.RootDto;
@@ -52,9 +54,14 @@ public class ProofController {
     }
 
     @GetMapping("/api/v1/admin/ledger/verify-chain")
-    @Operation(summary = "Recompute the seal chain from genesis and report the first broken position, if any")
-    public ChainReport verifyChain(@AuthenticationPrincipal AuthUser admin) {
-        return jobs.verifyAndRecord(admin.id());
+    @Operation(summary = "Recompute the seal chain and report the first broken position, if any. from=GENESIS "
+            + "(default) checks everything; from=CHECKPOINT only what was sealed after the last intact run")
+    public ChainReport verifyChain(@AuthenticationPrincipal AuthUser admin,
+                                   @RequestParam(defaultValue = "GENESIS") String from) {
+        if (!from.equals("GENESIS") && !from.equals("CHECKPOINT")) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "from", "must be GENESIS or CHECKPOINT");
+        }
+        return jobs.verifyAndRecord(admin.id(), from.equals("CHECKPOINT"));
     }
 
     @GetMapping("/api/v1/admin/ledger/solvency")
