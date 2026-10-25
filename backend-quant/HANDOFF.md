@@ -23,6 +23,9 @@ in this session's scratchpad. The frontend (quantgen-b9) ran its live e2e green 
   owner approves (the D-044 free-tier rule says no money).
 - A live copilot turn through :8080 → :8090 → Gemini was attempted twice and got a clean AI_BUSY (quota), so a
   successful live end-to-end turn is still unconfirmed this session (agent-quant alone answered live on 2026-10-24).
+  The frontend flipped /copilot, /intents and /autopilot/compile live anyway (3d8ce9c); its e2e accepts the busy
+  path. **First step next session (fresh quota):** run the frontend's live e2e once, `-g "copilot and rule drafting"`
+  (one turn, one compile, no retries), and confirm it takes the answered branch; then the eval slices.
 - Anchoring needs the owner: create a public repo, clone it, set `QG_ANCHOR_REPO_DIR` + `QG_ANCHOR_REPO_URL`, and
   push after the API commits (it never pushes). Crypto needs egress to api.coingecko.com when its flag is on.
 - MCP: `http://127.0.0.1:8090/mcp`, PAT bearer only; exposing it beyond loopback is the infra session's call.
