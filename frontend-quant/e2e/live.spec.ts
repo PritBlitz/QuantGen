@@ -856,3 +856,92 @@ test('saved billers: save, pay from the saved list once, use in an Autopilot rul
     await Promise.all([admin.dispose(), me.ctx.dispose()])
   }
 })
+
+// Backend bbb2f66 (2026-10-25): block → unblock a requester, leave a settled split group, and close an
+// empty account with step-up. No money moves in any of them.
+test('gap closes: unblock a requester, leave a split group, close an empty account', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
+  test.setTimeout(150_000)
+  const me = await apiCustomer(playwright, baseURL, 'closer')
+  const asker = await apiCustomer(playwright, baseURL, 'asker')
+  try {
+    const tag = `${Date.now()}`.slice(-7)
+    const myHandle = `closer${tag}@qg`
+    const askerHandle = `asker${tag}@qg`
+    for (const [who, handle] of [
+      [me, myHandle],
+      [asker, askerHandle],
+    ] as const) {
+      const r = await who.ctx.put('/api/v1/users/me/handle', {
+        headers: who.headers,
+        data: { handle, accountId: who.account.id },
+      })
+      expect(r.status()).toBe(200)
+    }
+    const ask = () =>
+      asker.ctx.post('/api/v1/payment-requests', {
+        headers: asker.headers,
+        data: { toHandle: myHandle, amount: '250.00', note: 'Live e2e' },
+      })
+    expect((await ask()).status()).toBe(201)
+    const group = await (
+      await me.ctx.post('/api/v1/split-groups', {
+        headers: me.headers,
+        data: { name: 'Live e2e group', memberHandles: [askerHandle] },
+      })
+    ).json()
+    const empty = await (
+      await me.ctx.post('/api/v1/accounts', { headers: me.headers, data: { type: 'CHECKING' } })
+    ).json()
+
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/settings/security')
+    await page.getByRole('group', { name: 'Choose a PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await page.getByRole('group', { name: 'Confirm PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    const pw = page.getByLabel('Account password')
+    if (await pw.isVisible()) await pw.fill(me.password)
+    await page.getByRole('button', { name: 'Set PIN' }).click()
+    await expect(page.getByText('Set', { exact: true }).first()).toBeVisible()
+
+    // Decline and block, then unblock from the Blocked panel: they can ask again.
+    await page.goto('/pay/requests')
+    await page.getByRole('button', { name: `Decline and block ${askerHandle}` }).click()
+    const unblock = page.getByRole('button', { name: `Unblock ${askerHandle}` })
+    await expect(unblock).toBeVisible()
+    await unblock.click()
+    await expect(unblock).toBeHidden()
+    expect((await ask()).status()).toBe(201)
+
+    // Leave the (settled) group: it drops off the list and the API answers 404.
+    await page.goto(`/pay/splits/${group.id}`)
+    await page.getByRole('button', { name: 'Leave', exact: true }).click()
+    await page.getByRole('button', { name: 'Leave group' }).click()
+    await expect(page).toHaveURL(/\/pay\/splits$/)
+    await expect(page.getByText('Live e2e group')).toBeHidden()
+    expect(
+      (await me.ctx.get(`/api/v1/split-groups/${group.id}`, { headers: me.headers })).status(),
+    ).toBe(404)
+
+    // Close the empty checking account with the PIN.
+    await page.goto(`/accounts/${empty.id}`)
+    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    await page.getByRole('button', { name: 'Close account' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await expect
+      .poll(
+        async () =>
+          (await (await me.ctx.get(`/api/v1/accounts/${empty.id}`, { headers: me.headers })).json())
+            .status,
+      )
+      .toBe('CLOSED')
+    await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeHidden()
+  } finally {
+    await Promise.all([me.ctx.dispose(), asker.ctx.dispose()])
+  }
+})
