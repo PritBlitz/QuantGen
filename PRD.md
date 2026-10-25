@@ -293,7 +293,15 @@ A repay with no `amount` charges exactly the oldest unpaid instalment's `amountD
 `AdminLoanDto = LoanDto + {applicant: {userId, fullName, email}, monthlyIncome, purpose, decisionReason}` (the "LoanDto + applicant" row above; `status` filter is optional, newest first)
 `StatsDto = {totalUsers, totalDeposits, activeLoans, outstandingPrincipal, tradesToday}` (`totalDeposits` and `outstandingPrincipal` are money strings; "today" is the IST calendar day)
 `AuditLogDto = {id, actorId, actorEmail, action, targetType, targetId, details, ip, requestId, createdAt}` (`actor` filters by email substring; `action` is exact; newest first; `details` never contains secrets or full account numbers)
-`ReconcileDto = {balanced, ledgerSum, mismatches: [{ledgerAccountId, code, cachedBalance, computedBalance}]}` (`code` is the system account code such as `BANK_CASH`, null for customer accounts; `computedBalance` is the sum of that account's ledger lines)
+`ReconcileDto = {balanced, ledgerSum, mismatches: [{ledgerAccountId, code, cachedBalance, computedBalance, explanation}]}` (`code` is the system account code such as `BANK_CASH`, null for customer accounts; `computedBalance` is the sum of that account's ledger lines; `explanation` added 2026-10-25, F-RISK-6, see below)
+
+**Reconcile explainer (F-RISK-6, implemented 2026-10-25, V32):** `explanation: {summary, likelyCause, affectedEntries:
+[journalEntryId], runId} | null`. Each mismatch state (account + cached + computed balance) found by a reconcile call
+is queued once; with the `ai` flag on, a worker (every 60 s, 2 at a time, 3 attempts) sends agent-quant the account's
+kind, both balances, the difference and its latest 20 entries (type, time, direction, amount, line count, masked
+description) and stores the answer: `summary` ≤ 1,200 chars, `likelyCause` ≤ 200, `affectedEntries` only ids from
+those 20 (others are dropped). `null` until written, or after 3 failures. Advice only: nothing in the ledger changes;
+fixes stay reversing entries. The trace is `/admin/ai/runs/{runId}` (agent `RECONCILE_EXPLAINER`).
 
 Freeze/unfreeze and loan decisions write an audit log entry and notify the customer.
 Approve and reject return `409 INVALID_STATE` unless the loan is `PENDING`.
@@ -1378,7 +1386,7 @@ Backend notes (V2-M5 core, implemented 2026-10-19; `/autopilot/compile` needs th
 | POST (customer) | `/loans/{id}/documents` | multipart `file`, `consent=true` | `201 LoanDocumentDto` |
 | GET (owner or admin) | `/loans/{id}/documents` | | `200 LoanDocumentDto[]` (added 2026-10-19) |
 | GET | `/admin/loans/{id}/underwriting` | | `200 {status, memo, extracted: [{field, value, page, documentId}], flags, recommendation, generatedAt, runId}` (`documentId`, `runId` added 2026-10-25) |
-| GET | `/admin/ai/usage` | `?from&to` | `200 {tokens, costUsd, byAgent, byDay}` |
+| GET | `/admin/ai/usage` | `?from&to` | `200 {tokens, costUsd, byAgent, byDay}` (`tokens`: one number, input + output, in the range; pinned 2026-10-25) |
 | GET | `/admin/ai/runs/{runId}` | | `200 TraceDto` (full) |
 | PUT | `/admin/feature-flags/{name}` | `{enabled}` | `200` (audited) |
 
@@ -1442,6 +1450,7 @@ they post or free held money); `GET /loans/{id}/documents` added; the underwriti
 |---|---|---|---|
 | POST 🔒💰 | `/orders` | v1 body + `{orderType, limitPrice?, triggerPrice?, validity?}` | `201 OrderDto` (`OPEN` or `FILLED`) |
 | POST | `/orders/{id}/cancel` | | `200 OrderDto` |
+| GET | `/market/crypto` | | `200 [{symbol, name, priceInr, change24hPct, asOf}]` (F-TRD-12, added 2026-10-25, flag `crypto`) |
 | GET / POST / DELETE | `/watchlists` · `/watchlists/{id}/symbols/{symbol}` | | `WatchlistDto` |
 | GET / POST / DELETE | `/price-alerts` | `{symbol, direction: "ABOVE"\|"BELOW", price}` | `PriceAlertDto` |
 | POST 🤖 | `/backtests` | `{strategy, symbols, from, to, initialCash}` | `201 BacktestDto` |
@@ -1478,12 +1487,20 @@ Backend notes (V2-M7, implemented 2026-10-18):
 - **Tax P&L:** `fy` like `2026-27` (default: the current FY), else `400`; `format=json|csv` (else `400`). Sells
   are matched to buys **FIFO** (the portfolio's realized P&L uses average cost, so it can differ); `LONG` = sold
   more than 12 months after the buy. CSV columns are as in `TaxPnlDto.rows`, plus a `TOTAL` line.
-- Not built: F-TRD-9 SIP (comes with Autopilot, V2-M5), F-TRD-12 live crypto (P2).
+- Not built: F-TRD-9 SIP (comes with Autopilot, V2-M5).
+- **Live crypto (F-TRD-12, implemented 2026-10-25, V31, D-035):** read-only, no trading. Flag `crypto` (default off;
+  off → `503 FEATURE_DISABLED`). Only the API calls the feed (CoinGecko `simple/price`, free, no key, base URL
+  `qg.crypto.feed-url`): every minute while the flag is on, plus at most one fetch per 30 s while nothing is cached;
+  customer requests are served from the cache, so the browser never calls a third party. Coins in this order: BTC,
+  ETH, SOL, XRP, ADA, DOGE; a coin missing from the feed, or with a non-numeric, zero/negative or absurd price, is
+  left out. `priceInr` and `change24hPct` are 2-dp strings (`change24hPct` may be `null`); `asOf` is the feed's
+  update time. On a feed failure the last good prices keep coming with their `asOf`; nothing cached yet →
+  `503 GATEWAY_UNAVAILABLE`. Infra: the API needs egress to `api.coingecko.com` only with the flag on.
 
 ### 12.10 Proof of Balance
 | Method | Path | Auth | Response |
 |---|---|---|---|
-| GET | `/public/proofs/roots` | none | `200 [{date, root, totalLiabilities, leafCount, chainHead: {position, hash}}]` |
+| GET | `/public/proofs/roots` | none | `200 [{date, root, totalLiabilities, leafCount, chainHead: {position, hash}, anchor}]` (`anchor` added 2026-10-25) |
 | GET | `/proofs/accounts/{accountId}` | customer (own account) | `?date=` → `200 {date, leaf: {accountId, balance, salt}, path: [{hash, sum, side}], root, totalLiabilities}` |
 | GET | `/admin/ledger/verify-chain` | admin, `?from=GENESIS\|CHECKPOINT` (added 2026-10-25, default `GENESIS`) | `200 {intact, checkedUpTo, firstBrokenPosition?, fromPosition}` (`fromPosition` added 2026-10-25) |
 | GET | `/admin/ledger/solvency` | admin | `200 {totalLiabilities, totalAssets, ratio}` |
@@ -1524,7 +1541,12 @@ Backend notes (V2-M8, implemented 2026-10-19; agreed with the frontend session t
   position) and recomputes only the seals after it; `fromPosition` says where it started (`1` = genesis). An edit to
   an entry *before* the checkpoint is only caught by a full run, so the admin default stays `GENESIS` and the nightly
   job (00:30 IST) runs from the checkpoint Monday–Saturday and from genesis on Sundays. Other `from` → `400 from`.
-- **Not done:** F-POB-6 (external anchoring, P2).
+- **Anchoring (F-POB-6, implemented 2026-10-25, V30):** `anchor: {repo, commit, committedAt} | null` on each root.
+  Off unless `QG_ANCHOR_REPO_DIR` is a local clone of a public repo (and `QG_ANCHOR_REPO_URL` its URL, shown as
+  `repo`). Every 10 minutes the API writes each root that has no anchor yet to `roots/<date>.json` (`date, root,
+  totalLiabilities, leafCount, chainHead`, the same strings as this endpoint) and commits it; `commit` is the 40-hex
+  SHA, `committedAt` when the API recorded it. **The API never pushes:** the owner pushes, so a commit is public
+  only after that. One anchor per date, insert-only. `null` while off, or before that day's commit.
 
 ### 12.11 Cards
 | Method | Path | Body | Response |
@@ -1625,7 +1647,21 @@ Additive: new endpoints, one new notification type, two new audit actions. No v1
 | GET | `/users/me/tokens` | | `200 [{id, name, scope, lastUsedAt, expiresAt}]` |
 | DELETE | `/users/me/tokens/{id}` | | `204` |
 
-Backend notes (V2-M10 core side, implemented 2026-10-19; the MCP server lives in `agent-quant`, not built yet):
+**MCP server (F-MCP-1, implemented 2026-10-25, in agent-quant):** `POST /mcp` on agent-quant (Streamable HTTP, JSON
+responses, stateless; `GET /mcp` → `405`). JSON-RPC 2.0, one object per request (no batches): `initialize` (protocol
+`2025-06-18`, also `2025-03-26` / `2024-11-05`), `ping`, `tools/list`, `tools/call`; notifications → `202`. Auth:
+`Authorization: Bearer qg_pat_…` only (anything else, a JWT included, → `401`); a request with an `Origin` header →
+`403` (DNS rebinding: desktop clients send none). The token goes to the core on every tool call, so its scope,
+ownership, the `mcp` kill switch, the 60/min limit and the `TOKEN_USED` audit apply unchanged; no model runs in
+agent-quant for MCP. Tools (16, those a token can reach): `get_accounts`, `get_transactions`, `get_spending`,
+`get_money_summary`, `get_cashflow`, `get_budgets`, `get_forecast`, `get_net_worth`, `resolve_payee`,
+`get_scheduled_transfers`, `get_instruments`, `get_portfolio`, `get_orders`, `get_fixed_deposits`, `get_loans`,
+`propose_intent` (needs `read+propose`; the intent's agent is `MCP_CLIENT`, approved in the app). Results are masked
+(`••••1234`, `[PAN]`) and wrapped in `<bank_data>`; a core refusal is `isError: true`. Locally:
+`http://127.0.0.1:8090/mcp`; Claude Desktop: `npx mcp-remote http://127.0.0.1:8090/mcp --header "Authorization: Bearer
+qg_pat_…"`. Exposing it beyond loopback is an infra decision (agent-quant is private in compose).
+
+Backend notes (V2-M10 core side, implemented 2026-10-19; the MCP server lives in `agent-quant`):
 - **Create:** customers only (admins `403`); always needs `X-Step-Up-Token` for `TOKEN_CREATE`; `name` 1–40 chars;
   `scope` `read|read+propose`, `expiresInDays` 1–90 (`400` with the field); at most 10 active tokens (`422
   LIMIT_EXCEEDED`). The token is `qg_pat_` + 43 base64url chars, returned once with `Cache-Control: no-store`; only
@@ -1713,7 +1749,7 @@ string, other decimals (percentages, rates) are strings too, counts are integers
 **Feature flags** (new endpoints, needed so the UI can hide switched-off features, F-AGT-6 / F-FLAG-1)
 | Method | Path | Auth | Response |
 |---|---|---|---|
-| GET | `/feature-flags` | any signed-in user | `200 {ai, autopilot, razorpay, cards, mcp}` (booleans) |
+| GET | `/feature-flags` | any signed-in user | `200 {ai, autopilot, cards, crypto, mcp, razorpay}` (booleans; `crypto` added 2026-10-25) |
 | GET | `/admin/feature-flags` | admin | `200 [{name, enabled, updatedAt, updatedBy}]` |
 
 **Security:** `KycDto = {status, panMasked, dateOfBirth, address, verifiedAt}`; `StepUpChallenge`

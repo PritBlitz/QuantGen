@@ -255,7 +255,7 @@ class FoundationsIT extends IntegrationTest {
 
         assertThat(get("/api/v1/feature-flags").status()).isEqualTo(401);
         JsonNode flags = get("/api/v1/feature-flags", user.accessToken()).jsonBody();
-        assertThat(flags.size()).isEqualTo(5);
+        assertThat(flags.size()).isEqualTo(6); // ai, autopilot, cards, crypto, mcp, razorpay
         assertThat(flags.get("ai").asBoolean()).isFalse();
 
         assertThat(get("/api/v1/admin/feature-flags", user.accessToken()).status()).isEqualTo(403);

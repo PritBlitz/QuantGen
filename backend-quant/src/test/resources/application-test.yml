@@ -29,6 +29,7 @@ qg:
     # Tests call FraudMemoWorker.runOnce() and UnderwritingWorker.runOnce() themselves.
     memo-poll-millis: 3600000
     underwriting-poll-millis: 3600000
+    reconcile-poll-millis: 3600000
     memo-initial-millis: 3600000
   storage:
     loan-documents-dir: target/test-loan-documents

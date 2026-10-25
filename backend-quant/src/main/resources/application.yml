@@ -65,6 +65,12 @@ qg:
     # D-039 budgets in tokens (free tier: prices 0, so cost is 0).
     user-daily-tokens: ${QG_AI_USER_DAILY_TOKENS:200000}
     monthly-tokens: ${QG_AI_MONTHLY_TOKENS:5000000}
+  proofs:
+    anchor:
+      # F-POB-6: a local clone of the public repo that holds the daily roots (blank = off). Commits only; the owner pushes.
+      repo-dir: ${QG_ANCHOR_REPO_DIR:}
+      # Its public URL, shown as roots[].anchor.repo (blank = no anchor shown).
+      repo-url: ${QG_ANCHOR_REPO_URL:}
   market:
     simulator-enabled: true
     tick-millis: 3000

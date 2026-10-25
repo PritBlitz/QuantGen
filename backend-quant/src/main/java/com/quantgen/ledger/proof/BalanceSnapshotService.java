@@ -45,7 +45,12 @@ public class BalanceSnapshotService {
     public record ChainHeadDto(long position, String hash) {
     }
 
-    public record RootDto(LocalDate date, String root, String totalLiabilities, int leafCount, ChainHeadDto chainHead) {
+    /** {@code anchor}: the public git commit holding this root (F-POB-6), null until one is recorded. */
+    public record RootDto(LocalDate date, String root, String totalLiabilities, int leafCount, ChainHeadDto chainHead,
+                          AnchorDto anchor) {
+    }
+
+    public record AnchorDto(String repo, String commit, java.time.Instant committedAt) {
     }
 
     public record LeafDto(UUID accountId, String balance, String salt) {
@@ -68,9 +73,13 @@ public class BalanceSnapshotService {
     private final LedgerSealer sealer;
     private final FieldCrypto crypto;
     private final AccountService accounts;
+    /** Public URL of the anchor repository (F-POB-6); blank → roots carry no anchor. */
+    private final String anchorRepo;
 
     BalanceSnapshotService(JdbcTemplate jdbc, AdvisoryLocks locks, LedgerSealer sealer, FieldCrypto crypto,
-                           AccountService accounts) {
+                           AccountService accounts,
+                           @org.springframework.beans.factory.annotation.Value("${qg.proofs.anchor.repo-url:}") String anchorRepo) {
+        this.anchorRepo = anchorRepo;
         this.jdbc = jdbc;
         this.locks = locks;
         this.sealer = sealer;
@@ -164,7 +173,7 @@ public class BalanceSnapshotService {
                 + "VALUES (?, ?, ?, ?, ?, ?, ?)", rows);
         log.info("Balance snapshot {} taken: {} account(s), chain position {}", date, ids.size(), head.position());
         return new RootDto(date, root.hash(), root.sumString(), ids.size(),
-                new ChainHeadDto(head.position(), head.hash()));
+                new ChainHeadDto(head.position(), head.hash()), null);
     }
 
     /** Per account per day; derived from the index key under its own context, so it never equals a blind index. */
@@ -176,8 +185,16 @@ public class BalanceSnapshotService {
 
     @Transactional(readOnly = true)
     public List<RootDto> roots() {
-        return jdbc.query("SELECT * FROM balance_snapshots ORDER BY snapshot_date DESC LIMIT ?",
-                (rs, i) -> rootOf(rs), ROOTS_SHOWN);
+        return jdbc.query("""
+                SELECT s.*, a.commit_sha, a.committed_at FROM balance_snapshots s
+                  LEFT JOIN proof_anchors a ON a.snapshot_date = s.snapshot_date
+                 ORDER BY s.snapshot_date DESC LIMIT ?
+                """, (rs, i) -> {
+            RootDto r = rootOf(rs);
+            String sha = rs.getString("commit_sha");
+            return sha == null || anchorRepo.isBlank() ? r : new RootDto(r.date(), r.root(), r.totalLiabilities(),
+                    r.leafCount(), r.chainHead(), new AnchorDto(anchorRepo, sha, rs.getTimestamp("committed_at").toInstant()));
+        }, ROOTS_SHOWN);
     }
 
     /** The caller's own account only: someone else's account, an unknown date or a missing leaf are all 404. */
@@ -257,6 +274,6 @@ public class BalanceSnapshotService {
     private static RootDto rootOf(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new RootDto(rs.getObject("snapshot_date", LocalDate.class), rs.getString("root"),
                 ProofHashing.amount(rs.getBigDecimal("total_liabilities")), rs.getInt("leaf_count"),
-                new ChainHeadDto(rs.getLong("chain_position"), rs.getString("chain_hash")));
+                new ChainHeadDto(rs.getLong("chain_position"), rs.getString("chain_hash")), null);
     }
 }

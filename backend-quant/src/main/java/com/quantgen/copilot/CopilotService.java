@@ -61,7 +61,7 @@ public class CopilotService {
     static final String CHAT_TEXT = "^(?:[^\\p{Cntrl}]|\\n)*$";
     static final Set<String> CITATION_TYPES = Set.of("TRANSACTION", "ACCOUNT", "INSTRUMENT", "LOAN", "RULE", "METRIC");
     static final Set<String> AGENTS = Set.of("CONCIERGE", "LEDGER_ANALYST", "PAYMENTS", "MARKETS", "PLANNER",
-            "LOAN_ADVISOR", "FRAUD_INVESTIGATOR", "UNDERWRITING_ANALYST");
+            "LOAN_ADVISOR", "FRAUD_INVESTIGATOR", "UNDERWRITING_ANALYST", "RECONCILE_EXPLAINER");
 
     public record ConversationDto(UUID id, String title, Instant createdAt, Instant updatedAt) {
     }
