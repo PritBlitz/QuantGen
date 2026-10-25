@@ -1,6 +1,7 @@
 package com.quantgen.payment.service;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ import com.quantgen.auth.security.StepUpService;
 import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
+import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.money.Money;
 import com.quantgen.payment.domain.TransferRepository;
 
@@ -99,10 +101,37 @@ public class LimitsService {
         return get(userId);
     }
 
+    /**
+     * What counts against the daily limit today (IST): transfers to other people (sent or held for review), card
+     * payments (an approved authorization at its amount until captured, then what was captured minus refunds) and
+     * bill payments. Moves between your own accounts never count.
+     */
     @Transactional(readOnly = true)
     public BigDecimal usedToday(UUID userId) {
         Instant startOfDay = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE))
                 .atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant();
-        return transfers.sumOutgoingSince(userId, startOfDay);
+        BigDecimal other = jdbc.queryForObject("""
+                SELECT (SELECT COALESCE(sum(CASE WHEN a.status = 'AUTHORIZED' THEN a.amount
+                                                 ELSE a.captured_amount - a.refunded_amount END), 0)
+                          FROM card_authorizations a JOIN cards c ON c.id = a.card_id
+                         WHERE c.user_id = ? AND a.status IN ('AUTHORIZED', 'CAPTURED', 'REFUNDED') AND a.created_at >= ?)
+                     + (SELECT COALESCE(sum(amount), 0) FROM bill_payments WHERE user_id = ? AND created_at >= ?)
+                """, BigDecimal.class, userId, Timestamp.from(startOfDay), userId,
+                Timestamp.from(startOfDay));
+        return transfers.sumOutgoingSince(userId, startOfDay).add(other == null ? BigDecimal.ZERO : other);
+    }
+
+    /**
+     * 422 LIMIT_EXCEEDED when {@code amount} more today would pass the daily limit. Callers hold the user's
+     * {@code transfers:<userId>} advisory lock, so payments on different channels can't overshoot it together.
+     */
+    public void requireWithinDaily(UUID userId, BigDecimal amount) {
+        Effective chosen = effective(userId);
+        BigDecimal used = usedToday(userId);
+        if (used.add(amount).compareTo(chosen.daily()) > 0) {
+            throw new ApiException(ErrorCode.LIMIT_EXCEEDED, "Daily limit of "
+                    + Money.toJson(chosen.daily()) + " exceeded; remaining today: "
+                    + Money.toJson(chosen.daily().subtract(used).max(BigDecimal.ZERO)));
+        }
     }
 }

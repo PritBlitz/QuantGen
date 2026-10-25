@@ -43,7 +43,7 @@ public class SplitGroupService {
 
     public enum SplitType { EQUAL, EXACT, PERCENT }
 
-    public record MemberDto(String handle, String displayName, BigDecimal balance) {
+    public record MemberDto(String handle, String displayName, BigDecimal balance, boolean left) {
     }
 
     public record ShareDto(String handle, BigDecimal amount) {
@@ -61,7 +61,7 @@ public class SplitGroupService {
     public record ShareInput(String handle, BigDecimal value) {
     }
 
-    private record Member(UUID userId, String handle) {
+    private record Member(UUID userId, String handle, boolean left) {
     }
 
     private final JdbcTemplate jdbc;
@@ -114,7 +114,7 @@ public class SplitGroupService {
     public List<GroupDto> list(UUID userId) {
         return jdbc.queryForList("""
                 SELECT g.id FROM split_groups g JOIN split_members m ON m.group_id = g.id AND m.user_id = ?
-                 ORDER BY g.created_at DESC, g.id DESC
+                 WHERE m.left_at IS NULL ORDER BY g.created_at DESC, g.id DESC
                 """, UUID.class, userId).stream().map(this::view).toList();
     }
 
@@ -130,7 +130,7 @@ public class SplitGroupService {
         requireMember(userId, groupId);
         // Serialize writes to one group (expense cap, consistent reads for settle-up).
         jdbc.queryForList("SELECT id FROM split_groups WHERE id = ? FOR UPDATE", UUID.class, groupId);
-        List<Member> members = members(groupId);
+        List<Member> members = members(groupId).stream().filter(m -> !m.left()).toList();
         Map<String, UUID> byHandle = new HashMap<>();
         members.forEach(m -> byHandle.put(m.handle(), m.userId()));
         UUID payer = byHandle.get(HandleService.normalize(paidByHandle));
@@ -257,6 +257,30 @@ public class SplitGroupService {
         return shares;
     }
 
+    /**
+     * Leaves a group once you're settled: your balance in it is zero and no settle-up request of the group is open
+     * for or from you. You stay in its history (expenses and shares); you just can't be added to new expenses.
+     */
+    @Transactional
+    public void leave(UUID userId, UUID groupId) {
+        requireMember(userId, groupId);
+        jdbc.queryForList("SELECT id FROM split_groups WHERE id = ? FOR UPDATE", UUID.class, groupId);
+        BigDecimal balance = balances(groupId, members(groupId)).getOrDefault(userId, BigDecimal.ZERO);
+        if (balance.signum() != 0) {
+            throw new ApiException(ErrorCode.INVALID_STATE, balance.signum() > 0
+                    ? "The group still owes you " + Money.toJson(balance) + "; settle up first"
+                    : "You still owe the group " + Money.toJson(balance.negate()) + "; settle up first");
+        }
+        Boolean open = jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM payment_requests WHERE split_group_id = ? AND status = 'OPEN'
+                                 AND expires_at > now() AND (payer_user_id = ? OR requester_user_id = ?))
+                """, Boolean.class, groupId, userId, userId);
+        if (Boolean.TRUE.equals(open)) {
+            throw new ApiException(ErrorCode.INVALID_STATE, "A settle-up request of this group is still open for you");
+        }
+        jdbc.update("UPDATE split_members SET left_at = now() WHERE group_id = ? AND user_id = ?", groupId, userId);
+    }
+
     // ------------------------------------------------------------------ reads
 
     private GroupDto view(UUID groupId) {
@@ -265,7 +289,7 @@ public class SplitGroupService {
         Map<UUID, UserDto> people = users.findUsers(members.stream().map(Member::userId).toList());
         List<MemberDto> memberDtos = members.stream().map(m -> new MemberDto(m.handle(),
                 HandleService.maskName(people.containsKey(m.userId()) ? people.get(m.userId()).fullName() : ""),
-                Money.normalize(balances.get(m.userId())))).toList();
+                Money.normalize(balances.get(m.userId())), m.left())).toList();
         return jdbc.queryForObject("SELECT name, created_at FROM split_groups WHERE id = ?",
                 (rs, i) -> new GroupDto(groupId, rs.getString("name"), memberDtos,
                         expenses(groupId, handlesOf(members)), rs.getTimestamp("created_at").toInstant()), groupId);
@@ -315,9 +339,10 @@ public class SplitGroupService {
 
     private List<Member> members(UUID groupId) {
         return jdbc.query("""
-                SELECT m.user_id, h.handle FROM split_members m LEFT JOIN handles h ON h.user_id = m.user_id
+                SELECT m.user_id, h.handle, m.left_at FROM split_members m LEFT JOIN handles h ON h.user_id = m.user_id
                  WHERE m.group_id = ? ORDER BY m.position
-                """, (rs, i) -> new Member(rs.getObject("user_id", UUID.class), rs.getString("handle")), groupId);
+                """, (rs, i) -> new Member(rs.getObject("user_id", UUID.class), rs.getString("handle"),
+                rs.getTimestamp("left_at") != null), groupId);
     }
 
     private static Map<UUID, String> handlesOf(List<Member> members) {
@@ -328,7 +353,7 @@ public class SplitGroupService {
 
     private void requireMember(UUID userId, UUID groupId) {
         Boolean member = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM split_members WHERE group_id = ? "
-                + "AND user_id = ?)", Boolean.class, groupId, userId);
+                + "AND user_id = ? AND left_at IS NULL)", Boolean.class, groupId, userId);
         if (!Boolean.TRUE.equals(member)) {
             throw ApiException.notFound("Group");
         }

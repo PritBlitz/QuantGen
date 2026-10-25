@@ -141,4 +141,32 @@ class PlanningIT extends IntegrationTest {
                 .get("warnings");
         assertThat(warnings.toString()).contains("EMI_AT_RISK").contains("LOW_BALANCE");
     }
+
+    @Test
+    void forecastIncludesAutopilotSchedules() {
+        jdbc.update("UPDATE feature_flags SET enabled = TRUE WHERE name = 'autopilot'");
+        try {
+            TestUsers.Session alice = TestUsers.registerAndLogin(this);
+            UUID savings = Bank.firstAccountId(this, alice);
+            Bank.deposit(this, alice, savings, "5000.00");
+            String goal = postJson("/api/v1/accounts", Map.of("type", "GOAL", "name", "Bike", "target", "90000.00"),
+                    Bank.auth(alice)).jsonBody().get("id").asString();
+            LocalDate runDay = today().plusDays(2);
+            Map<String, String> h = new HashMap<>(Bank.auth(alice));
+            h.put("X-Step-Up-Token", Bank.stepUpToken(this, alice, "RULE_ACTIVATE"));
+            assertThat(postJson("/api/v1/autopilot/rules", Map.of("name", "Weekly save", "rule", Map.of("dslVersion", 1,
+                    "trigger", Map.of("type", "SCHEDULE", "frequency", "WEEKLY", "weekday",
+                            runDay.getDayOfWeek().name().substring(0, 3)),
+                    "conditions", java.util.List.of(), "actions", java.util.List.of(Map.of("type", "TRANSFER",
+                            "fromAccountId", savings.toString(), "toAccountId", goal,
+                            "amount", Map.of("mode", "FIXED", "value", "1000.00"))),
+                    "caps", Map.of("perRun", "1000.00", "perMonth", "5000.00"))), h).status()).isEqualTo(201);
+
+            JsonNode points = get("/api/v1/insights/forecast?days=3", alice.accessToken()).jsonBody().get("points");
+            assertThat(points.get(1).get("balance").asString()).isEqualTo("5000.00");
+            assertThat(points.get(2).get("balance").asString()).isEqualTo("4000.00"); // the rule's day
+        } finally {
+            jdbc.update("UPDATE feature_flags SET enabled = FALSE WHERE name = 'autopilot'");
+        }
+    }
 }

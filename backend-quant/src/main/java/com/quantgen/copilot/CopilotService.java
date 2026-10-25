@@ -31,6 +31,7 @@ import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.flags.FeatureFlagService;
+import com.quantgen.common.money.Money;
 import com.quantgen.common.security.UserRateLimiter;
 import com.quantgen.common.web.TextRules;
 import com.quantgen.copilot.AgentClient.AgentEvent;
@@ -152,12 +153,23 @@ public class CopilotService {
      * text, limits, budgets and connecting to the agent. From then on failures are {@code error} events.
      */
     public SseEmitter turn(UUID userId, UUID conversationId, String rawText) {
+        return turn(userId, conversationId, rawText, null);
+    }
+
+    /** Optional context the user opened the copilot from, e.g. "Explain this run" (F-AUTO-7). */
+    public record Context(String type, UUID id) {
+    }
+
+    /** {@link #turn(UUID, UUID, String)} with the server-rendered {@code context} added to what the agent sees. */
+    public SseEmitter turn(UUID userId, UUID conversationId, String rawText, Context context) {
         requireEnabled();
         ConversationDto c = conversation(userId, conversationId);
         String text = rawText == null ? "" : rawText.replace("\r\n", "\n").strip();
         if (text.isEmpty() || text.length() > 2000 || !text.matches(CHAT_TEXT)) {
             throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "text", "must be 1–2000 characters");
         }
+        String forAgent = context == null ? text : text + "\n\n(Context from the bank, rendered by the server: "
+                + context(userId, context) + ")";
         rateLimiter.acquire(TURN_LIMIT, userId);
         budget.requireAvailable(userId);
         List<HistoryItem> history = jdbc.query("""
@@ -168,7 +180,7 @@ public class CopilotService {
                 + "RETURNING id", UUID.class, userId, conversationId);
         AgentClient.Turn turn;
         try {
-            turn = agent.startTurn(runId, conversationId, jwt.issueAgentToken(userId, conversationId), history, text);
+            turn = agent.startTurn(runId, conversationId, jwt.issueAgentToken(userId, conversationId), history, forAgent);
         } catch (ApiException e) {
             finishRun(runId, "ERROR", e.code().name(), 0, 0);
             throw e;
@@ -296,12 +308,53 @@ public class CopilotService {
                 """, status, errorCode, input, output, budget.cost(input, output), Timestamp.from(clock.instant()), runId);
     }
 
+    /**
+     * Records a back-office run (a memo) from the agent's JSON answer: its steps, tokens and outcome. Back-office runs
+     * have no user, so they never count against a customer's budget. Returns the run id.
+     */
+    public UUID recordBackOfficeRun(String kind, JsonNode res, String errorCode) {
+        UUID runId = jdbc.queryForObject("INSERT INTO agent_runs (kind) VALUES (?) RETURNING id", UUID.class, kind);
+        if (res != null) {
+            steps(runId, res.path("steps"));
+        }
+        long in = res == null ? 0 : res.path("usage").path("inputTokens").asLong(0);
+        long out = res == null ? 0 : res.path("usage").path("outputTokens").asLong(0);
+        finishRun(runId, errorCode == null ? "OK" : "ERROR", errorCode == null ? null : clip(errorCode, 30), in, out);
+        return runId;
+    }
+
+    /** Whether the AI layer is on (back-office jobs simply wait while it's off). */
+    public boolean enabled() {
+        return flags.isEnabled(FLAG);
+    }
+
     /** Records the steps an agent returned in a non-streamed answer (Autopilot compile). */
     void steps(UUID runId, JsonNode steps) {
         int seq = 0;
         for (JsonNode s : steps) {
             step(runId, ++seq, s);
         }
+    }
+
+    /** The user's own Autopilot run as plain facts; someone else's or unknown → 404. */
+    private String context(UUID userId, Context context) {
+        if (!"AUTOPILOT_RUN".equals(context.type()) || context.id() == null) {
+            throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "context.type", "must be AUTOPILOT_RUN with an id");
+        }
+        List<String> run = jdbc.query("""
+                SELECT ru.name, r.trigger_summary, r.outcome, r.rule_version, r.started_at FROM autopilot_runs r
+                  JOIN autopilot_rules ru ON ru.id = r.rule_id WHERE r.id = ? AND r.user_id = ?
+                """, (rs, i) -> "Autopilot rule \"" + rs.getString(1) + "\" (version " + rs.getInt(4) + ") ran at "
+                + rs.getTimestamp(5).toInstant() + " because: " + rs.getString(2) + ". Outcome: "
+                + (rs.getString(3) == null ? "still running" : rs.getString(3)) + ".", context.id(), userId);
+        if (run.isEmpty()) {
+            throw ApiException.notFound("Run");
+        }
+        List<String> actions = jdbc.query("SELECT idx, type, amount, status, error FROM autopilot_run_actions "
+                + "WHERE run_id = ? ORDER BY idx", (rs, i) -> "action " + (rs.getInt(1) + 1) + " " + rs.getString(2)
+                + (rs.getBigDecimal(3) == null ? "" : " ₹" + Money.toJson(rs.getBigDecimal(3)))
+                + " " + rs.getString(4) + (rs.getString(5) == null ? "" : " (" + rs.getString(5) + ")"), context.id());
+        return clip(run.getFirst() + (actions.isEmpty() ? "" : " " + String.join("; ", actions) + "."), 1200);
     }
 
     // ------------------------------------------------------------------ Autopilot authoring

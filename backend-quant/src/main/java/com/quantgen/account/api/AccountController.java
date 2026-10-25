@@ -29,8 +29,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quantgen.account.domain.AccountType;
+import com.quantgen.account.service.AccountClosureService;
 import com.quantgen.account.service.AccountService;
 import com.quantgen.account.service.DepositService;
+import com.quantgen.auth.security.StepUpService;
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.idempotency.IdempotencyService;
@@ -53,11 +55,23 @@ public class AccountController {
     private final AccountService accounts;
     private final DepositService deposits;
     private final IdempotencyService idempotency;
+    private final AccountClosureService closure;
 
-    public AccountController(AccountService accounts, DepositService deposits, IdempotencyService idempotency) {
+    public AccountController(AccountService accounts, DepositService deposits, IdempotencyService idempotency,
+                             AccountClosureService closure) {
         this.accounts = accounts;
         this.deposits = deposits;
         this.idempotency = idempotency;
+        this.closure = closure;
+    }
+
+    @PostMapping("/{id}/close")
+    @Operation(summary = "Close an empty savings, checking or goal account with nothing depending on it. Needs "
+            + "X-Step-Up-Token for SECURITY_SETTINGS; a 409 lists what's in the way.")
+    public AccountDto close(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id,
+                            @RequestHeader(value = StepUpService.HEADER, required = false) String stepUpToken) {
+        closure.close(user.id(), id, stepUpToken);
+        return accounts.getAccount(user.id(), id);
     }
 
     /** v1 body; {@code type: GOAL} adds name, target, targetDate and emoji (PRD 12.5). */

@@ -183,6 +183,24 @@ class BillPaymentsIT extends IntegrationTest {
         assertThat(get("/api/v1/saved-billers", alice.accessToken()).jsonBody().size()).isEqualTo(19);
     }
 
+    @Test
+    void billPaymentsCountTowardTheDailyLimit() {
+        TestUsers.Session alice = TestUsers.registerAndLogin(this);
+        UUID acc = Bank.firstAccountId(this, alice);
+        Bank.deposit(this, alice, acc, "10000.00");
+        Response set = send(request("/api/v1/users/me/limits").header("Authorization", "Bearer " + alice.accessToken())
+                .header("X-Step-Up-Token", Bank.stepUpToken(this, alice, "SECURITY_SETTINGS"))
+                .header("Content-Type", "application/json")
+                .PUT(java.net.http.HttpRequest.BodyPublishers.ofString("{\"perTransfer\":\"100.00\",\"daily\":\"100.00\"}"))
+                .build());
+        assertThat(set.status()).isEqualTo(200);
+        String billId = fetch(alice, POWER, "4444444444").jsonBody().get("billId").asString(); // ₹200.00 or more
+        Response over = pay(alice, billId, acc, UUID.randomUUID());
+        assertThat(over.status()).isEqualTo(422);
+        assertThat(over.jsonBody().get("code").asString()).isEqualTo("LIMIT_EXCEEDED");
+        assertThat(Bank.balance(this, alice, acc)).isEqualTo("10000.00");
+    }
+
     private Response save(TestUsers.Session s, String billerId, String consumer, String nickname) {
         Map<String, Object> body = new java.util.HashMap<>(Map.of("billerId", billerId, "consumerNumber", consumer));
         if (nickname != null) {

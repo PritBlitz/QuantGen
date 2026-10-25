@@ -223,6 +223,7 @@ Error codes: `VALIDATION_FAILED`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
 | POST 🔒💰 | `/accounts/{id}/deposit` | `{amount}` | `201 TransactionDto` |
 | GET | `/accounts/{id}/transactions` | `?page&size&from&to&type` | `200 Page<TransactionDto>` |
 | GET | `/accounts/{id}/statement` | `?from&to&format=csv` | `200 text/csv` file |
+| POST 🛡️ | `/accounts/{id}/close` | | `200 AccountDto` (status `CLOSED`; added 2026-10-25, see §12.4 notes) |
 
 `AccountDto = {id, accountNumber, type, status, balance, currency: "INR", createdAt}`
 `TransactionDto = {id, journalEntryId, accountId, direction: "DEBIT"|"CREDIT", amount, balanceAfter, type: "DEPOSIT"|"TRANSFER"|"TRADE"|"LOAN_DISBURSAL"|"LOAN_REPAYMENT"|"REVERSAL", description, counterparty, createdAt}`
@@ -856,7 +857,9 @@ the contract-change protocol. 🛡️ = may require step-up. 🤖 = accepts agen
 - **New error codes:** `STEP_UP_REQUIRED` (401, body adds `stepUp: {methods: ["PASSKEY","PIN"], action}`),
   `PIN_LOCKED` (423), `COOLING_PERIOD` (422), `INTENT_EXPIRED` (409), `RULE_INVALID` (422, with
   `fieldErrors` pointing into the DSL), `BUDGET_EXHAUSTED` (429, AI budget), `FEATURE_DISABLED`
-  (503), `KYC_REQUIRED` (403), plus §7.9's `PAYMENT_VERIFICATION_FAILED` and `GATEWAY_UNAVAILABLE`.
+  (503), `KYC_REQUIRED` (403), plus §7.9's `PAYMENT_VERIFICATION_FAILED` and `GATEWAY_UNAVAILABLE`. Added
+  2026-10-25: `AI_UNAVAILABLE` (503, the assistant is down or not set up) and `SUSPECTED_FRAUD` (422, a bill
+  payment stopped by the fraud rules).
 - **Step-up header:** `X-Step-Up-Token: <token>` on the retried 🛡️ request.
 - **Agent tokens** carry `aud=agent`; endpoints marked 🤖 accept them, every other endpoint returns `403`.
 
@@ -951,6 +954,8 @@ Backend notes (V2-M1, implemented 2026-10-18):
 | GET | `/payment-requests` | `?direction=INCOMING\|OUTGOING&status` | `200 Page<PaymentRequestDto>` |
 | POST 🔒💰🛡️ | `/payment-requests/{id}/pay` | `{fromAccountId}` | `201 TransferDto` |
 | POST | `/payment-requests/{id}/decline` | `{block?}` | `200 PaymentRequestDto` |
+| GET | `/payment-requests/blocked` | | `200 [{handle, displayName, blockedAt}]` (added 2026-10-25) |
+| DELETE | `/payment-requests/blocked/{handle}` | | `204` (added 2026-10-25) |
 | POST 🔒 | `/scheduled-transfers` | `{fromAccountId, toAccountNumber\|toHandle, amount, note?, startDate, frequency: "ONCE"\|"WEEKLY"\|"MONTHLY", endDate?, count?}` | `201 ScheduledTransferDto` |
 | GET | `/scheduled-transfers` | | `200 ScheduledTransferDto[]` |
 | POST | `/scheduled-transfers/{id}/pause` · `/resume` | | `200 ScheduledTransferDto` |
@@ -966,6 +971,7 @@ Backend notes (V2-M1, implemented 2026-10-18):
 | POST / GET | `/split-groups` · `/split-groups/{id}` | `{name, memberHandles[]}` | `GroupDto` |
 | POST | `/split-groups/{id}/expenses` | `{paidByHandle, amount, description, split: {type: "EQUAL"\|"EXACT"\|"PERCENT", shares?}}` | `201 ExpenseDto` |
 | POST | `/split-groups/{id}/settle` | | `200 PaymentRequestDto[]` |
+| POST | `/split-groups/{id}/leave` | | `204` (added 2026-10-25) |
 | — | Razorpay top-ups | | as specified in §7.9 |
 
 `PaymentRequestDto = {id, fromHandle, toHandle, amount, note, status: "OPEN"|"PAID"|"DECLINED"|"EXPIRED"|"CANCELLED", transferId, expiresAt, createdAt}` ·
@@ -1028,6 +1034,26 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
   `/billers/{id}/fetch` for that biller and number (same rate limit, same `billId`), then pay with `/bill-payments`.
   Fetch or delete of someone else's or an unknown one → `404`. No money moves, so no Idempotency-Key. A saved biller is the target of the Autopilot `PAY_BILL`
   action (§12.7); deleting one makes such a rule's next run fail with "The saved biller was removed".
+- **Gaps closed (implemented 2026-10-25):**
+  - *Daily limit:* `LimitsDto.usedToday` and the daily check count transfers to others, card payments (an approved
+    authorization at its amount, then captured − refunded) and bill payments. All three take the same per-user lock,
+    so two channels can't overshoot it together. Over it: a transfer or bill → `422 LIMIT_EXCEEDED`; a card →
+    declined "Over the daily limit".
+  - *Bill fraud rules (F-RISK-1):* scored like transfers (8 bill payments in 10 minutes; the first payment after a
+    security change; 00:00–05:00 IST with a large amount; 5× the usual bill). At the review threshold the payment
+    is stopped, `422 SUSPECTED_FRAUD` (new code), nothing moves, audited `BILL_PAYMENT_STOPPED`. There is no review
+    queue for bills. An intent's bill payment stopped this way is `FAILED` / `SUSPECTED_FRAUD`.
+  - *Blocked requesters:* `GET /payment-requests/blocked` lists who you blocked (current handle, masked name),
+    newest first; `DELETE /payment-requests/blocked/{handle}` unblocks (`404` if not blocked or unknown).
+  - *Leaving a split group:* only with a zero balance in it and no open settle-up request for or from you (`409`
+    with what's owed otherwise). You stay in its history: `MemberDto` adds `left: boolean`; you can't be in new
+    expenses (equal splits are among current members); the group leaves your list and `GET` answers `404`. V27.
+  - *Closing an account:* savings, checking or goal (an FD → `400`; use its own close). Needs `X-Step-Up-Token`
+    for `SECURITY_SETTINGS`. The balance must be 0 with no holds, and nothing may depend on it: a loan, an FD paying
+    out to it, an active or paused scheduled transfer, an Autopilot rule, your handle, round-ups. Otherwise
+    `409 INVALID_STATE`, with a message listing each blocker. Frozen → `422 ACCOUNT_FROZEN`; already closed →
+    `409`. A closed account takes no money in or out, its card is frozen, and it stops counting toward the
+    3-account cap. Audited `ACCOUNT_CLOSED`.
 - **Analytics after part 3:** bill payments count as spending (`topCategory` can be `BILLS`); top-ups count as
   income and as deposits (`NET_INFLOW`, the funnel's "funded" step, `FUNDING_SOURCE` row `RAZORPAY`).
 - **Split groups (part 4):** creating a group needs a handle (`409 INVALID_STATE`); `name` 1–40 chars;
@@ -1153,7 +1179,10 @@ Backend notes (V2-M3 part 4: net worth and forecast; implemented 2026-10-18):
   and money scheduled *to* you; moves between your own everyday accounts net out, moves to/from your goals count),
   FD payouts at maturity (principal + interest; `RENEW` FDs don't pay out), and detected salary (money from the
   same person's account, ₹1,000+, in at least 2 of the last three 30-day windows; expected again a month after the
-  latest, same amount). Autopilot schedules join in V2-M5. Money in is applied before money out on the same day.
+  latest, same amount). Autopilot schedules (added 2026-10-25): ACTIVE `SCHEDULE` rules on each due day, summing
+  their FIXED transfers out of everyday money, FIXED buys and saved-bill payments, capped at `perRun`; round-up
+  sweeps and `EXCESS_ABOVE` amounts aren't predictable and are left out; an at-risk one is `SCHEDULED_AT_RISK`
+  labelled `Autopilot “<name>”`. Money in is applied before money out on the same day.
   **Warnings:** `LOW_BALANCE` once, on the first day the balance drops below ₹1,000; `EMI_AT_RISK` /
   `SCHEDULED_AT_RISK` on each day an EMI or scheduled payment would take the projected balance below zero. All
   accounts are pooled (it doesn't model which account pays).
@@ -1250,6 +1279,10 @@ Backend notes (copilot, core side, implemented 2026-10-25; D-044 free-tier provi
   `costUsd` is computed from configured prices, `"0.00"` on the free tier; `budget.usedPct` is the share of the
   monthly token cap. `/autopilot/compile` asks the Planner, then validates and renders the draft like any rule
   (`422 RULE_INVALID` if the model's rule doesn't hold); a provider failure → `503 AI_UNAVAILABLE`.
+- **"Explain this run" (F-AUTO-7, added 2026-10-25):** the message body may carry `context: {type: "AUTOPILOT_RUN",
+  id: <runId>}`. The core renders that run itself (rule name and version, trigger summary, outcome, each action
+  with amount, status and error) and adds it to what the agent sees. The stored message is the user's text only.
+  Someone else's or an unknown run → `404`; another `type` → `400 context.type`.
 
 ### 12.7 Autopilot
 | Method | Path | Body | Response |
@@ -1369,6 +1402,13 @@ they post or free held money); `GET /loans/{id}/documents` added; the underwriti
   signal; `signals: [{code, label, weight}]`; `customerBaseline` over the customer's other completed transfers to
   others: `avgTransfer` (90 days), `transfers30d`, `usualHoursIst` (`"09:00–21:00"`, 10th–90th percentile hour, or
   `"Not enough history"` under 3 transfers), `accountAgeDays`. `memo` is `null` until the agent writes one.
+- **Investigator memos (F-RISK-3, implemented 2026-10-25, V26):** with the `ai` flag on, a worker (every 20 s, 3
+  cases at a time) sends agent-quant the case facts: amount, signals, baseline, the last 10 transfers (amounts and
+  times only), past case outcomes, and masked numbers and payee name, never the customer's name. It stores
+  `memo = {summary, suggestedAction: "RELEASE"|"REJECT"|"CONTACT_CUSTOMER", confidence: "LOW"|"MEDIUM"|"HIGH",
+  generatedAt, runId}`. An answer outside those values is discarded; 3 failed attempts leave `memo: null` for good.
+  The memo is advice only: it never changes the case. Its run is in `/admin/ai/runs/{runId}` (agent
+  `FRAUD_INVESTIGATOR`) and counts in `/admin/ai/usage`, not against any customer's budget.
 - **Decisions:** `reason` 5–500 chars; the case row is locked; already decided → `409`. Release posts the transfer
   (capturing the hold) → `COMPLETED`, the payee gets `MONEY_RECEIVED`, the sender `TRANSFER_UNDER_REVIEW` "Transfer
   released". Reject → transfer `REJECTED`, hold released, sender told "Transfer stopped". Audited
@@ -1508,8 +1548,11 @@ with `Idempotent-Replayed: true`), because they place, settle or return money. T
 - **Insights/analytics:** `CARD` debits are spending (category from the merchant: GROCERY→GROCERIES, DINING→FOOD,
   TRAVEL→TRAVEL, ELECTRONICS→SHOPPING, GAMBLING→ENTERTAINMENT, FUEL→TRANSPORT, ENTERTAINMENT→ENTERTAINMENT,
   OTHER→SHOPPING); refunds net out of that spending like reversals. Card payments count toward budgets.
-- **Not done:** no auto-capture job (the store captures);
-  card spends don't count toward the transfer limits.
+- **Added 2026-10-25:** card payments count toward the daily limit (declined "Over the daily limit"). Five wrong
+  card details (CVV or expiry) on a card within an hour freeze it (`CARD_AUTO_FROZEN` audit, `CARD_DECLINED`
+  notification "Card frozen"; the owner unfreezes it in the app). An approved authorization whose 7-day hold lapsed
+  reads `EXPIRED` (swept every minute) and can't be captured (`409`).
+- **Not done:** no auto-capture job (the store captures, by design of the sandbox).
 
 **F-CARD-4 disputes: ACCEPTED 2026-10-24 (drafted by the frontend, reviewed by the backend). Built 2026-10-24 (V24).**
 Additive: new endpoints, one new notification type, two new audit actions. No v1 shape changes.

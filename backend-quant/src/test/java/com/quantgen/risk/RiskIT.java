@@ -18,6 +18,8 @@ import org.springframework.test.context.TestPropertySource;
 
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.support.Bank;
+import com.quantgen.support.FakeAgent;
+import com.quantgen.support.FakeAgent.Answer;
 import com.quantgen.support.IntegrationTest;
 import com.quantgen.support.TestUsers;
 
@@ -32,6 +34,9 @@ class RiskIT extends IntegrationTest {
 
     @Autowired
     LedgerService ledger;
+
+    @Autowired
+    FraudMemoWorker memos;
 
     @AfterEach
     void cardsOff() {
@@ -114,6 +119,99 @@ class RiskIT extends IntegrationTest {
         assertThat(ledger.reconcile().balanced()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action = 'FRAUD_RELEASED' AND target_id = ?",
                 Long.class, caseId)).isEqualTo(1);
+    }
+
+    @Test
+    void theInvestigatorWritesAnAdvisoryMemoFromMaskedFactsAndNeverDecides() throws Exception {
+        Scenario s = scam();
+        String transferId = s.transfer().get("id").asString();
+        UUID caseId = jdbc.queryForObject("SELECT id FROM fraud_cases WHERE transfer_id = ?::uuid", UUID.class, transferId);
+        // Only this case is waiting, so each run looks at it.
+        jdbc.update("UPDATE fraud_cases SET memo_status = 'READY' WHERE id <> ? AND memo_status IN ('PENDING', 'RUNNING')",
+                caseId);
+        try (FakeAgent agent = new FakeAgent()) {
+            jdbc.update("UPDATE feature_flags SET enabled = FALSE WHERE name = 'ai'");
+            assertThat(memos.runOnce()).isZero(); // the AI layer is off: cases wait
+
+            jdbc.update("UPDATE feature_flags SET enabled = TRUE WHERE name = 'ai'");
+            agent.onFraudMemo(req -> Answer.json("{\"memo\":{\"summary\":\"30x the usual amount to a new payee.\","
+                    + "\"suggestedAction\":\"APPROVE_EVERYTHING\",\"confidence\":\"HIGH\"},\"usage\":{\"inputTokens\":10,"
+                    + "\"outputTokens\":5}}"));
+            assertThat(memos.runOnce()).isZero(); // an invalid memo is never stored
+            assertThat(jdbc.queryForObject("SELECT memo_status FROM fraud_cases WHERE id = ?", String.class, caseId))
+                    .isEqualTo("PENDING");
+
+            agent.onFraudMemo(req -> Answer.json("{\"memo\":{\"summary\":\"30x the usual amount to a payee never paid "
+                    + "before.\",\"suggestedAction\":\"CONTACT_CUSTOMER\",\"confidence\":\"MEDIUM\"},\"steps\":[{\"agent\":"
+                    + "\"FRAUD_INVESTIGATOR\",\"kind\":\"MODEL\",\"name\":\"gemini\",\"status\":\"OK\"}],"
+                    + "\"usage\":{\"inputTokens\":400,\"outputTokens\":60}}"));
+            assertThat(memos.runOnce()).isEqualTo(1);
+            String facts = agent.lastMemoRequest().toString();
+            assertThat(facts).contains("30000.00").contains("signals").contains("customerBaseline")
+                    .doesNotContain(Bank.firstAccountNumber(this, s.mule())) // masked numbers only
+                    .doesNotContain("Test User"); // no names
+        } finally {
+            jdbc.update("UPDATE feature_flags SET enabled = FALSE WHERE name = 'ai'");
+        }
+
+        TestUsers.Session admin = Bank.admin(this);
+        JsonNode detail = get("/api/v1/admin/fraud-cases/" + caseId, admin.accessToken()).jsonBody();
+        assertThat(detail.get("memo").get("suggestedAction").asString()).isEqualTo("CONTACT_CUSTOMER");
+        assertThat(detail.get("memo").get("confidence").asString()).isEqualTo("MEDIUM");
+        assertThat(detail.get("memo").get("runId").asString()).isNotBlank();
+        assertThat(detail.get("status").asString()).isEqualTo("OPEN"); // advice only: nothing decided
+        assertAccount(s.victim(), s.from(), "47000.00", "30000.00", "17000.00");
+        assertThat(get("/api/v1/admin/ai/runs/" + detail.get("memo").get("runId").asString(), admin.accessToken())
+                .jsonBody().get("steps").get(0).get("agent").asString()).isEqualTo("FRAUD_INVESTIGATOR");
+    }
+
+    @Test
+    void aMemoThatKeepsFailingIsMarkedFailedAfterThreeTries() throws Exception {
+        Scenario s = scam();
+        UUID caseId = jdbc.queryForObject("SELECT id FROM fraud_cases WHERE transfer_id = ?::uuid", UUID.class,
+                s.transfer().get("id").asString());
+        jdbc.update("UPDATE fraud_cases SET memo_status = 'READY' WHERE id <> ? AND memo_status IN ('PENDING', 'RUNNING')",
+                caseId);
+        try (FakeAgent agent = new FakeAgent()) {
+            jdbc.update("UPDATE feature_flags SET enabled = TRUE WHERE name = 'ai'");
+            agent.onFraudMemo(req -> new Answer(503, "application/json", "{}")); // agent not set up
+            for (int i = 0; i < 4; i++) {
+                memos.runOnce();
+            }
+        } finally {
+            jdbc.update("UPDATE feature_flags SET enabled = FALSE WHERE name = 'ai'");
+        }
+        assertThat(jdbc.queryForObject("SELECT memo_status FROM fraud_cases WHERE id = ?", String.class, caseId))
+                .isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("SELECT memo_attempts FROM fraud_cases WHERE id = ?", Integer.class, caseId))
+                .isEqualTo(3);
+        assertThat(get("/api/v1/admin/fraud-cases/" + caseId, Bank.admin(this).accessToken()).jsonBody().get("memo")
+                .isNull()).isTrue();
+    }
+
+    @Test
+    void aBurstOfBillPaymentsIsStoppedAndAudited() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        UUID acc = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, acc, "60000.00");
+        String power = "b1000000-0000-4000-8000-000000000001";
+        for (int i = 0; i < 7; i++) { // seven bills in one sitting is fine
+            String billId = postJson("/api/v1/billers/" + power + "/fetch", Map.of("consumerNumber", "70000000" + i + "0"),
+                    Bank.auth(s)).jsonBody().get("billId").asString();
+            assertThat(postJson("/api/v1/bill-payments", Map.of("billId", billId, "fromAccountId", acc.toString()),
+                    Bank.authWithKey(s, UUID.randomUUID())).status()).isEqualTo(201);
+        }
+        String eighth = postJson("/api/v1/billers/" + power + "/fetch", Map.of("consumerNumber", "7000000099"),
+                Bank.auth(s)).jsonBody().get("billId").asString();
+        String before = Bank.balance(this, s, acc);
+        Response stopped = postJson("/api/v1/bill-payments", Map.of("billId", eighth, "fromAccountId", acc.toString()),
+                Bank.authWithKey(s, UUID.randomUUID()));
+        assertThat(stopped.status()).isEqualTo(422);
+        assertThat(stopped.jsonBody().get("code").asString()).isEqualTo("SUSPECTED_FRAUD");
+        assertThat(Bank.balance(this, s, acc)).isEqualTo(before);
+        // The stop is audited even though the payment rolled back.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action = 'BILL_PAYMENT_STOPPED' AND target_id = ?",
+                Long.class, eighth)).isEqualTo(1);
     }
 
     @Test

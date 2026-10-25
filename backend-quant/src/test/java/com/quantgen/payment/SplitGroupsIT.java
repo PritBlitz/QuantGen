@@ -140,6 +140,35 @@ class SplitGroupsIT extends IntegrationTest {
         assertThat(balanceOf(group, b.handle())).isEqualByComparingTo("0");
     }
 
+    @Test
+    void aSettledMemberCanLeaveAndStaysInTheHistory() {
+        Person a = person();
+        Person b = person();
+        Person c = person();
+        String groupId = createGroup(a, "Flat", List.of(b.handle(), c.handle())).jsonBody().get("id").asString();
+        assertThat(addExpense(a, groupId, a.handle(), "90.00", Map.of("type", "EQUAL")).status()).isEqualTo(201);
+
+        // Owing or owed: not yet.
+        Response owes = postJson("/api/v1/split-groups/" + groupId + "/leave", "", Bank.auth(b.session()));
+        assertThat(owes.status()).isEqualTo(409);
+        assertThat(owes.jsonBody().get("message").asString()).contains("You still owe the group 30.00");
+        assertThat(postJson("/api/v1/split-groups/" + groupId + "/leave", "", Bank.auth(a.session())).status())
+                .isEqualTo(409);
+
+        // A member who owes nothing (an expense split only between a and b) can leave.
+        String other = createGroup(a, "Trip", List.of(b.handle(), c.handle())).jsonBody().get("id").asString();
+        assertThat(postJson("/api/v1/split-groups/" + other + "/leave", "", Bank.auth(c.session())).status())
+                .isEqualTo(204);
+        assertThat(get("/api/v1/split-groups", c.session().accessToken()).body()).doesNotContain(other);
+        assertThat(get("/api/v1/split-groups/" + other, c.session().accessToken()).status()).isEqualTo(404);
+        JsonNode group = get("/api/v1/split-groups/" + other, a.session().accessToken()).jsonBody();
+        assertThat(group.get("members").toString()).contains("\"handle\":\"" + c.handle() + "\"").contains("\"left\":true");
+        // New expenses are split between those still in the group.
+        JsonNode e = addExpense(a, other, a.handle(), "100.00", Map.of("type", "EQUAL")).jsonBody();
+        assertThat(e.get("shares").size()).isEqualTo(2);
+        assertThat(addExpense(a, other, c.handle(), "10.00", Map.of("type", "EQUAL")).status()).isEqualTo(400);
+    }
+
     private Response createGroup(Person p, String name, List<String> handles) {
         return postJson("/api/v1/split-groups", Map.of("name", name, "memberHandles", handles), Bank.auth(p.session()));
     }

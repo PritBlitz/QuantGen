@@ -11,6 +11,7 @@ public enum ErrorCode {
     INSUFFICIENT_FUNDS(HttpStatus.UNPROCESSABLE_CONTENT, "Insufficient funds"),
     ACCOUNT_FROZEN(HttpStatus.UNPROCESSABLE_CONTENT, "Account is frozen"),
     LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT, "Limit exceeded"),
+    SUSPECTED_FRAUD(HttpStatus.UNPROCESSABLE_CONTENT, "This payment looks unusual and was stopped"),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "Idempotency key reused with a different request"),
     INSUFFICIENT_HOLDINGS(HttpStatus.UNPROCESSABLE_CONTENT, "Insufficient holdings"),
     LOAN_NOT_ELIGIBLE(HttpStatus.UNPROCESSABLE_CONTENT, "Loan application is not eligible"),

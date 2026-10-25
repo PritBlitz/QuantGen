@@ -113,6 +113,45 @@ public class InternalController {
         }
     }
 
+    public record MemoRequest(JsonNode facts) {
+    }
+
+    /** F-RISK-3: an advisory memo for a held transfer. The core sends the masked facts; no token, no tools. */
+    @PostMapping("/internal/v1/memos/fraud")
+    public ResponseEntity<Map<String, Object>> fraudMemo(
+            @RequestHeader(value = SECRET_HEADER, required = false) String secret, @RequestBody MemoRequest req) {
+        return memo(secret, req, runner::fraudMemo);
+    }
+
+    /** F-RISK-5: an underwriting memo from the application and its PDF page texts (masked by the core). */
+    @PostMapping("/internal/v1/memos/underwriting")
+    public ResponseEntity<Map<String, Object>> underwritingMemo(
+            @RequestHeader(value = SECRET_HEADER, required = false) String secret, @RequestBody MemoRequest req) {
+        return memo(secret, req, runner::underwritingMemo);
+    }
+
+    private ResponseEntity<Map<String, Object>> memo(String secret, MemoRequest req,
+                                                     java.util.function.BiFunction<Turn, JsonNode, JsonNode> writer) {
+        HttpStatus refused = refuse(secret, "back-office", "memo");
+        if (refused != null || req.facts() == null || !req.facts().isObject()) {
+            return ResponseEntity.status(refused != null ? refused : HttpStatus.BAD_REQUEST).build();
+        }
+        List<Object> steps = new ArrayList<>();
+        Turn turn = new Turn("", UUID.randomUUID(), (type, data) -> {
+            if ("step".equals(type)) {
+                steps.add(data);
+            }
+        }, 0);
+        try {
+            JsonNode memo = writer.apply(turn, req.facts());
+            return ResponseEntity.ok(Map.of("memo", memo, "steps", steps, "usage", Map.of("inputTokens",
+                    turn.inputTokens(), "outputTokens", turn.outputTokens())));
+        } catch (RuntimeException e) {
+            return ResponseEntity.ok(Map.of("error", Map.of("code", code(e)), "steps", steps, "usage",
+                    Map.of("inputTokens", turn.inputTokens(), "outputTokens", turn.outputTokens())));
+        }
+    }
+
     /** 403 for a wrong secret, 503 when there's no provider, 400 for a malformed call; null when it may proceed. */
     private HttpStatus refuse(String secret, String token, String text) {
         if (settings.secret().isBlank() || secret == null || !MessageDigest.isEqual(

@@ -185,9 +185,8 @@ public class TransferService {
                 throw new ApiException(ErrorCode.LIMIT_EXCEEDED,
                         "Per-transfer limit of " + Money.toJson(chosen.perTransfer()) + " exceeded");
             }
-            Instant startOfDay = LocalDate.now(clock.withZone(TimeConfig.BUSINESS_ZONE))
-                    .atStartOfDay(TimeConfig.BUSINESS_ZONE).toInstant();
-            BigDecimal sentToday = transfers.sumOutgoingSince(userId, startOfDay);
+            // The daily limit counts card and bill payments too (LimitsService.usedToday).
+            BigDecimal sentToday = limits.usedToday(userId);
             if (sentToday.add(amount).compareTo(chosen.daily()) > 0) {
                 BigDecimal remaining = chosen.daily().subtract(sentToday).max(BigDecimal.ZERO);
                 throw new ApiException(ErrorCode.LIMIT_EXCEEDED,

@@ -1,6 +1,7 @@
 package com.quantgen.payment.api;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quantgen.auth.security.StepUpService;
@@ -94,6 +97,19 @@ public class PaymentRequestController {
         return Idempotent.created(requests.pay(user.id(), id, idempotencyKey,
                 idempotency.fingerprint(http.getMethod(), http.getRequestURI(), request), request.fromAccountId(),
                 stepUpToken));
+    }
+
+    @GetMapping("/blocked")
+    @Operation(summary = "People you blocked from sending you requests, newest first")
+    public List<PaymentRequestService.BlockedDto> blocked(@AuthenticationPrincipal AuthUser user) {
+        return requests.blocked(user.id());
+    }
+
+    @DeleteMapping("/blocked/{handle}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Unblock someone so they can ask you for money again")
+    public void unblock(@AuthenticationPrincipal AuthUser user, @PathVariable String handle) {
+        requests.unblock(user.id(), handle);
     }
 
     @PostMapping("/{id}/decline")

@@ -144,6 +144,24 @@ public class AgentClient {
         }
     }
 
+    /** A back-office job (memo): JSON in, JSON out, no delegated token (the core sends the facts itself). */
+    public JsonNode backOffice(String path, Object body) {
+        HttpRequest req = request(path, body).timeout(turnTimeout).build();
+        try {
+            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() != 200) {
+                throw unavailable(res.statusCode());
+            }
+            return json.readTree(res.body());
+        } catch (IOException e) {
+            log.warn("agent-quant unreachable: {}", e.getClass().getSimpleName());
+            throw new ApiException(ErrorCode.AI_UNAVAILABLE, "The assistant isn't available right now");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(ErrorCode.AI_UNAVAILABLE, "The assistant isn't available right now");
+        }
+    }
+
     private HttpRequest.Builder request(String path, Object body) {
         if (secret.isBlank()) {
             throw new ApiException(ErrorCode.AI_UNAVAILABLE, "The assistant isn't set up on this server");

@@ -1,13 +1,17 @@
 package com.quantgen.card;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -16,6 +20,8 @@ import com.quantgen.account.domain.AccountStatus;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
 import com.quantgen.card.CardService.CardRow;
+import com.quantgen.common.audit.AuditService;
+import com.quantgen.common.db.AdvisoryLocks;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.idempotency.IdempotencyService;
@@ -28,6 +34,7 @@ import com.quantgen.ledger.service.JournalRequest;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.ledger.service.PostedEntry;
 import com.quantgen.ledger.service.SystemAccount;
+import com.quantgen.payment.service.LimitsService;
 import com.quantgen.risk.RiskService;
 
 /**
@@ -38,6 +45,8 @@ import com.quantgen.risk.RiskService;
 @Service
 public class SandboxService {
 
+    private static final Logger log = LoggerFactory.getLogger(SandboxService.class);
+
     static final UserRateLimiter.Limit AUTHORIZE_LIMIT = new UserRateLimiter.Limit("card-authorize", 20, Duration.ofMinutes(1));
     static final UserRateLimiter.Limit SETTLE_LIMIT = new UserRateLimiter.Limit("card-settle", 60, Duration.ofMinutes(1));
     /** Card authorizations hold money for at most 7 days (ARCHITECTURE 12.3). */
@@ -45,6 +54,9 @@ public class SandboxService {
     static final String HOLD_REASON = "CARD_AUTH";
 
     static final String DETAILS_MISMATCH = "Card details don't match";
+    /** Wrong card details this many times within {@link #MISMATCH_WINDOW} freeze the card. */
+    static final int MISMATCH_LIMIT = 5;
+    static final Duration MISMATCH_WINDOW = Duration.ofHours(1);
 
     public record AuthorizeRequest(String cardNumber, String expiry, String cvv, BigDecimal amount, String merchant,
                                    MerchantCategory category) {
@@ -72,10 +84,14 @@ public class SandboxService {
     private final Clock clock;
     private final RiskService risk;
     private final DisputeService disputes;
+    private final AdvisoryLocks locks;
+    private final LimitsService limits;
+    private final AuditService audit;
 
     SandboxService(JdbcTemplate jdbc, CardService cards, AccountService accounts, LedgerService ledger,
                    IdempotencyService idempotency, NotificationService notifications, UserRateLimiter rateLimiter,
-                   PlatformTransactionManager txManager, Clock clock, RiskService risk, DisputeService disputes) {
+                   PlatformTransactionManager txManager, Clock clock, RiskService risk, DisputeService disputes,
+                   AdvisoryLocks locks, LimitsService limits, AuditService audit) {
         this.jdbc = jdbc;
         this.cards = cards;
         this.accounts = accounts;
@@ -87,6 +103,9 @@ public class SandboxService {
         this.clock = clock;
         this.risk = risk;
         this.disputes = disputes;
+        this.locks = locks;
+        this.limits = limits;
+        this.audit = audit;
     }
 
     // ------------------------------------------------------------------ authorize
@@ -124,7 +143,9 @@ public class SandboxService {
         long window = cards.currentWindow();
         boolean cvvOk = req.cvv().equals(cards.cvv(card.pan(), window)) || req.cvv().equals(cards.cvv(card.pan(), window - 1));
         if (!card.expiry().equals(req.expiry()) || !cvvOk) {
-            return decline(merchantUserId, card, req, DETAILS_MISMATCH);
+            AuthorizationDto declined = decline(merchantUserId, card, req, DETAILS_MISMATCH);
+            freezeAfterMismatches(card);
+            return declined;
         }
         if (forcedDecline != null) {
             return decline(merchantUserId, card, req, forcedDecline);
@@ -140,6 +161,14 @@ public class SandboxService {
                 : account.status() == AccountStatus.CLOSED ? "Account is closed"
                 : available(account.id()).compareTo(amount) < 0 ? "Insufficient funds"
                 : null;
+        if (reason == null) {
+            // The daily limit covers card payments too; same per-user lock as transfers and bills.
+            locks.lockForTransaction("transfers:" + card.userId());
+            LimitsService.Effective chosen = limits.effective(card.userId());
+            if (limits.usedToday(card.userId()).add(amount).compareTo(chosen.daily()) > 0) {
+                reason = "Over the daily limit";
+            }
+        }
         if (reason == null && risk.needsReview(risk.scoreCard(card.id(), amount))) {
             reason = "Suspected fraud"; // F-RISK-1: rules only (D-030)
         }
@@ -169,6 +198,37 @@ public class SandboxService {
                             + ": " + reason + ".");
         }
         return new AuthorizationDto(authId, "DECLINED", reason);
+    }
+
+    /**
+     * Someone guessing the CVV or expiry: after {@link #MISMATCH_LIMIT} wrong details on a card within an hour the
+     * card is frozen (the owner can unfreeze it in the app). Committed with the decline, audited, owner notified.
+     */
+    private void freezeAfterMismatches(CardRow card) {
+        Integer misses = jdbc.queryForObject("SELECT count(*) FROM card_authorizations WHERE card_id = ? "
+                + "AND decline_reason = ? AND created_at >= ?", Integer.class, card.id(), DETAILS_MISMATCH,
+                Timestamp.from(clock.instant().minus(MISMATCH_WINDOW)));
+        if (misses != null && misses >= MISMATCH_LIMIT
+                && jdbc.update("UPDATE cards SET frozen = TRUE, updated_at = now() WHERE id = ? AND NOT frozen", card.id()) == 1) {
+            audit.record(card.userId(), "CARD_AUTO_FROZEN", "CARD", card.id().toString(),
+                    "•••• " + card.last4() + " after " + misses + " wrong card details in an hour");
+            notifications.notify(card.userId(), NotificationType.CARD_DECLINED, "Card frozen",
+                    "Card •••• " + card.last4() + " was frozen after " + misses + " payments with wrong card details. "
+                            + "If that was you, unfreeze it in Cards.");
+        }
+    }
+
+    /** Approved authorizations whose hold lapsed (7 days, never captured) read as EXPIRED. */
+    @Scheduled(fixedDelayString = "${qg.cards.expiry-sweep-millis:60000}")
+    void expireAuthorizations() {
+        try {
+            jdbc.update("""
+                    UPDATE card_authorizations SET status = 'EXPIRED'
+                     WHERE status = 'AUTHORIZED' AND hold_id IN (SELECT id FROM holds WHERE status <> 'ACTIVE')
+                    """);
+        } catch (RuntimeException e) {
+            log.error("Card authorization expiry failed", e);
+        }
     }
 
     private BigDecimal available(UUID accountId) {

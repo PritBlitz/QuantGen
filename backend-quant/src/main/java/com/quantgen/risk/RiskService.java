@@ -177,6 +177,44 @@ public class RiskService {
         return assess(signals);
     }
 
+    // ------------------------------------------------------------------ bill payments
+
+    /**
+     * Scores a bill payment (F-RISK-1). Bills are capped and simulated, so the main signals are a burst of payments,
+     * a first payment right after a security change, and an amount far above the customer's usual bill. A held score
+     * stops the payment (there is no review queue for bills): the customer is told, nothing moves.
+     */
+    public Assessment scoreBill(UUID userId, BigDecimal amount) {
+        if (!enabled) {
+            return NONE;
+        }
+        Instant now = clock.instant();
+        List<Signal> signals = new ArrayList<>();
+        Long recent = jdbc.queryForObject("SELECT count(*) FROM bill_payments WHERE user_id = ? AND created_at >= ?",
+                Long.class, userId, ts(now.minus(VELOCITY_WINDOW)));
+        // People pay several bills in one sitting (12 billers), so only a real burst counts.
+        if (recent != null && recent + 1 >= 8) {
+            signals.add(new Signal("VELOCITY", (recent + 1) + " bill payments in 10 minutes", 60));
+        }
+        Instant change = lastSecurityChange(userId, now);
+        if (change != null) {
+            Boolean paidSince = jdbc.queryForObject("""
+                    SELECT EXISTS (SELECT 1 FROM bill_payments WHERE user_id = ? AND created_at > ?)
+                        OR EXISTS (SELECT 1 FROM transfers WHERE user_id = ? AND internal = FALSE AND created_at > ?)
+                    """, Boolean.class, userId, ts(change), userId, ts(change));
+            if (!Boolean.TRUE.equals(paidSince)) {
+                signals.add(new Signal("DEVICE_CHANGE", "First payment after a new-device sign-in or security change", 20));
+            }
+        }
+        oddHour(now, amount, signals);
+        Map<String, Object> base = jdbc.queryForMap("""
+                SELECT count(*) AS n, COALESCE(avg(amount), 0) AS avg FROM bill_payments
+                 WHERE user_id = ? AND created_at >= ?
+                """, userId, ts(now.minus(Duration.ofDays(90))));
+        unusual(((Number) base.get("n")).longValue(), (BigDecimal) base.get("avg"), amount, "bill", signals);
+        return assess(signals);
+    }
+
     // ------------------------------------------------------------------ rules shared by both
 
     private void oddHour(Instant now, BigDecimal amount, List<Signal> signals) {

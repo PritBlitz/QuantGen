@@ -26,5 +26,8 @@ qg:
   risk:
     # Fraud rules read the wall clock (00:00–05:00 IST) and history, so other tests would flake; RiskIT turns them on.
     enabled: false
+    # Tests call FraudMemoWorker.runOnce() themselves.
+    memo-poll-millis: 3600000
+    memo-initial-millis: 3600000
   storage:
     loan-documents-dir: target/test-loan-documents

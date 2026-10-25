@@ -424,6 +424,83 @@ class CardsIT extends IntegrationTest {
         assertThat(ledger.reconcile().balanced()).isTrue();
     }
 
+    // ------------------------------------------------------------------ gaps closed 2026-10-25
+
+    private void setDaily(TestUsers.Session s, String daily) {
+        Response res = send(request("/api/v1/users/me/limits").header("Authorization", "Bearer " + s.accessToken())
+                .header("X-Step-Up-Token", Bank.stepUpToken(this, s, "SECURITY_SETTINGS"))
+                .header("Content-Type", "application/json")
+                .PUT(java.net.http.HttpRequest.BodyPublishers.ofString("{\"perTransfer\":\"" + daily + "\",\"daily\":\""
+                        + daily + "\"}")).build());
+        assertThat(res.status()).as(res.body()).isEqualTo(200);
+    }
+
+    @Test
+    void cardPaymentsCountTowardTheDailyLimitWithTransfers() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session friend = TestUsers.registerAndLogin(this);
+        Card card = issue(s);
+        Bank.deposit(this, s, card.accountId(), "5000.00");
+        setDaily(s, "500.00");
+
+        assertThat(authorize(s, card, "400.00", "GROCERY", UUID.randomUUID()).jsonBody().get("status").asString())
+                .isEqualTo("APPROVED");
+        assertDeclined(authorize(s, card, "200.00", "GROCERY", UUID.randomUUID()), "Over the daily limit");
+        assertThat(get("/api/v1/users/me/limits", s.accessToken()).jsonBody().get("usedToday").asString())
+                .isEqualTo("400.00");
+        Response transfer = Bank.transfer(this, s, card.accountId(), Bank.firstAccountNumber(this, friend), "200.00",
+                UUID.randomUUID());
+        assertThat(transfer.status()).isEqualTo(422);
+        assertThat(transfer.jsonBody().get("code").asString()).isEqualTo("LIMIT_EXCEEDED");
+        assertThat(Bank.transfer(this, s, card.accountId(), Bank.firstAccountNumber(this, friend), "100.00",
+                UUID.randomUUID()).status()).isEqualTo(201);
+    }
+
+    @Test
+    void fiveWrongCardDetailsInAnHourFreezeTheCard() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        Card card = issue(s);
+        Bank.deposit(this, s, card.accountId(), "1000.00");
+        TestUsers.Session thief = TestUsers.registerAndLogin(this);
+        for (int i = 0; i < 4; i++) {
+            assertDeclined(authorize(thief, card.pan(), card.expiry(), wrongCvv(card), "10.00", "OTHER",
+                    UUID.randomUUID()), "Card details don't match");
+        }
+        assertThat(get("/api/v1/cards", s.accessToken()).jsonBody().get(0).get("controls").get("frozen").asBoolean())
+                .isFalse();
+        authorize(thief, card.pan(), card.expiry(), wrongCvv(card), "10.00", "OTHER", UUID.randomUUID());
+        assertThat(get("/api/v1/cards", s.accessToken()).jsonBody().get(0).get("controls").get("frozen").asBoolean())
+                .isTrue();
+        assertThat(get("/api/v1/notifications", s.accessToken()).body()).contains("Card frozen");
+        // Even with the right details now, a frozen card declines until the owner unfreezes it.
+        assertDeclined(authorize(thief, card, "10.00", "OTHER", UUID.randomUUID()), "Card is frozen");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE action = 'CARD_AUTO_FROZEN' AND target_id = ?",
+                Long.class, card.id().toString())).isEqualTo(1);
+    }
+
+    @Autowired
+    SandboxService sandbox;
+
+    @Autowired
+    org.springframework.transaction.PlatformTransactionManager txManager;
+
+    @Test
+    void anAuthorizationWhoseHoldLapsedReadsExpiredAndCantBeCaptured() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        Card card = issue(s);
+        Bank.deposit(this, s, card.accountId(), "1000.00");
+        String authId = authorize(s, card, "300.00", "DINING", UUID.randomUUID()).jsonBody().get("authId").asString();
+        jdbc.update("UPDATE holds SET expires_at = now() - interval '1 minute' WHERE id = (SELECT hold_id FROM "
+                + "card_authorizations WHERE id = ?::uuid)", authId);
+        new org.springframework.transaction.support.TransactionTemplate(txManager)
+                .executeWithoutResult(st -> ledger.expireHolds(java.time.Instant.now()));
+        sandbox.expireAuthorizations();
+        assertThat(jdbc.queryForObject("SELECT status FROM card_authorizations WHERE id = ?::uuid", String.class, authId))
+                .isEqualTo("EXPIRED");
+        assertAccount(s, card.accountId(), "1000.00", "0.00", "1000.00");
+        assertThat(settle(s, authId, "capture", null, UUID.randomUUID()).status()).isEqualTo(409);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private Card issue(TestUsers.Session s) {

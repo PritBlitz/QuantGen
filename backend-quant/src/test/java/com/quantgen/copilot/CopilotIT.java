@@ -178,6 +178,43 @@ class CopilotIT extends IntegrationTest {
     }
 
     @Test
+    void explainThisRunSendsTheServersOwnFactsAboutTheRun() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        TestUsers.Session other = TestUsers.registerAndLogin(this);
+        String conv = conversation(s);
+        // A finished run of the user's own rule (inserted directly: the engine is tested elsewhere).
+        UUID ruleId = jdbc.queryForObject("""
+                INSERT INTO autopilot_rules (user_id, name, version, status, trigger_type) VALUES (?, 'Rent', 1, 'ACTIVE',
+                'SCHEDULE') RETURNING id""", UUID.class, s.userId());
+        jdbc.update("INSERT INTO autopilot_rule_versions (rule_id, version, dsl) VALUES (?, 1, '{}')", ruleId);
+        UUID runId = jdbc.queryForObject("""
+                INSERT INTO autopilot_runs (rule_id, user_id, rule_version, trigger_event_id, trigger_summary, planned_total,
+                                            outcome, finished_at)
+                VALUES (?, ?, 1, 'schedule:2026-11-01', 'Scheduled: 1st of the month', 12000, 'FAILED', now()) RETURNING id
+                """, UUID.class, ruleId, s.userId());
+        jdbc.update("INSERT INTO autopilot_run_actions (run_id, idx, type, amount, status, error) VALUES (?, 0, "
+                + "'TRANSFER', 12000, 'FAILED', 'Insufficient funds')", runId);
+        AtomicReference<String> sent = new AtomicReference<>();
+        agent.onTurn(req -> {
+            sent.set(req.get("text").asString());
+            return Answer.sse(FakeAgent.event("token", "{\"text\":\"Your account was short.\"}")
+                    + FakeAgent.event("done", "{\"usage\":{\"inputTokens\":1,\"outputTokens\":1}}"));
+        });
+        Response ok = postJson("/api/v1/copilot/conversations/" + conv + "/messages", Map.of("text", "Why did this fail?",
+                "context", Map.of("type", "AUTOPILOT_RUN", "id", runId.toString())), Bank.auth(s));
+        assertThat(ok.body()).contains("Your account was short.");
+        assertThat(sent.get()).startsWith("Why did this fail?").contains("Autopilot rule \"Rent\"")
+                .contains("Scheduled: 1st of the month").contains("FAILED").contains("Insufficient funds");
+        // Stored as the user typed it; someone else's run is 404.
+        assertThat(get("/api/v1/copilot/conversations/" + conv, s.accessToken()).jsonBody().get("messages").get(0)
+                .get("text").asString()).isEqualTo("Why did this fail?");
+        String otherConv = conversation(other);
+        assertThat(postJson("/api/v1/copilot/conversations/" + otherConv + "/messages", Map.of("text", "Why?",
+                "context", Map.of("type", "AUTOPILOT_RUN", "id", runId.toString())), Bank.auth(other)).status())
+                .isEqualTo(404);
+    }
+
+    @Test
     void compileValidatesThePlannersDraftLikeAnyRule() {
         TestUsers.Session s = TestUsers.registerAndLogin(this);
         String savings = Bank.firstAccountId(this, s).toString();

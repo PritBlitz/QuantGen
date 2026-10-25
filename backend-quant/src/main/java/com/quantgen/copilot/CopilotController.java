@@ -34,7 +34,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Copilot")
 public class CopilotController {
 
-    public record MessageRequest(String text) {
+    public record MessageRequest(String text, CopilotService.Context context) {
     }
 
     private final CopilotService copilot;
@@ -75,7 +75,8 @@ public class CopilotController {
     @Operation(summary = "Send a message; the answer streams as SSE events token, tool, intent, citation, done, error")
     public ResponseEntity<SseEmitter> message(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id,
                                               @RequestBody MessageRequest request) {
-        SseEmitter emitter = copilot.turn(user.id(), id, request == null ? null : request.text());
+        SseEmitter emitter = copilot.turn(user.id(), id, request == null ? null : request.text(),
+                request == null ? null : request.context());
         // No caching anywhere, and tell nginx not to buffer the stream.
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("X-Accel-Buffering", "no")
                 .contentType(MediaType.TEXT_EVENT_STREAM).body(emitter);

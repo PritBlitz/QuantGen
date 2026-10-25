@@ -197,6 +197,29 @@ public class PaymentRequestService {
         return find(requestId, userId).orElseThrow().dto();
     }
 
+    /** Someone you blocked from sending you requests: their current handle and masked name. */
+    public record BlockedDto(String handle, String displayName, Instant blockedAt) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<BlockedDto> blocked(UUID userId) {
+        return jdbc.query("""
+                SELECT b.blocked_user_id, b.created_at, h.handle, u.full_name FROM blocked_requesters b
+                  JOIN users u ON u.id = b.blocked_user_id LEFT JOIN handles h ON h.user_id = b.blocked_user_id
+                 WHERE b.user_id = ? ORDER BY b.created_at DESC
+                """, (rs, i) -> new BlockedDto(rs.getString("handle"), HandleService.maskName(rs.getString("full_name")),
+                rs.getTimestamp("created_at").toInstant()), userId);
+    }
+
+    /** Lets a blocked requester ask you for money again. Not blocked (or no such handle) → 404. */
+    @Transactional
+    public void unblock(UUID userId, String handle) {
+        UUID other = handles.userFor(handle).orElseThrow(() -> ApiException.notFound("Blocked requester"));
+        if (jdbc.update("DELETE FROM blocked_requesters WHERE user_id = ? AND blocked_user_id = ?", userId, other) == 0) {
+            throw ApiException.notFound("Blocked requester");
+        }
+    }
+
     /** Marks requests past their expiry as EXPIRED (reads already show them as expired). */
     @Scheduled(fixedDelayString = "${qg.payments.request-expiry-sweep-millis:600000}")
     @Transactional

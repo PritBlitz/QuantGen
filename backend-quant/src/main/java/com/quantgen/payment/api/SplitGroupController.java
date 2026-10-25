@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quantgen.common.money.MoneyAmount;
@@ -94,5 +95,13 @@ public class SplitGroupController {
             + "Open settle-up requests are taken into account, so calling it twice doesn't ask twice.")
     public List<PaymentRequestDto> settle(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id) {
         return groups.settle(user.id(), id);
+    }
+
+    @PostMapping("/{id}/leave")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Leave a group once you're settled (balance zero, no open settle-up request); "
+            + "you stay in its history")
+    public void leave(@AuthenticationPrincipal AuthUser user, @PathVariable UUID id) {
+        groups.leave(user.id(), id);
     }
 }

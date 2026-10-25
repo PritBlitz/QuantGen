@@ -36,12 +36,18 @@ public final class FakeAgent implements AutoCloseable {
     private final JsonMapper json = JsonMapper.builder().build();
     private volatile Function<JsonNode, Answer> turn = req -> new Answer(503, "application/json", "{}");
     private volatile Function<JsonNode, Answer> compile = req -> new Answer(503, "application/json", "{}");
+    private volatile Function<JsonNode, Answer> memo = req -> new Answer(503, "application/json", "{}");
     private volatile String lastSecret;
+    private volatile JsonNode lastMemoRequest;
 
     public FakeAgent() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", PORT), 0);
         server.createContext("/internal/v1/turns", ex -> answer(ex, turn));
         server.createContext("/internal/v1/compile", ex -> answer(ex, compile));
+        server.createContext("/internal/v1/memos/fraud", ex -> answer(ex, req -> {
+            lastMemoRequest = req;
+            return memo.apply(req);
+        }));
         server.start();
     }
 
@@ -51,6 +57,14 @@ public final class FakeAgent implements AutoCloseable {
 
     public void onCompile(Function<JsonNode, Answer> script) {
         this.compile = script;
+    }
+
+    public void onFraudMemo(Function<JsonNode, Answer> script) {
+        this.memo = script;
+    }
+
+    public JsonNode lastMemoRequest() {
+        return lastMemoRequest;
     }
 
     public String lastSecret() {

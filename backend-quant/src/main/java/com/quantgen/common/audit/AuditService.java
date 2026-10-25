@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.quantgen.common.web.ClientInfo;
@@ -44,6 +45,12 @@ public class AuditService {
 
     @Transactional
     public void record(UUID actorUserId, String action, String targetType, String targetId, String details) {
+        record(actorUserId, null, action, targetType, targetId, details);
+    }
+
+    /** Commits on its own: for a refusal whose surrounding transaction rolls back (e.g. a stopped payment). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordAlways(UUID actorUserId, String action, String targetType, String targetId, String details) {
         record(actorUserId, null, action, targetType, targetId, details);
     }
 

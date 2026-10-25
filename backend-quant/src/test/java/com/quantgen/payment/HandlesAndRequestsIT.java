@@ -297,6 +297,30 @@ class HandlesAndRequestsIT extends IntegrationTest {
         assertThat(over.jsonBody().get("code").asString()).isEqualTo("LIMIT_EXCEEDED");
     }
 
+    @Test
+    void aBlockedRequesterIsListedAndCanBeUnblocked() {
+        Pair p = pairWithHandles();
+        String id = postJson("/api/v1/payment-requests", Map.of("toHandle", p.bobHandle(), "amount", "50.00"),
+                Bank.auth(p.alice())).jsonBody().get("id").asString();
+        assertThat(postJson("/api/v1/payment-requests/" + id + "/decline", Map.of("block", true), Bank.auth(p.bob()))
+                .status()).isEqualTo(200);
+        assertThat(postJson("/api/v1/payment-requests", Map.of("toHandle", p.bobHandle(), "amount", "50.00"),
+                Bank.auth(p.alice())).status()).isEqualTo(400);
+
+        JsonNode blocked = get("/api/v1/payment-requests/blocked", p.bob().accessToken()).jsonBody();
+        assertThat(blocked.size()).isEqualTo(1);
+        assertThat(blocked.get(0).get("handle").asString()).isEqualTo(p.aliceHandle());
+        assertThat(blocked.get(0).get("displayName").asString()).isEqualTo("Test U.");
+        // Only your own block list.
+        assertThat(delete("/api/v1/payment-requests/blocked/" + p.aliceHandle(), p.alice().accessToken()).status())
+                .isEqualTo(404);
+        assertThat(delete("/api/v1/payment-requests/blocked/" + p.aliceHandle(), p.bob().accessToken()).status())
+                .isEqualTo(204);
+        assertThat(get("/api/v1/payment-requests/blocked", p.bob().accessToken()).jsonBody().size()).isZero();
+        assertThat(postJson("/api/v1/payment-requests", Map.of("toHandle", p.bobHandle(), "amount", "50.00"),
+                Bank.auth(p.alice())).status()).isEqualTo(201);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private record Pair(TestUsers.Session alice, TestUsers.Session bob, UUID aAcc, UUID bAcc, String aliceHandle,

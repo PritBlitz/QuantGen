@@ -10,8 +10,10 @@ import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -24,6 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.common.config.TimeConfig;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.money.Money;
+import com.quantgen.payment.service.BillService;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * F-INS-3 cash-flow forecast and F-INS-4 net worth. Both read balances straight from the ledger; past values are
@@ -66,10 +72,12 @@ public class PlanningService {
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final JsonMapper json;
 
-    public PlanningService(JdbcTemplate jdbc, Clock clock) {
+    public PlanningService(JdbcTemplate jdbc, Clock clock, JsonMapper json) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.json = json;
     }
 
     private LocalDate today() {
@@ -149,6 +157,7 @@ public class PlanningService {
         emis(userId, today, last, items);
         scheduled(userId, today, last, items);
         fdPayouts(userId, today, last, items);
+        autopilot(userId, today, last, items);
         salary(userId, today, last, items);
 
         TreeMap<LocalDate, List<Item>> byDay = new TreeMap<>();
@@ -166,7 +175,7 @@ public class PlanningService {
             }
             for (Item out : dayItems.stream().filter(i -> i.amount().signum() < 0).toList()) {
                 if (running.add(out.amount()).signum() < 0) {
-                    String code = "EMI".equals(out.kind()) ? "EMI_AT_RISK" : "SCHEDULED_AT_RISK";
+                    String code = "EMI".equals(out.kind()) ? "EMI_AT_RISK" : "SCHEDULED_AT_RISK"; // Autopilot too
                     warnings.add(new ForecastWarning(d, code, out.label() + " of ₹" + Money.toJson(out.amount().negate())
                             + " may fail: your projected balance is ₹" + Money.toJson(Money.roundToPaise(running)) + "."));
                 }
@@ -232,6 +241,69 @@ public class PlanningService {
                 d = "WEEKLY".equals(frequency) ? d.plusWeeks(1) : d.plusMonths(1);
             }
         }, userId, userId, userId, userId);
+    }
+
+    /**
+     * F-INS-3 Autopilot schedules: ACTIVE SCHEDULE rules whose actions take a known amount out of the user's
+     * everyday money (a FIXED transfer to a goal or payee, a FIXED buy, a saved bill), capped at the rule's per-run
+     * cap. Round-up sweeps and amounts that depend on the day's balance aren't knowable, so they're left out.
+     */
+    private void autopilot(UUID userId, LocalDate today, LocalDate last, List<Item> items) {
+        Set<UUID> everyday = new HashSet<>(jdbc.queryForList("SELECT id FROM accounts WHERE user_id = ? "
+                + "AND type IN ('SAVINGS', 'CHECKING') AND status <> 'CLOSED'", UUID.class, userId));
+        jdbc.query("""
+                SELECT r.name, v.dsl FROM autopilot_rules r
+                  JOIN autopilot_rule_versions v ON v.rule_id = r.id AND v.version = r.version
+                 WHERE r.user_id = ? AND r.status = 'ACTIVE' AND r.trigger_type = 'SCHEDULE'
+                """, rs -> {
+            JsonNode dsl = json.readTree(rs.getString("dsl"));
+            JsonNode t = dsl.path("trigger");
+            BigDecimal perRun = new BigDecimal(dsl.path("caps").path("perRun").asString("0"));
+            for (LocalDate d = today.plusDays(1); !d.isAfter(last); d = d.plusDays(1)) {
+                boolean due = "MONTHLY".equals(t.path("frequency").asString(""))
+                        ? d.getDayOfMonth() == t.path("dayOfMonth").asInt()
+                        : d.getDayOfWeek().name().startsWith(t.path("weekday").asString("?"));
+                if (!due) {
+                    continue;
+                }
+                BigDecimal out = BigDecimal.ZERO;
+                for (JsonNode a : dsl.path("actions")) {
+                    String type = a.path("type").asString("");
+                    UUID from = uuid(a.path("TRANSFER".equals(type) || "PAY_BILL".equals(type) ? "fromAccountId"
+                            : "accountId").asString(""));
+                    if (from == null || !everyday.contains(from)) {
+                        continue;
+                    }
+                    UUID to = uuid(a.path("toAccountId").asString(""));
+                    if ("TRANSFER".equals(type) && to != null && everyday.contains(to)) {
+                        continue; // between own everyday accounts: nets out
+                    }
+                    if (("TRANSFER".equals(type) || "BUY".equals(type))
+                            && "FIXED".equals(a.path("amount").path("mode").asString(""))) {
+                        out = out.add(new BigDecimal(a.path("amount").path("value").asString("0")));
+                    } else if ("PAY_BILL".equals(type)) {
+                        UUID saved = uuid(a.path("savedBillerId").asString(""));
+                        LocalDate day = d;
+                        out = out.add(jdbc.query("SELECT biller_id, consumer_number FROM saved_billers WHERE id = ?",
+                                (r, i) -> BillService.amountDue(
+                                        r.getObject(1, UUID.class), r.getString(2), day), saved).stream()
+                                .findFirst().orElse(BigDecimal.ZERO));
+                    }
+                }
+                if (out.signum() > 0) {
+                    items.add(new Item(d, out.min(perRun).negate(), "AUTOPILOT", "Autopilot “" + rs.getString("name")
+                            + "”"));
+                }
+            }
+        }, userId);
+    }
+
+    private static UUID uuid(String s) {
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void fdPayouts(UUID userId, LocalDate today, LocalDate last, List<Item> items) {

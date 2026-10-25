@@ -28,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quantgen.account.service.AccountRef;
 import com.quantgen.account.service.AccountService;
 import com.quantgen.auth.service.UserService;
+import com.quantgen.common.audit.AuditService;
 import com.quantgen.common.config.TimeConfig;
+import com.quantgen.common.db.AdvisoryLocks;
 import com.quantgen.common.error.ApiException;
 import com.quantgen.common.error.ErrorCode;
 import com.quantgen.common.idempotency.IdempotencyService;
@@ -40,6 +42,7 @@ import com.quantgen.ledger.service.JournalRequest;
 import com.quantgen.ledger.service.LedgerService;
 import com.quantgen.ledger.service.PostedEntry;
 import com.quantgen.ledger.service.SystemAccount;
+import com.quantgen.risk.RiskService;
 
 /**
  * F-PAY-11 bill payments to simulated billers. "Fetching" a bill returns a stable simulated amount for
@@ -85,15 +88,24 @@ public class BillService {
     private final IdempotencyService idempotency;
     private final UserRateLimiter rateLimiter;
     private final Clock clock;
+    private final AdvisoryLocks locks;
+    private final LimitsService limits;
+    private final RiskService risk;
+    private final AuditService audit;
 
     public BillService(JdbcTemplate jdbc, AccountService accounts, UserService users, LedgerService ledger,
-                       IdempotencyService idempotency, UserRateLimiter rateLimiter, Clock clock) {
+                       IdempotencyService idempotency, UserRateLimiter rateLimiter, Clock clock, AdvisoryLocks locks,
+                       LimitsService limits, RiskService risk, AuditService audit) {
         this.jdbc = jdbc;
         this.accounts = accounts;
         this.users = users;
         this.ledger = ledger;
         this.idempotency = idempotency;
         this.rateLimiter = rateLimiter;
+        this.locks = locks;
+        this.limits = limits;
+        this.risk = risk;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -156,6 +168,17 @@ public class BillService {
             if (!from.isEveryday()) {
                 throw ApiException.fieldError(HttpStatus.BAD_REQUEST, "fromAccountId",
                         "pay bills from a savings or checking account");
+            }
+            // Same per-user lock as transfers and card payments: the daily limit covers all three.
+            locks.lockForTransaction("transfers:" + userId);
+            limits.requireWithinDaily(userId, bill.amount());
+            RiskService.Assessment a = risk.scoreBill(userId, bill.amount());
+            if (risk.needsReview(a)) {
+                // No review queue for bills: stopped, nothing moves, the customer can try again later or contact us.
+                audit.recordAlways(userId, "BILL_PAYMENT_STOPPED", "BILL", billId.toString(),
+                        "score=" + a.score() + " signals=" + a.signals().stream().map(RiskService.Signal::code).toList());
+                throw new ApiException(ErrorCode.SUSPECTED_FRAUD, "This payment looks unusual and was stopped: "
+                        + a.topSignal().toLowerCase(java.util.Locale.ROOT));
             }
             String masked = AccountNumbers.mask(bill.consumerNumber());
             PostedEntry entry = ledger.post(JournalRequest.builder(JournalType.BILL_PAYMENT,
