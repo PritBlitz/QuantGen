@@ -13,6 +13,7 @@ class RedactorTest {
         assertThat(Redactor.mask("{\"balance\":\"125000.50\",\"id\":\"3f2c1a9e-0b1d-4c2e-9f3a-1234567890ab\"}"))
                 .isEqualTo("{\"balance\":\"125000.50\",\"id\":\"3f2c1a9e-0b1d-4c2e-9f3a-1234567890ab\"}");
         assertThat(Redactor.mask("12345678")).isEqualTo("12345678");
+        assertThat(Redactor.mask("PAN ABCDE1234F, symbol RELIANCE")).isEqualTo("PAN [PAN], symbol RELIANCE");
     }
 
     @Test

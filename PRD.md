@@ -1376,7 +1376,7 @@ Backend notes (V2-M5 core, implemented 2026-10-19; `/autopilot/compile` needs th
 | POST 🔒💰 | `/admin/fraud-cases/{id}/release` · `/reject` | `{reason}` | `200 FraudCaseDto` |
 | POST (customer) | `/loans/{id}/documents` | multipart `file`, `consent=true` | `201 LoanDocumentDto` |
 | GET (owner or admin) | `/loans/{id}/documents` | | `200 LoanDocumentDto[]` (added 2026-10-19) |
-| GET | `/admin/loans/{id}/underwriting` | | `200 {status, memo, extracted: [{field, value, page}], flags, recommendation, generatedAt}` |
+| GET | `/admin/loans/{id}/underwriting` | | `200 {status, memo, extracted: [{field, value, page, documentId}], flags, recommendation, generatedAt, runId}` (`documentId`, `runId` added 2026-10-25) |
 | GET | `/admin/ai/usage` | `?from&to` | `200 {tokens, costUsd, byAgent, byDay}` |
 | GET | `/admin/ai/runs/{runId}` | | `200 TraceDto` (full) |
 | PUT | `/admin/feature-flags/{name}` | `{enabled}` | `200` (audited) |
@@ -1419,7 +1419,22 @@ they post or free held money); `GET /loans/{id}/documents` added; the underwriti
   JPEG; else `400 file`). The file name is sanitized for display; bytes go to `QG_LOAN_DOCS_DIR` under a random name
   with a SHA-256 in the DB and are never served back. `LoanDocumentDto = {id, fileName, contentType, sizeBytes, uploadedAt}`.
 - **Underwriting:** `PENDING` with `flags: ["No documents uploaded yet."]` or `["Waiting for the Underwriting
-  Analyst."]` until V2-M4 writes `underwriting_memos`.
+  Analyst."]` until the Analyst has written a memo.
+- **Underwriting Analyst (F-RISK-5, implemented 2026-10-25, V28):** each upload (re)queues the loan's memo, so a
+  new document makes an earlier memo stale (`PENDING` again). With the `ai` flag on, a worker (every 30 s, 2 at a
+  time, 30 s after the last upload so three uploads make one run) reads the text of each PDF (first 10 pages,
+  3,000 characters a page) and sends agent-quant the application (amount, tenure, EMI, declared income, other
+  EMIs, purpose) and the page texts. **Images are never sent to a model** (they can't be masked): each one is a flag
+  "… is an image; … check it yourself". Before anything leaves the core, account/card/Aadhaar/phone numbers become
+  `••••1234`, PANs `[PAN]`, emails `[email]`. The answer is checked, not trusted: `field` is one of
+  `MONTHLY_GROSS_INCOME`, `MONTHLY_NET_INCOME`, `EMPLOYER`, `EXISTING_EMI`, `OTHER_OBLIGATION`, `STATEMENT_PERIOD`,
+  `AVERAGE_BALANCE`; each value must be printed on the page it cites (amounts compare by value), else it's dropped
+  with a flag; ≤ 20 values, ≤ 6 model flags. The core adds its own flags: no confirmed net income, or the declared
+  income more than 20% above the documented net income. **`APPROVE` with any flag reads `REVIEW`.** `documentId`
+  (added) says which document a page belongs to; `runId` (added) opens the trace (`UNDERWRITING_ANALYST`) in
+  `/admin/ai/runs/{runId}`. No readable PDF → `READY` with only the core's flags and `recommendation: "REVIEW"`.
+  Three failed attempts → `FAILED`, flags `["The Underwriting Analyst couldn't write a memo; review the documents
+  yourself."]`, `recommendation: null`. The memo is advice only: it never changes the loan (D-031).
 
 ### 12.9 Trading 2.0
 | Method | Path | Body / Query | Response |
@@ -1739,7 +1754,8 @@ Category keys: `FOOD`, `GROCERIES`, `SHOPPING`, `TRANSPORT`, `BILLS`, `RENT`, `E
 - detail adds `memo: {summary, suggestedAction: "RELEASE"|"REJECT"|"CONTACT_CUSTOMER", confidence: "LOW"|"MEDIUM"|"HIGH", generatedAt, runId} | null`,
   `signals: [{code, label, weight}]`, `customerBaseline: {avgTransfer, transfers30d, usualHoursIst, accountAgeDays}`
 - `LoanDocumentDto = {id, fileName, contentType, sizeBytes, uploadedAt}`; `GET /loans/{id}/documents` → `LoanDocumentDto[]` (added)
-- underwriting response adds `status: "PENDING"|"READY"|"FAILED"` and `generatedAt`; `recommendation`: `APPROVE` | `REJECT` | `REVIEW` | null
+- underwriting response adds `status: "PENDING"|"READY"|"FAILED"` and `generatedAt`; `recommendation`: `APPROVE` | `REJECT` | `REVIEW` | null;
+  added 2026-10-25: `runId` (null until a run) and `extracted[].documentId`
 - `/admin/ai/usage` adds `budget: {monthlyCapUsd, usedPct}`; `byAgent = [{agent, runs, costUsd}]`, `byDay = [{date, costUsd, turns}]`
 
 **Trading:**

@@ -23,6 +23,7 @@
     <bucket4j.version>8.21.0</bucket4j.version>
     <webauthn.version>2.6.0</webauthn.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
+    <pdfbox.version>3.0.5</pdfbox.version>
   </properties>
 
   <dependencies>
@@ -80,6 +81,13 @@
       <groupId>com.yubico</groupId>
       <artifactId>webauthn-server-core</artifactId>
       <version>${webauthn.version}</version>
+    </dependency>
+
+    <!-- Loan documents: PDF text for the Underwriting Analyst (F-RISK-5); Apache's maintained PDF library -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>${pdfbox.version}</version>
     </dependency>
 
     <!-- JWT -->

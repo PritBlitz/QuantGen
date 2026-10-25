@@ -626,6 +626,13 @@ and the total isn't smaller than the sum of the parts". Not proving: that reserv
 - Loan documents are stored on a volume (later object storage) under random names, type-sniffed
   (magic bytes), size-capped, never served back with an executable content type. The
   Underwriting Analyst sends them to the Claude API as document blocks with citations enabled.
+  As built (2026-10-25, D-044 free tier, D-045 stateless agent): both back-office agents run from **core workers**,
+  not from an event consumer and not with a service credential. `FraudMemoWorker` (V26) and `UnderwritingWorker` (V28)
+  claim queued rows (`FOR UPDATE SKIP LOCKED`, 3 attempts), gather the facts themselves, mask them and call
+  agent-quant's `/internal/v1/memos/*` (shared secret, no token, no tools, one model call). agent-quant never reads
+  the DB. The underwriter gets **PDF text extracted by the core** (PDFBox; page numbers are the citations) instead
+  of document blocks, because only text can be masked; images are never sent. The core checks every answer: fixed
+  enums, each cited value must be on its page, and its own income arithmetic can downgrade `APPROVE` to `REVIEW`.
 
 ### 12.12 Cards and the merchant sandbox
 Authorization = risk score + controls + hold on available balance. Capture = ledger entry

@@ -34,8 +34,8 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * F-RISK-4: up to 3 documents (PDF, PNG or JPEG by magic bytes, ≤ 5 MB) per pending loan application, with
  * explicit consent to AI processing. The bytes are stored on disk under a random name and are never served back;
- * the DB keeps the metadata and a SHA-256. The Underwriting Analyst (V2-M4) reads them; until then the
- * underwriting view is PENDING.
+ * the DB keeps the metadata and a SHA-256. Each upload queues the Underwriting Analyst's memo
+ * ({@link UnderwritingWorker}); until it's written the underwriting view is PENDING.
  */
 @Service
 public class LoanDocumentService {
@@ -48,11 +48,12 @@ public class LoanDocumentService {
     public record LoanDocumentDto(UUID id, String fileName, String contentType, long sizeBytes, Instant uploadedAt) {
     }
 
-    public record Extracted(String field, String value, int page) {
+    /** A value the Analyst read, cited by document and page (checked by the core to be on that page). */
+    public record Extracted(String field, String value, int page, UUID documentId) {
     }
 
     public record UnderwritingDto(String status, String memo, List<Extracted> extracted, List<String> flags,
-                                  String recommendation, Instant generatedAt) {
+                                  String recommendation, Instant generatedAt, UUID runId) {
     }
 
     private final JdbcTemplate jdbc;
@@ -122,6 +123,13 @@ public class LoanDocumentService {
                 """, UUID.class, loanId, userId, name, type, (long) bytes.length, sha256(bytes), key,
                 Timestamp.from(clock.instant()));
         audit.record(userId, "LOAN_DOCUMENT_UPLOADED", "LOAN", loanId.toString(), type + ", " + bytes.length + " bytes");
+        // (Re)queue the Analyst: a new document makes any earlier memo stale.
+        jdbc.update("""
+                INSERT INTO underwriting_memos (loan_id, requested_at) VALUES (?, ?)
+                ON CONFLICT (loan_id) DO UPDATE SET status = 'PENDING', memo = NULL, extracted = '[]', flags = '[]',
+                       recommendation = NULL, generated_at = NULL, run_id = NULL, attempts = 0, claimed_at = NULL,
+                       requested_at = EXCLUDED.requested_at
+                """, loanId, Timestamp.from(clock.instant()));
         return list(loanId).stream().filter(d -> d.id().equals(id)).findFirst().orElseThrow();
     }
 
@@ -143,18 +151,28 @@ public class LoanDocumentService {
             throw ApiException.notFound("Loan");
         }
         List<UnderwritingDto> memo = jdbc.query("SELECT * FROM underwriting_memos WHERE loan_id = ?", (rs, i) -> {
+            if ("PENDING".equals(rs.getString("status"))) {
+                return null;
+            }
             Timestamp at = rs.getTimestamp("generated_at");
             return new UnderwritingDto(rs.getString("status"), rs.getString("memo"),
                     json.readValue(rs.getString("extracted"), new TypeReference<List<Extracted>>() { }),
                     json.readValue(rs.getString("flags"), new TypeReference<List<String>>() { }),
-                    rs.getString("recommendation"), at == null ? null : at.toInstant());
+                    rs.getString("recommendation"), at == null ? null : at.toInstant(),
+                    rs.getObject("run_id", UUID.class));
         }, loanId);
-        if (!memo.isEmpty()) {
+        if (!memo.isEmpty() && memo.getFirst() != null) {
             return memo.getFirst();
         }
         boolean hasDocs = !list(loanId).isEmpty();
         return new UnderwritingDto("PENDING", null, List.of(),
-                List.of(hasDocs ? "Waiting for the Underwriting Analyst." : "No documents uploaded yet."), null, null);
+                List.of(hasDocs ? "Waiting for the Underwriting Analyst." : "No documents uploaded yet."), null, null,
+                null);
+    }
+
+    /** A stored document's bytes, for the Analyst only (documents are never served back). */
+    byte[] read(String storageKey) throws IOException {
+        return Files.readAllBytes(dir.resolve(storageKey));
     }
 
     private List<LoanDocumentDto> list(UUID loanId) {

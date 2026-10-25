@@ -37,6 +37,7 @@ public final class FakeAgent implements AutoCloseable {
     private volatile Function<JsonNode, Answer> turn = req -> new Answer(503, "application/json", "{}");
     private volatile Function<JsonNode, Answer> compile = req -> new Answer(503, "application/json", "{}");
     private volatile Function<JsonNode, Answer> memo = req -> new Answer(503, "application/json", "{}");
+    private volatile Function<JsonNode, Answer> underwriting = req -> new Answer(503, "application/json", "{}");
     private volatile String lastSecret;
     private volatile JsonNode lastMemoRequest;
 
@@ -47,6 +48,10 @@ public final class FakeAgent implements AutoCloseable {
         server.createContext("/internal/v1/memos/fraud", ex -> answer(ex, req -> {
             lastMemoRequest = req;
             return memo.apply(req);
+        }));
+        server.createContext("/internal/v1/memos/underwriting", ex -> answer(ex, req -> {
+            lastMemoRequest = req;
+            return underwriting.apply(req);
         }));
         server.start();
     }
@@ -61,6 +66,10 @@ public final class FakeAgent implements AutoCloseable {
 
     public void onFraudMemo(Function<JsonNode, Answer> script) {
         this.memo = script;
+    }
+
+    public void onUnderwritingMemo(Function<JsonNode, Answer> script) {
+        this.underwriting = script;
     }
 
     public JsonNode lastMemoRequest() {
