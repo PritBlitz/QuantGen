@@ -55,6 +55,7 @@ import type {
   GoalProgressDto,
   Granularity,
   GroupDto,
+  BlockedRequesterDto,
   HandleDto,
   HealthDto,
   HistoryRange,
@@ -188,6 +189,9 @@ export const payApi = {
       .then(data),
   declineRequest: (id: string, block = false) =>
     api.post<PaymentRequestDto>(`/payment-requests/${seg(id)}/decline`, { block }).then(data),
+  blockedRequesters: () => api.get<BlockedRequesterDto[]>('/payment-requests/blocked').then(data),
+  unblockRequester: (handle: string) =>
+    api.delete(`/payment-requests/blocked/${seg(handle)}`).then(() => undefined),
   createScheduled: (body: ScheduledTransferRequest, idempotencyKey: string) =>
     api
       .post<ScheduledTransferDto>('/scheduled-transfers', body, {
@@ -229,6 +233,9 @@ export const payApi = {
     api.post<ExpenseDto>(`/split-groups/${seg(groupId)}/expenses`, body).then(data),
   settleGroup: (groupId: string) =>
     api.post<PaymentRequestDto[]>(`/split-groups/${seg(groupId)}/settle`).then(data),
+  /** Only with a zero balance and no open settle-up request (409 with what's owed otherwise). */
+  leaveGroup: (groupId: string) =>
+    api.post(`/split-groups/${seg(groupId)}/leave`).then(() => undefined),
   createTopup: (accountId: string, amount: MoneyString, idempotencyKey: string) =>
     api
       .post<TopupDto>(

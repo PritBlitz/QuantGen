@@ -153,6 +153,26 @@ describe('Autopilot', () => {
     expect(db.v2.rules.some((r) => r.id === SALARY_RULE)).toBe(false)
   })
 
+  it('“Explain this run” asks Copilot with the run attached as context', async () => {
+    signInAs('CUSTOMER')
+    db.v2.flags.ai.enabled = true
+    const run = db.v2.ruleRuns.get(SALARY_RULE)![0]!
+    const bodies: Array<Record<string, unknown>> = []
+    server.events.on('request:start', async ({ request }) => {
+      if (
+        request.method === 'POST' &&
+        /\/copilot\/conversations\/[^/]+\/messages$/.test(request.url)
+      )
+        bodies.push((await request.clone().json()) as Record<string, unknown>)
+    })
+    const user = userEvent.setup()
+    renderApp(`/autopilot/${SALARY_RULE}`)
+    await user.click((await screen.findAllByRole('button', { name: /Explain this run/ }))[0]!)
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ context: { type: 'AUTOPILOT_RUN', id: run.id } })
+    expect(await screen.findByText(/ran because/)).toBeInTheDocument()
+  })
+
   it('another user’s rule reads as not found', async () => {
     signInAs('ADMIN')
     renderApp(`/autopilot/${SALARY_RULE}`)

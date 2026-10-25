@@ -48,8 +48,12 @@ function maskName(full: string) {
   return last ? `${first} ${last[0]}.` : first
 }
 
+type MockGroup = GroupDto & { memberIds: string[]; leftIds?: string[] }
+const isCurrent = (g: MockGroup, userId: string) =>
+  g.memberIds.includes(userId) && !g.leftIds?.includes(userId)
+
 /** Balances per member: positive = the group owes them. */
-function withBalances(g: GroupDto & { memberIds: string[] }): GroupDto {
+function withBalances(g: MockGroup): GroupDto {
   const handles = g.memberIds.map((id) => handleOf(id) ?? '')
   const bal = new Map(handles.map((h) => [h, new Decimal(0)]))
   const expenses = g.expenses.map((e) => {
@@ -76,6 +80,7 @@ function withBalances(g: GroupDto & { memberIds: string[] }): GroupDto {
       handle: handleOf(id) ?? '',
       displayName: userById(id)?.fullName ?? 'Member',
       balance: money(bal.get(handleOf(id) ?? '') ?? new Decimal(0)),
+      left: g.leftIds?.includes(id) ?? false,
     })),
   }
 }
@@ -274,8 +279,37 @@ export const paymentHandlers = [
     const b = (await request.json().catch(() => ({}))) as { block?: unknown }
     req.status = req.fromHandle === me ? 'CANCELLED' : 'DECLINED'
     if (b.block === true && req.toHandle === me)
-      db.v2.blocked.push({ userId: r.user.id, blockedHandle: req.fromHandle })
+      db.v2.blocked.push({
+        userId: r.user.id,
+        blockedHandle: req.fromHandle,
+        blockedAt: new Date().toISOString(),
+      })
     return json(req)
+  }),
+  http.get(`${BASE}/payment-requests/blocked`, ({ request }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const mine = db.v2.blocked
+      .filter((x) => x.userId === r.user.id)
+      .map((x) => {
+        const u = userByHandle(x.blockedHandle)
+        return {
+          handle: x.blockedHandle,
+          displayName: maskName((u && userById(u.userId)?.fullName) ?? 'QuantGen user'),
+          blockedAt: x.blockedAt ?? new Date(0).toISOString(),
+        }
+      })
+      .sort((a, b) => b.blockedAt.localeCompare(a.blockedAt))
+    return json(mine)
+  }),
+  http.delete(`${BASE}/payment-requests/blocked/:handle`, ({ request, params }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const handle = String(params.handle).toLowerCase()
+    const i = db.v2.blocked.findIndex((x) => x.userId === r.user.id && x.blockedHandle === handle)
+    if (i < 0) return notFound(request, 'Blocked requester')
+    db.v2.blocked.splice(i, 1)
+    return new Response(null, { status: 204 })
   }),
 
   // Scheduled transfers
@@ -553,12 +587,12 @@ export const paymentHandlers = [
   http.get(`${BASE}/split-groups`, ({ request }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    return json(db.v2.groups.filter((g) => g.memberIds.includes(r.user.id)).map(withBalances))
+    return json(db.v2.groups.filter((g) => isCurrent(g, r.user.id)).map(withBalances))
   }),
   http.get(`${BASE}/split-groups/:id`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    const g = db.v2.groups.find((x) => x.id === params.id && x.memberIds.includes(r.user.id))
+    const g = db.v2.groups.find((x) => x.id === params.id && isCurrent(x, r.user.id))
     return g ? json(withBalances(g)) : notFound(request, 'Group')
   }),
   http.post(`${BASE}/split-groups`, async ({ request }) => {
@@ -593,7 +627,7 @@ export const paymentHandlers = [
   http.post(`${BASE}/split-groups/:id/expenses`, async ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    const g = db.v2.groups.find((x) => x.id === params.id && x.memberIds.includes(r.user.id))
+    const g = db.v2.groups.find((x) => x.id === params.id && isCurrent(x, r.user.id))
     if (!g) return notFound(request, 'Group')
     const b = (await request.json()) as {
       paidByHandle?: unknown
@@ -601,7 +635,7 @@ export const paymentHandlers = [
       description?: unknown
       split?: { type?: unknown; shares?: unknown }
     }
-    const handles = g.memberIds.map((id) => handleOf(id))
+    const handles = g.memberIds.filter((id) => isCurrent(g, id)).map((id) => handleOf(id))
     if (typeof b.paidByHandle !== 'string' || !handles.includes(b.paidByHandle))
       return invalid(request, 'paidByHandle', 'must be a group member')
     if (!isMoney(b.amount) || new Decimal(b.amount).lt(1))
@@ -637,7 +671,15 @@ export const paymentHandlers = [
       }
     } else if (type !== 'EQUAL')
       return invalid(request, 'split.type', 'must be EQUAL, EXACT or PERCENT')
-    else shares = []
+    else if (g.leftIds?.length) {
+      // Equal splits are among current members; fix the shares now so later views don't re-split.
+      const each = total.div(handles.length).toDecimalPlaces(2, Decimal.ROUND_DOWN)
+      const rest = total.minus(each.times(handles.length))
+      shares = handles.map((h) => ({
+        handle: h!,
+        amount: money(h === b.paidByHandle ? each.plus(rest) : each),
+      }))
+    } else shares = []
     const e = {
       id: crypto.randomUUID(),
       paidByHandle: b.paidByHandle,
@@ -654,7 +696,7 @@ export const paymentHandlers = [
   http.post(`${BASE}/split-groups/:id/settle`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
-    const g = db.v2.groups.find((x) => x.id === params.id && x.memberIds.includes(r.user.id))
+    const g = db.v2.groups.find((x) => x.id === params.id && isCurrent(x, r.user.id))
     if (!g) return notFound(request, 'Group')
     const view = withBalances(g)
     const me = handleOf(r.user.id)!
@@ -683,6 +725,38 @@ export const paymentHandlers = [
       out.push(req)
     }
     return json(out)
+  }),
+  http.post(`${BASE}/split-groups/:id/leave`, ({ request, params }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const g = db.v2.groups.find((x) => x.id === params.id && isCurrent(x, r.user.id))
+    if (!g) return notFound(request, 'Group')
+    const me = handleOf(r.user.id)!
+    const bal = new Decimal(withBalances(g).members.find((m) => m.handle === me)?.balance ?? '0')
+    if (!bal.isZero())
+      return error(
+        409,
+        'INVALID_STATE',
+        bal.isNegative()
+          ? `Settle up first: you owe ${inr(bal.neg())} in this group`
+          : `Settle up first: the group owes you ${inr(bal)}`,
+        request,
+      )
+    const open = db.v2.requests.find(
+      (x) =>
+        x.status === 'OPEN' &&
+        x.note === `Settle up · ${g.name}` &&
+        (x.fromHandle === me || x.toHandle === me),
+    )
+    if (open)
+      return error(
+        409,
+        'INVALID_STATE',
+        `There’s an open settle-up request of ${inr(open.amount)} ${open.fromHandle === me ? 'from' : 'for'} you`,
+        request,
+      )
+    g.leftIds = [...(g.leftIds ?? []), r.user.id]
+    return new Response(null, { status: 204 })
   }),
 
   // Razorpay top-ups (§7.9). The mock "Checkout" lives in the UI's dev-only simulator.

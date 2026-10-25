@@ -1,7 +1,7 @@
 import { CheckCircle2, Loader2, ShoppingBag, Store, XCircle } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { cardsApi } from '@/api/endpoints.v2'
-import { errorMessage } from '@/api/errors'
+import { errorMessage, toApiError } from '@/api/errors'
 import { useFlag } from '@/api/flags'
 import { useInvalidateMoney } from '@/api/queries'
 import type { MerchantCategory, MoneyString } from '@/api/types'
@@ -70,7 +70,7 @@ const PRODUCTS: Product[] = [
 /** The demo merchant settles a few seconds after authorizing, like a real store would later. */
 const CAPTURE_AFTER_MS = 5000
 
-type PaymentStatus = 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'DECLINED'
+type PaymentStatus = 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'DECLINED' | 'EXPIRED'
 interface Payment {
   authId: string
   product: string
@@ -82,6 +82,7 @@ const STATUS: Record<PaymentStatus, { label: string; tone: BadgeTone }> = {
   AUTHORIZED: { label: 'Authorized · on hold', tone: 'warn' },
   CAPTURED: { label: 'Paid', tone: 'gain' },
   REFUNDED: { label: 'Refunded', tone: 'neutral' },
+  EXPIRED: { label: 'Hold expired · not charged', tone: 'neutral' },
   DECLINED: { label: 'Declined', tone: 'loss' },
 }
 
@@ -134,7 +135,11 @@ export function SandboxPage() {
       await cardsApi.capture(authId, keyFor('capture', authId))
       update(authId, { status: 'CAPTURED' })
     } catch (e) {
-      update(authId, { reason: errorMessage(e) })
+      // A hold that lapsed can't be captured (409); the money was never taken (backend 2026-10-25).
+      const err = toApiError(e)
+      if (err.code === 'INVALID_STATE' && /expir/i.test(err.message))
+        update(authId, { status: 'EXPIRED', reason: undefined })
+      else update(authId, { reason: errorMessage(err) })
     } finally {
       void invalidate('accounts', 'transfers')
     }

@@ -198,6 +198,7 @@ function Runs({
                     ? () =>
                         ask(
                           `Explain the run of my Autopilot rule “${ruleName}” on ${formatAbsolute(run.startedAt)}: ${run.triggerSummary}`,
+                          { type: 'AUTOPILOT_RUN', id: run.id },
                         )
                     : undefined
                 }

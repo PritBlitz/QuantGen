@@ -110,6 +110,7 @@ const COPY: Record<ClientErrorCode, string> = {
     "The assistant isn't available right now. Everything else in QuantGen works as usual.",
   AI_BUSY: 'The assistant is busy right now. Try again in a minute.',
   TOOL_LIMIT: 'That question needed too many steps. Try asking something narrower.',
+  SUSPECTED_FRAUD: 'This payment looks unusual, so it was stopped. Nothing moved.',
 }
 
 /** Human copy for a toast. Field errors are shown inline by forms instead. */

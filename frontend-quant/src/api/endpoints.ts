@@ -83,6 +83,8 @@ export const accountsApi = {
         responseType: 'blob',
       })
       .then((r) => r.data),
+  /** Savings, checking or goal (added 2026-10-25). 🛡️ SECURITY_SETTINGS; 409 lists the blockers. */
+  close: (id: string) => api.post<AccountDto>(`/accounts/${seg(id)}/close`).then((r) => r.data),
 }
 
 // §7.4 Payments

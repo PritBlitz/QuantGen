@@ -24,7 +24,7 @@ export function CopilotSheet() {
   useEffect(() => {
     if (!isOpen || !on) return
     const p = takePendingPrompt()
-    if (p) void send(p)
+    if (p) void send(p.text, p.context)
   }, [isOpen, on, takePendingPrompt, send])
 
   // On the full page the sheet would duplicate it.

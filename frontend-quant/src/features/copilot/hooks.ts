@@ -6,6 +6,7 @@ import type {
   AgentName,
   CitationDto,
   ConversationDetailDto,
+  CopilotContext,
   IntentDto,
   IntentStatus,
 } from '@/api/types'
@@ -90,7 +91,7 @@ export function useCopilotChat() {
   const busy = live?.status === 'streaming'
 
   const send = useCallback(
-    async (raw: string) => {
+    async (raw: string, context?: CopilotContext) => {
       const text = raw.trim()
       if (!text || text.length > 2000 || abortRef.current) return
       const ctrl = new AbortController()
@@ -159,6 +160,7 @@ export function useCopilotChat() {
             }
           },
           ctrl.signal,
+          context,
         )
         if (failed) throw failed
         patch((t) => ({ ...t, status: 'done' }))

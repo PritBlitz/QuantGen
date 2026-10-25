@@ -9,6 +9,7 @@ export const payKeys = {
   billers: (category?: BillerCategory) => ['pay', 'billers', category ?? 'ALL'] as const,
   billPayments: ['pay', 'bill-payments'] as const,
   savedBillers: ['pay', 'saved-billers'] as const,
+  blocked: ['pay', 'blocked'] as const,
   groups: ['pay', 'groups'] as const,
   group: (id: string) => ['pay', 'groups', id] as const,
 }
@@ -19,6 +20,9 @@ export const useRequests = (direction: 'INCOMING' | 'OUTGOING', status?: Payment
     queryFn: () => payApi.requests({ direction, status, page: 0, size: 50 }),
     placeholderData: keepPreviousData,
   })
+
+export const useBlockedRequesters = () =>
+  useQuery({ queryKey: payKeys.blocked, queryFn: payApi.blockedRequesters })
 
 export const useScheduled = () =>
   useQuery({ queryKey: payKeys.scheduled, queryFn: payApi.scheduled })

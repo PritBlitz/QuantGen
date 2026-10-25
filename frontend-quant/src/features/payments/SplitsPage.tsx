@@ -1,6 +1,6 @@
-import { ArrowRight, Plus, Split, Users } from 'lucide-react'
+import { ArrowRight, LogOut, Plus, Split, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { payApi } from '@/api/endpoints.v2'
@@ -12,6 +12,7 @@ import { AmountInput } from '@/components/money/AmountInput'
 import { EmptyState, PageHeader } from '@/components/PageHeader'
 import { Panel, PanelError } from '@/components/Panel'
 import { Segmented } from '@/components/Segmented'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/input'
@@ -82,9 +83,12 @@ function GroupCard({ g, myHandle }: { g: GroupDto; myHandle: string | null }) {
           />
         </div>
         <div className="mt-3 flex -space-x-2">
-          {g.members.slice(0, 5).map((m) => (
-            <Avatar key={m.handle} name={m.displayName} className="ring-2 ring-surface-solid" />
-          ))}
+          {g.members
+            .filter((m) => !m.left)
+            .slice(0, 5)
+            .map((m) => (
+              <Avatar key={m.handle} name={m.displayName} className="ring-2 ring-surface-solid" />
+            ))}
         </div>
         <p className="mt-4 text-xs text-muted">
           {g.expenses.length} expenses · <Money value={total} className="text-text" /> total
@@ -189,6 +193,7 @@ export function SplitGroupPage() {
   const me = useMe()
   const invalidate = useInvalidatePayments()
   const [adding, setAdding] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const settle = useMutation({
     mutationFn: () => payApi.settleGroup(id),
     onSuccess: (reqs) => {
@@ -221,6 +226,9 @@ export function SplitGroupPage() {
             >
               <Split aria-hidden="true" /> Settle up
             </Button>
+            <Button variant="ghost" onClick={() => setLeaving(true)} disabled={!g}>
+              <LogOut aria-hidden="true" /> Leave
+            </Button>
           </>
         }
       />
@@ -237,7 +245,10 @@ export function SplitGroupPage() {
                 return (
                   <li
                     key={m.handle}
-                    className="flex items-center gap-3 rounded-xl bg-surface-2/50 p-3 hairline"
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl bg-surface-2/50 p-3 hairline',
+                      m.left && 'opacity-60',
+                    )}
                   >
                     <Avatar name={m.displayName} />
                     <div className="min-w-0 flex-1">
@@ -246,6 +257,7 @@ export function SplitGroupPage() {
                         {m.handle === me.data?.handle && (
                           <span className="text-xs text-muted">(you)</span>
                         )}
+                        {m.left && <Badge tone="neutral">Left</Badge>}
                       </p>
                       <p className="num text-xs text-muted">{m.handle}</p>
                     </div>
@@ -290,7 +302,84 @@ export function SplitGroupPage() {
       {adding && g && (
         <AddExpense group={g} myHandle={me.data?.handle ?? ''} onClose={() => setAdding(false)} />
       )}
+      {leaving && g && (
+        <LeaveGroup group={g} balance={mine?.balance ?? null} onClose={() => setLeaving(false)} />
+      )}
     </div>
+  )
+}
+
+/**
+ * Leaving needs a zero balance and no open settle-up request; the server checks both and says
+ * what's owed (409). You stay in the group's history, and it leaves your list.
+ */
+function LeaveGroup({
+  group,
+  balance,
+  onClose,
+}: {
+  group: GroupDto
+  /** Your balance in the group, when known; the server checks it either way. */
+  balance: string | null
+  onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const invalidate = useInvalidatePayments()
+  const [error, setError] = useState<string | null>(null)
+  const b = toDecimal(balance ?? '0')
+  const leave = useMutation({
+    mutationFn: () => payApi.leaveGroup(group.id),
+    onSuccess: () => {
+      toast.success(`You left “${group.name}”`)
+      void invalidate()
+      void navigate('/pay/splits', { replace: true })
+    },
+    onError: (e) => {
+      // The 409 says what's owed ("Settle up first: you owe ₹…").
+      const ae = toApiError(e)
+      setError(ae.code === 'INVALID_STATE' ? ae.message : errorMessage(ae))
+    },
+  })
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title={`Leave “${group.name}”?`}
+        description="You’ll stay in its history, but you won’t be in new expenses and it leaves your list."
+      >
+        <div className="space-y-4">
+          {!b.isZero() && (
+            <p className="rounded-xl bg-warn/10 p-3 text-sm text-warn">
+              {b.gt(0) ? (
+                <>
+                  The group still owes you <Money value={b} />. Settle up first.
+                </>
+              ) : (
+                <>
+                  You still owe <Money value={b.neg()} />. Settle up first.
+                </>
+              )}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => leave.mutate()}
+              disabled={!b.isZero() || leave.isPending}
+            >
+              Leave group
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -304,6 +393,8 @@ function AddExpense({
   onClose: () => void
 }) {
   const invalidate = useInvalidatePayments()
+  // Equal splits are among current members; people who left can't be in new expenses.
+  const current = group.members.filter((m) => !m.left)
   const [paidBy, setPaidBy] = useState(myHandle)
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -322,7 +413,7 @@ function AddExpense({
       return setError('Enter at least ₹1.')
     let split: Parameters<typeof payApi.addExpense>[1]['split'] = { type }
     if (type !== 'EQUAL') {
-      const list = group.members.map((m) => ({ handle: m.handle, value: shares[m.handle] || '0' }))
+      const list = current.map((m) => ({ handle: m.handle, value: shares[m.handle] || '0' }))
       if (list.some((s) => !/^\d{1,9}(\.\d{1,2})?$/.test(s.value)))
         return setError('Shares must be numbers.')
       const total = sumMoney(list.map((s) => s.value))
@@ -361,7 +452,7 @@ function AddExpense({
               aria-label="Paid by"
               value={paidBy}
               onValueChange={setPaidBy}
-              options={group.members.map((m) => ({
+              options={current.map((m) => ({
                 value: m.handle,
                 label: m.displayName,
                 text: m.displayName,
@@ -383,7 +474,7 @@ function AddExpense({
           </div>
           {type !== 'EQUAL' && (
             <ul className="space-y-2">
-              {group.members.map((m) => (
+              {current.map((m) => (
                 <li key={m.handle} className="grid grid-cols-[1fr_8rem] items-center gap-2 text-sm">
                   <span>{m.displayName}</span>
                   <FormField

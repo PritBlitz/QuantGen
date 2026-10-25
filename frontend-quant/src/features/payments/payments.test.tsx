@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { db } from '@/mocks/handlers'
 import { server } from '@/mocks/node'
+import { PEOPLE } from '@/mocks/v2/state'
 import { renderApp, signInAs } from '@/test/utils'
 
 const SAVINGS = 'a1f3c2d4-0001-4b5e-9c7d-111111111111'
@@ -98,6 +99,65 @@ describe('payment requests (F-PAY-8)', () => {
       expect(db.v2.requests.find((r) => r.id === MEERA_REQUEST)?.status).toBe('DECLINED'),
     )
     expect(db.v2.blocked).toContainEqual(expect.objectContaining({ blockedHandle: 'meera@qg' }))
+  })
+
+  it('lists blocked people and unblocks one', async () => {
+    signInAs('CUSTOMER')
+    db.v2.blocked.push({
+      userId: PEOPLE.demo.id,
+      blockedHandle: 'meera@qg',
+      blockedAt: new Date().toISOString(),
+    })
+    const user = userEvent.setup()
+    renderApp('/pay/requests')
+    await user.click(await screen.findByRole('button', { name: 'Unblock meera@qg' }))
+    await waitFor(() =>
+      expect(db.v2.blocked.some((b) => b.blockedHandle === 'meera@qg')).toBe(false),
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Unblock meera@qg' })).not.toBeInTheDocument(),
+    )
+  })
+})
+
+describe('leaving a split group', () => {
+  const GOA = 'f4000000-0000-4000-8000-000000000001'
+
+  it('asks you to settle up first while you owe or are owed', async () => {
+    signInAs('CUSTOMER')
+    const user = userEvent.setup()
+    renderApp(`/pay/splits/${GOA}`)
+    const leave = await screen.findByRole('button', { name: 'Leave' })
+    await waitFor(() => expect(leave).toBeEnabled())
+    await user.click(leave)
+    // Either the dialog already knows your balance, or the server's 409 says what's owed.
+    const confirm = await screen.findByRole('button', { name: 'Leave group' })
+    if (!confirm.hasAttribute('disabled')) await user.click(confirm)
+    expect(await screen.findByText(/Settle up first/)).toBeInTheDocument()
+    expect(db.v2.groups.find((g) => g.id === GOA)?.leftIds ?? []).toEqual([])
+  })
+
+  it('leaves a settled group; it drops off your list and you stay in its history', async () => {
+    signInAs('CUSTOMER')
+    const id = 'f4000000-0000-4000-8000-0000000000ff'
+    db.v2.groups.unshift({
+      id,
+      name: 'Book club',
+      memberIds: [PEOPLE.demo.id, PEOPLE.priya.id],
+      members: [],
+      expenses: [],
+      createdAt: new Date().toISOString(),
+    })
+    const user = userEvent.setup()
+    const { router } = renderApp(`/pay/splits/${id}`)
+    const leave = await screen.findByRole('button', { name: 'Leave' })
+    await waitFor(() => expect(leave).toBeEnabled())
+    await user.click(leave)
+    await user.click(await screen.findByRole('button', { name: 'Leave group' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/pay/splits'))
+    expect(await screen.findByText('Goa trip ’26')).toBeInTheDocument()
+    expect(screen.queryByText('Book club')).not.toBeInTheDocument()
+    expect(db.v2.groups.find((g) => g.id === id)?.leftIds).toEqual([PEOPLE.demo.id])
   })
 })
 

@@ -1,6 +1,6 @@
 import { API_BASE, refreshSession } from '@/api/client'
 import { ApiError } from '@/api/errors'
-import type { CopilotEvent, ErrorBody } from '@/api/types'
+import type { CopilotContext, CopilotEvent, ErrorBody } from '@/api/types'
 import { useAuthStore } from '@/features/auth/store'
 
 /**
@@ -93,7 +93,12 @@ async function errorFrom(res: Response): Promise<ApiError> {
   })
 }
 
-function post(conversationId: string, text: string, signal: AbortSignal): Promise<Response> {
+function post(
+  conversationId: string,
+  text: string,
+  context: CopilotContext | undefined,
+  signal: AbortSignal,
+): Promise<Response> {
   const token = useAuthStore.getState().accessToken
   return fetch(`${API_BASE}/copilot/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',
@@ -102,7 +107,7 @@ function post(conversationId: string, text: string, signal: AbortSignal): Promis
       Accept: 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(context ? { text, context } : { text }),
     signal,
   })
 }
@@ -117,15 +122,16 @@ export async function streamMessage(
   text: string,
   onEvent: (e: CopilotEvent) => void,
   signal: AbortSignal,
+  context?: CopilotContext,
 ): Promise<void> {
   let res: Response
   try {
-    res = await post(conversationId, text, signal)
+    res = await post(conversationId, text, context, signal)
     if (res.status === 401) {
       // An expired access token: refresh once (shared single-flight) and retry.
       if (!(await refreshSession()))
         throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Session ended' })
-      res = await post(conversationId, text, signal)
+      res = await post(conversationId, text, context, signal)
     }
   } catch (e) {
     if (e instanceof ApiError || signal.aborted) throw e

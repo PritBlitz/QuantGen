@@ -72,7 +72,7 @@ export interface V2State {
     status: 'ACTIVE' | 'RELEASED' | 'CAPTURED'
   }>
   requests: Array<PaymentRequestDto>
-  blocked: Array<{ userId: string; blockedHandle: string }>
+  blocked: Array<{ userId: string; blockedHandle: string; blockedAt?: string }>
   scheduled: Array<Owned<ScheduledTransferDto> & { toAccountNumber: string }>
   billers: BillerDto[]
   savedBillers: Array<Owned<SavedBillerDto> & { consumerNumber: string }>
@@ -81,7 +81,8 @@ export interface V2State {
     { userId: string; billerId: string; consumerNumber: string; amount: string; dueDate: string }
   >
   billPayments: Array<Owned<BillPaymentDto>>
-  groups: Array<GroupDto & { memberIds: string[] }>
+  /** `leftIds`: members who left (kept in the history, out of new expenses). */
+  groups: Array<GroupDto & { memberIds: string[]; leftIds?: string[] }>
   topups: Array<Owned<TopupDto>>
   goals: Map<string, GoalInfo>
   roundUps: Map<string, RoundUpRequest>

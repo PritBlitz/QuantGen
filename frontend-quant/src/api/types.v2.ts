@@ -35,6 +35,8 @@ export type ErrorCodeV2 =
   | 'AI_UNAVAILABLE'
   | 'AI_BUSY'
   | 'TOOL_LIMIT'
+  // Bill payments stopped by the fraud rules (backend 2026-10-25). Nothing moved.
+  | 'SUSPECTED_FRAUD'
 
 export type StepUpMethod = 'PASSKEY' | 'PIN'
 export type StepUpAction =
@@ -254,12 +256,20 @@ export interface BillPaymentDto {
   transactionId: Uuid
   createdAt: IsoDateTime
 }
+/** Someone whose requests you blocked (2026-10-25). `displayName` is masked by the server. */
+export interface BlockedRequesterDto {
+  handle: string
+  displayName: string
+  blockedAt: IsoDateTime
+}
 export type SplitType = 'EQUAL' | 'EXACT' | 'PERCENT'
 export interface SplitMemberDto {
   handle: string
   displayName: string
   /** Positive: the group owes them; negative: they owe the group. */
   balance: MoneyString
+  /** Left the group (2026-10-25): kept in its history, not in new expenses. */
+  left: boolean
 }
 export interface ExpenseDto {
   id: Uuid
@@ -449,6 +459,14 @@ export interface ChatMessageDto {
 }
 export interface ConversationDetailDto extends ConversationDto {
   messages: ChatMessageDto[]
+}
+/**
+ * Optional `context` on a message (§12.6 notes, 2026-10-25): the core renders the referenced
+ * item itself and shows it to the agent. The stored message is the user's text only.
+ */
+export interface CopilotContext {
+  type: 'AUTOPILOT_RUN'
+  id: Uuid
 }
 /** Server-Sent Events from POST /copilot/conversations/{id}/messages (§12.6). */
 export type CopilotEvent =

@@ -461,7 +461,7 @@ function LimitsPanel() {
         <>
           <div className="rounded-2xl bg-surface-2/60 p-4 hairline">
             <div className="flex items-baseline justify-between text-sm">
-              <span className="text-muted">Sent to others today</span>
+              <span className="text-muted">Used today (transfers, cards, bills)</span>
               <span className="num">
                 {formatINR(l.usedToday)} <span className="text-muted">/ {formatINR(l.daily)}</span>
               </span>

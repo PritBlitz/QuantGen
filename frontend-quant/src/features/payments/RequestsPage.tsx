@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Ban, Send } from 'lucide-react'
+import { ArrowDownToLine, Ban, Send, ShieldOff } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -20,7 +20,7 @@ import { AMOUNT_INPUT_RE, toDecimal } from '@/lib/money'
 import { formatRelative } from '@/lib/time'
 import { Avatar, PayTabs } from './components/PayBits'
 import { PayRequestDialog } from './components/PayRequestDialog'
-import { useInvalidatePayments, useRequests } from './hooks'
+import { useBlockedRequesters, useInvalidatePayments, useRequests } from './hooks'
 
 const STATUS: Record<PaymentRequestDto['status'], { label: string; tone: BadgeTone }> = {
   OPEN: { label: 'Open', tone: 'accent' },
@@ -57,12 +57,13 @@ export function RequestsPage() {
       />
       <PayTabs />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-5">
+        <div className="space-y-4 lg:col-span-5">
           {me.data && !me.data.handle ? (
             <NoHandle />
           ) : (
             <NewRequest onSent={() => void invalidate()} />
           )}
+          <BlockedList />
         </div>
         <div className="lg:col-span-7">
           <Tabs
@@ -256,6 +257,55 @@ function NewRequest({ onSent }: { onSent: () => void }) {
           <Send aria-hidden="true" /> {send.isPending ? 'Sending…' : 'Send request'}
         </Button>
       </form>
+    </Panel>
+  )
+}
+
+/** People whose requests you blocked; unblocking lets them ask you again. */
+function BlockedList() {
+  const blocked = useBlockedRequesters()
+  const invalidate = useInvalidatePayments()
+  const unblock = useMutation({
+    mutationFn: payApi.unblockRequester,
+    onSuccess: (_d, handle) => {
+      toast.success(`Unblocked ${handle}`)
+      void invalidate()
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  })
+  if (blocked.isError)
+    return <PanelError what="blocked people" onRetry={() => void blocked.refetch()} />
+  if (!blocked.data?.length) return null
+  return (
+    <Panel eyebrow="Privacy" title="Blocked">
+      <p className="mb-3 text-xs text-muted">
+        They can’t send you payment requests until you unblock them.
+      </p>
+      <ul className="space-y-2">
+        {blocked.data.map((b) => (
+          <li
+            key={b.handle}
+            className="flex items-center gap-3 rounded-xl bg-surface-2/50 p-3 hairline"
+          >
+            <Avatar name={b.displayName} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{b.displayName}</p>
+              <p className="num truncate text-xs text-muted">
+                {b.handle} · blocked {formatRelative(b.blockedAt)}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Unblock ${b.handle}`}
+              onClick={() => unblock.mutate(b.handle)}
+              disabled={unblock.isPending}
+            >
+              <ShieldOff aria-hidden="true" /> Unblock
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Panel>
   )
 }

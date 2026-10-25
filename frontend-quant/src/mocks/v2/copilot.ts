@@ -11,6 +11,7 @@ import type {
   ConversationDetailDto,
   IntentDto,
   IntentKind,
+  RuleRunDto,
   TraceDto,
 } from '@/api/types'
 import { BASE, db, error, idempotent, inr, last4, notify } from '../handlers'
@@ -35,6 +36,48 @@ interface Plan {
     stepUp: boolean
   }
   citations?: CitationDto[]
+}
+
+function findRun(
+  userId: string,
+  id: unknown,
+): { ruleId: string; ruleName: string; run: RuleRunDto } | null {
+  if (typeof id !== 'string') return null
+  for (const rule of db.v2.rules) {
+    if (rule.userId !== userId) continue
+    const run = db.v2.ruleRuns.get(rule.id)?.find((x) => x.id === id)
+    if (run) return { ruleId: rule.id, ruleName: rule.name, run }
+  }
+  return null
+}
+
+/** What the Autopilot specialist would say given the run the core rendered for it. */
+function explainRun(ruleId: string, ruleName: string, run: RuleRunDto): Plan {
+  const parts = run.actions.map((a) => {
+    const what = a.type.replace(/_/g, ' ').toLowerCase()
+    const amt = a.amount ? ` of ${inr(a.amount)}` : ''
+    return a.error
+      ? `the ${what}${amt} didn’t go through (${a.error})`
+      : `the ${what}${amt} went through`
+  })
+  const outcome =
+    run.outcome === 'SUCCEEDED'
+      ? 'Everything it was meant to do happened.'
+      : run.outcome === 'SKIPPED_CAP'
+        ? 'It was skipped because it would have gone over the rule’s spending cap.'
+        : run.outcome === 'FAILED'
+          ? 'It failed, so nothing moved.'
+          : run.outcome === 'PARTIAL'
+            ? 'Only part of it worked.'
+            : 'It’s still running.'
+  return {
+    steps: [
+      { agent: 'CONCIERGE', tool: 'ask_autopilot', ms: 250 },
+      { agent: 'PLANNER', tool: 'get_rule_run', ms: 400 },
+    ],
+    text: `“${ruleName}” (version ${run.ruleVersion}) ran because ${run.triggerSummary.charAt(0).toLowerCase()}${run.triggerSummary.slice(1)}. ${outcome}${parts.length ? ` In detail: ${parts.join('; ')}.` : ''}`,
+    citations: [{ type: 'RULE', id: ruleId, label: ruleName }],
+  }
 }
 
 function plan(userId: string, text: string): Plan {
@@ -323,14 +366,25 @@ export const copilotHandlers = [
       return error(503, 'FEATURE_DISABLED', 'Copilot is switched off', request)
     const c = conv(r.user.id, params.id)
     if (!c) return notFound(request, 'Conversation')
-    const b = (await request.json()) as { text?: unknown }
+    const b = (await request.json()) as { text?: unknown; context?: unknown }
     const text = typeof b.text === 'string' ? b.text.trim() : ''
     if (!text || text.length > 2000)
       return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
         { field: 'text', message: 'must be 1–2000 characters' },
       ])
     const user = r.user
-    const p = plan(user.id, text)
+    let p: Plan
+    if (b.context != null) {
+      // The core renders the run itself; someone else's or an unknown run is 404 (§12.6 notes).
+      const ctx = b.context as { type?: unknown; id?: unknown }
+      if (ctx.type !== 'AUTOPILOT_RUN')
+        return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+          { field: 'context.type', message: 'must be AUTOPILOT_RUN' },
+        ])
+      const found = findRun(user.id, ctx.id)
+      if (!found) return notFound(request, 'Run')
+      p = explainRun(found.ruleId, found.ruleName, found.run)
+    } else p = plan(user.id, text)
     const trace = newTrace(p.steps)
     db.v2.traces.set(trace.runId, trace)
     db.v2.aiCalls += 1

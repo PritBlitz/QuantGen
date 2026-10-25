@@ -37,14 +37,20 @@ export function moneyErrorCopy(
         const left = new Decimal(m[1])
         return {
           title: left.isZero()
-            ? 'You’ve reached today’s transfer limit.'
+            ? 'You’ve reached today’s limit.'
             : `You can send up to ${formatINR(left)} more today.`,
-          detail: 'Transfers to other people are limited to ₹5,00,000 per day.',
+          detail: 'The daily limit covers transfers to others, card payments and bills together.',
           next: 'edit',
         }
       }
       return { title: 'This is over a limit.', detail: e.message, next: 'edit' }
     }
+    case 'SUSPECTED_FRAUD':
+      // The server's message names the rule ("This payment looks unusual and was stopped: …").
+      return {
+        title: 'This payment was stopped.',
+        detail: `${e.message} Nothing moved. If it’s really you, try again later or contact support.`,
+      }
     case 'INSUFFICIENT_HOLDINGS':
       return {
         title: 'You don’t hold enough shares to sell that many.',

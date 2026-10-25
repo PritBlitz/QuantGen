@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Download, FileSearch, Plus, X } from 'lucide-react'
+import { ArrowLeftRight, Ban, Download, FileSearch, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useAccount, useTransactions } from '@/api/queries'
@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { todayIST } from '@/lib/time'
 import { AccountStatusBadge as StatusBadge } from './components/AccountStatusBadge'
+import { CloseAccountDialog } from './components/CloseAccountDialog'
 import { DepositDialog } from './components/DepositDialog'
 import { StatementDialog } from './components/StatementDialog'
 import { TransactionList } from './components/TransactionList'
@@ -33,6 +34,7 @@ export function AccountDetailPage() {
   const [to, setTo] = useState('')
   const [depositOpen, setDepositOpen] = useState(false)
   const [statementOpen, setStatementOpen] = useState(false)
+  const [closeOpen, setCloseOpen] = useState(false)
 
   const rangeError = from && to && from > to ? 'Start date is after end date' : undefined
   const query: TransactionQuery = {
@@ -91,6 +93,11 @@ export function AccountDetailPage() {
               {isEveryday(a) && (
                 <Button onClick={() => setDepositOpen(true)} disabled={a.status === 'CLOSED'}>
                   <Plus aria-hidden="true" /> Add money
+                </Button>
+              )}
+              {a.type !== 'FIXED_DEPOSIT' && a.status !== 'CLOSED' && (
+                <Button variant="ghost" onClick={() => setCloseOpen(true)}>
+                  <Ban aria-hidden="true" /> Close
                 </Button>
               )}
             </>
@@ -204,6 +211,7 @@ export function AccountDetailPage() {
         <>
           <DepositDialog account={a} open={depositOpen} onOpenChange={setDepositOpen} />
           <StatementDialog account={a} open={statementOpen} onOpenChange={setStatementOpen} />
+          <CloseAccountDialog account={a} open={closeOpen} onOpenChange={setCloseOpen} />
         </>
       )}
     </div>

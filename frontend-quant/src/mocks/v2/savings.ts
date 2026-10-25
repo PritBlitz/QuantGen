@@ -8,7 +8,16 @@ import type {
   ForecastDto,
   TransactionDto,
 } from '@/api/types'
-import { BASE, db, error, idempotent, isMoney, last4, ownAccounts } from '../handlers'
+import {
+  BASE,
+  db,
+  error,
+  idempotent,
+  isMoney,
+  last4,
+  ownAccounts,
+  publicAccount,
+} from '../handlers'
 import {
   addDays,
   available,
@@ -121,6 +130,58 @@ function fdView({
 }
 
 export const savingsHandlers = [
+  // Closing an account (§7.3, added 2026-10-25). Step-up SECURITY_SETTINGS; FDs use their own close.
+  http.post(`${BASE}/accounts/:id/close`, ({ request, params }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    const acc = ownAccount(r.user.id, params.id)
+    if (!acc) return notFound(request, 'Account')
+    if (acc.type === 'FIXED_DEPOSIT')
+      return error(400, 'VALIDATION_FAILED', 'Close a fixed deposit from its own page', request)
+    if (acc.status === 'CLOSED')
+      return error(409, 'INVALID_STATE', 'This account is already closed', request)
+    if (acc.status === 'FROZEN') return error(422, 'ACCOUNT_FROZEN', 'Account is frozen', request)
+    const gate = stepUpGate(request, r.user, 'SECURITY_SETTINGS')
+    if (gate) return gate
+    const blockers: string[] = []
+    if (!new Decimal(acc.balance).isZero()) blockers.push('the balance isn’t ₹0')
+    if (db.v2.holds.some((h) => h.accountId === acc.id && h.status === 'ACTIVE'))
+      blockers.push('money is on hold')
+    if (
+      db.loans.some(
+        (l) =>
+          l.disburseAccountId === acc.id && ['PENDING', 'APPROVED', 'ACTIVE'].includes(l.status),
+      )
+    )
+      blockers.push('a loan uses it')
+    if (db.v2.fds.some((f) => f.fromAccountId === acc.id && f.status === 'ACTIVE'))
+      blockers.push('a fixed deposit pays out to it')
+    if (
+      db.v2.scheduled.some(
+        (s) => s.fromAccountId === acc.id && (s.status === 'ACTIVE' || s.status === 'PAUSED'),
+      )
+    )
+      blockers.push('a scheduled transfer uses it')
+    if (db.v2.rules.some((x) => x.userId === r.user.id && JSON.stringify(x.rule).includes(acc.id)))
+      blockers.push('an Autopilot rule uses it')
+    if ([...db.v2.handles.values()].some((h) => h.accountId === acc.id))
+      blockers.push('your handle receives money into it')
+    if (
+      db.v2.roundUps.get(acc.id)?.enabled ||
+      [...db.v2.roundUps.values()].some((x) => x.enabled && x.goalAccountId === acc.id)
+    )
+      blockers.push('round-ups use it')
+    if (blockers.length)
+      return error(
+        409,
+        'INVALID_STATE',
+        `This account can’t be closed yet: ${blockers.join('; ')}.`,
+        request,
+      )
+    acc.status = 'CLOSED'
+    for (const c of db.v2.cards) if (c.accountId === acc.id) c.status = 'FROZEN'
+    return json(publicAccount(acc))
+  }),
   http.get(`${BASE}/accounts/:id/round-up`, ({ request, params }) => {
     const r = requireUser(request)
     if (!r.user) return r.res
