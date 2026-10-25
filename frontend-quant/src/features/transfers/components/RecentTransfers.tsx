@@ -1,12 +1,14 @@
 import { ArrowUpRight, Send } from 'lucide-react'
 import { useTransfers } from '@/api/queries'
 import { Money } from '@/components/Money'
+import { ReceiptButton } from '@/components/money/ReceiptButton'
 import { EmptyState } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { maskShort } from '@/lib/mask'
+import { transferReceipt } from '@/lib/receipts'
 import { formatRelative } from '@/lib/time'
 
 export function RecentTransfers() {
@@ -46,6 +48,17 @@ export function RecentTransfers() {
                     </Badge>
                   )}
                 </div>
+                {t.status === 'COMPLETED' && (
+                  <ReceiptButton
+                    receipt={transferReceipt(t)}
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Download receipt for ${t.toName}`}
+                    title="Download receipt"
+                  >
+                    {null}
+                  </ReceiptButton>
+                )}
               </li>
             ))}
           </ul>

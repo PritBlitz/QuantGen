@@ -1,0 +1,25 @@
+/*
+ * Payment receipts (F-PAY-13). While a receipt is printing, <html> has `printing-receipt` and
+ * only `#receipt-root` is printed, in plain black on white whatever the theme.
+ */
+#receipt-root {
+  display: none;
+}
+
+@media print {
+  html.printing-receipt body > *:not(#receipt-root) {
+    display: none !important;
+  }
+  html.printing-receipt #receipt-root {
+    display: block;
+    color: #111;
+    background: #fff;
+  }
+  html.printing-receipt,
+  html.printing-receipt body {
+    background: #fff !important;
+  }
+  @page {
+    margin: 18mm;
+  }
+}

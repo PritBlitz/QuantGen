@@ -32,6 +32,7 @@ import { FormField } from '@/components/FormField'
 import { Money } from '@/components/Money'
 import { MoneyErrorAlert } from '@/components/money/MoneyErrorAlert'
 import { ReviewAmount, ReviewRow, ReviewRows } from '@/components/money/Review'
+import { ReceiptButton } from '@/components/money/ReceiptButton'
 import { SuccessCheck } from '@/components/money/SuccessCheck'
 import { EmptyState, PageHeader } from '@/components/PageHeader'
 import { Panel, PanelError } from '@/components/Panel'
@@ -42,6 +43,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { accountLabel } from '@/features/accounts/labels'
 import { toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
+import { billReceipt } from '@/lib/receipts'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
 import { formatDate, formatRelative } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -314,6 +316,12 @@ function PayBill({ biller, saved }: { biller: BillerDto; saved?: SavedBillerDto 
           <p className="num text-xs text-muted">
             Receipt {action.result.id.slice(0, 8).toUpperCase()}
           </p>
+          <ReceiptButton
+            receipt={billReceipt(
+              action.result,
+              accounts.data?.find((a) => a.id === action.result?.fromAccountId)?.accountNumber,
+            )}
+          />
         </div>
       </Panel>
     )

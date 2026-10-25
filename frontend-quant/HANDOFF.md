@@ -1,6 +1,26 @@
 # Frontend → Backend handoff
 
-## 2026-10-25: what's live, what's waiting to flip  ← READ THIS FIRST
+## 2026-10-25 (later, session quantgen-b9): backend gap closes integrated  ← READ THIS FIRST
+The backend session was `backend-quant-cf`. :8080 stayed down all session (owner's call), so everything below is
+**mocked and unit-tested, not yet verified live**.
+- `875f18e` backend `bbb2f66` integrated: close account (`POST /accounts/{id}/close`, step-up via the interceptor,
+  the 409 blocker list shown verbatim; button on the account page, not for FDs), blocked requesters
+  (`GET/DELETE /payment-requests/blocked`, panel on Requests), leave split group (`POST /split-groups/{id}/leave`,
+  `MemberDto.left`), "Explain this run" sends `context: {type: "AUTOPILOT_RUN", id}`, `SUSPECTED_FRAUD` on bills,
+  `EXPIRED` sandbox holds, daily-limit copy for all three channels. Fraud memos needed no change (shape already
+  matched).
+- `71b94e1` backend `a65c28c` F-RISK-5 underwriting: `extracted[].documentId` (file name next to the page), `runId`
+  (trace link), field enum labels, FAILED shows the server's flag.
+- F-PAY-13 receipts: client-side, from TransferDto/BillPaymentDto (masked in `lib/receipts.ts`), printed via
+  `#receipt-root` + `styles/print.css` so the browser saves the PDF. No endpoint, no dependency.
+- All five new endpoints sit under prefixes already live in `live.ts`, so on a backend older than bbb2f66 they'd 404.
+  Nothing to flip for them; just verify once :8080 runs bbb2f66+.
+- **Still waiting for :8080 (+ agent-quant :8090):** F-CARD-4, `/copilot/`, `/intents`, `/admin/ai`,
+  `/autopilot/compile` flips (see the next section), plus a live e2e for close/leave/unblock.
+- F-UX-5 Hindi: **dropped by the owner (2026-10-25)**, English only. Not built, need an owner decision: F-TRD-12 crypto feed (no contract; which free
+  feed, and through the backend or not), F-RISK-6 reconcile explainer (backend agent, no contract).
+
+## 2026-10-25: what's live, what's waiting to flip
 
 - **Live and verified on :8080:** `V2-M5-extended` (budget trigger, round-up sweep; e071c76) and `V2-M5-bills`
   (saved billers + PAY_BILL; 61cebc8, live e2e). The live file is 10 tests, run **in order**

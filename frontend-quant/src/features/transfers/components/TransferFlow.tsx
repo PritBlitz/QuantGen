@@ -12,6 +12,7 @@ import { Money } from '@/components/Money'
 import { AmountInput } from '@/components/money/AmountInput'
 import { MoneyErrorAlert } from '@/components/money/MoneyErrorAlert'
 import { ReviewAmount, ReviewRow, ReviewRows } from '@/components/money/Review'
+import { ReceiptButton } from '@/components/money/ReceiptButton'
 import { SuccessCheck } from '@/components/money/SuccessCheck'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/input'
@@ -22,6 +23,7 @@ import { maskShort } from '@/lib/mask'
 import { formatINR, toDecimal } from '@/lib/money'
 import { useMoneyAction } from '@/lib/moneyAction'
 import { moneyErrorCopy } from '@/lib/moneyErrors'
+import { transferReceipt } from '@/lib/receipts'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { cn } from '@/lib/utils'
 import {
@@ -295,6 +297,7 @@ export function TransferFlow({
         </div>
         <p className="num text-xs text-muted">Reference {t.id.slice(0, 8).toUpperCase()}</p>
         <div className="flex flex-col justify-center gap-2 sm:flex-row">
+          <ReceiptButton receipt={transferReceipt(t)} />
           <Button
             variant="secondary"
             onClick={() => {
