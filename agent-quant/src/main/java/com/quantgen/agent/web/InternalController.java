@@ -130,6 +130,13 @@ public class InternalController {
         return memo(secret, req, runner::underwritingMemo);
     }
 
+    /** F-RISK-6: an explanation of a reconciliation mismatch from the account's latest entries (core-gathered). */
+    @PostMapping("/internal/v1/memos/reconcile")
+    public ResponseEntity<Map<String, Object>> reconcileExplanation(
+            @RequestHeader(value = SECRET_HEADER, required = false) String secret, @RequestBody MemoRequest req) {
+        return memo(secret, req, runner::reconcileExplanation);
+    }
+
     private ResponseEntity<Map<String, Object>> memo(String secret, MemoRequest req,
                                                      java.util.function.BiFunction<Turn, JsonNode, JsonNode> writer) {
         HttpStatus refused = refuse(secret, "back-office", "memo");
