@@ -1,6 +1,19 @@
 # Frontend → Backend handoff
 
-## 2026-10-25 (later, session quantgen-b9): backend gap closes integrated  ← READ THIS FIRST
+## 2026-10-25 (evening, quantgen-b9): :8080 back up, live 12/12  ← READ THIS FIRST
+- The owner approved the restart; the backend runs **34eeb65** on :8080 (dev DB V32) and agent-quant on :8090. All
+  6 flags are off (`crypto` is new). The stale root compose stack (:8088) was stopped at the owner's request (containers
+  and volumes kept: `docker start quantgen-db-1 quantgen-api-1 quantgen-web-1`).
+- **Live now:** F-CARD-4 disputes, `/admin/ai` (bac1a48). The full live e2e file passes **12/12** (new: "card
+  disputes", "gap closes"). Bug found live and fixed: the sandbox didn't refresh the card's payment list after capture.
+- `ee51e1f`: F-TRD-12 crypto panel (Markets, `crypto` flag), F-POB-6 anchor link (proof page; `anchor` is null on dev),
+  F-RISK-6 reconcile explanations, F-MCP-1 "Connect Claude Desktop" card. `tokens` on `/admin/ai/usage` is one number
+  (pinned). Shapes checked on :8080. Compose: the api already has egress via `edge`, so CoinGecko needs no change.
+- **Still mocked, waiting for the backend's "AI answering" ping** (its eval run holds the free-tier quota):
+  `/copilot/`, `/intents`, `/autopilot/compile`. Flip them together (see the `live.ts` comment), then add a live
+  copilot e2e. My vite for live runs: `npx vite --port 5197 --strictPort`.
+
+## 2026-10-25 (later, session quantgen-b9): backend gap closes integrated
 The backend session was `backend-quant-cf`. :8080 stayed down all session (owner's call), so everything below is
 **mocked and unit-tested, not yet verified live**.
 - `875f18e` backend `bbb2f66` integrated: close account (`POST /accounts/{id}/close`, step-up via the interceptor,
