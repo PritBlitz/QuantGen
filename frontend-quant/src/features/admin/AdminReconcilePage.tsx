@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, Link2, Loader2, Play, Scale } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { proofApi } from '@/api/endpoints.v2'
 import { errorMessage, toApiError } from '@/api/errors'
+import type { ChainVerifyFrom } from '@/api/types'
 import { useReconcile } from '@/api/queries'
 import { Money } from '@/components/Money'
 import { PageHeader } from '@/components/PageHeader'
@@ -191,15 +192,12 @@ export function AdminReconcilePage() {
 
 /**
  * Proof of Balance back office (PRD §12.10): the ledger hash chain is intact, and assets cover
- * customer balances. Both run on demand (the chain check walks every seal).
+ * customer balances. Both run on demand. A full check walks every seal from genesis; a quick
+ * check starts at the last checkpoint, so it can't see an edit made before it (F-POB-4).
  */
 function IntegrityChecks() {
-  const chain = useQuery({
-    queryKey: ['admin', 'verify-chain'],
-    queryFn: proofApi.verifyChain,
-    enabled: false,
-    retry: false,
-  })
+  const chain = useMutation({ mutationFn: (from: ChainVerifyFrom) => proofApi.verifyChain(from) })
+  const fromPos = chain.data?.fromPosition
   const solvency = useQuery({
     queryKey: ['admin', 'solvency'],
     queryFn: proofApi.solvency,
@@ -212,22 +210,33 @@ function IntegrityChecks() {
           <div>
             <h2 className="font-medium">Hash chain</h2>
             <p className="mt-1 text-sm text-muted">
-              Re-hashes every sealed journal entry and checks each link.
+              Re-hashes sealed journal entries and checks each link. The quick check starts at the
+              last checkpoint; only a full check catches an edit made before it.
             </p>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void chain.refetch()}
-            disabled={chain.isFetching}
-          >
-            {chain.isFetching ? (
-              <Loader2 className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Link2 aria-hidden="true" />
-            )}
-            {chain.data ? 'Verify again' : 'Verify chain'}
-          </Button>
+          <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => chain.mutate('CHECKPOINT')}
+              disabled={chain.isPending}
+            >
+              Quick check
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => chain.mutate('GENESIS')}
+              disabled={chain.isPending}
+            >
+              {chain.isPending ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Link2 aria-hidden="true" />
+              )}
+              Full check
+            </Button>
+          </div>
         </div>
         <div aria-live="polite" className="mt-4 text-sm">
           {chain.isError ? (
@@ -237,6 +246,10 @@ function IntegrityChecks() {
               <p className="flex items-center gap-2 text-gain">
                 <CircleCheck aria-hidden="true" className="size-4" /> Intact through seal #
                 {chain.data.checkedUpTo.toLocaleString('en-IN')}
+                {fromPos != null &&
+                  (fromPos <= 1
+                    ? ' (from genesis)'
+                    : ` (from checkpoint #${fromPos.toLocaleString('en-IN')})`)}
               </p>
             ) : (
               <p role="alert" className="flex items-center gap-2 text-loss">
@@ -245,7 +258,7 @@ function IntegrityChecks() {
               </p>
             )
           ) : (
-            <p className="text-muted">{chain.isFetching ? 'Walking the chain…' : 'Not run yet.'}</p>
+            <p className="text-muted">{chain.isPending ? 'Walking the chain…' : 'Not run yet.'}</p>
           )}
         </div>
       </Card>

@@ -6,7 +6,7 @@
 import { delay, http } from 'msw'
 import type { BalanceProofDto, ProofRootDto } from '@/api/types'
 import { leafNode, parentNode, sha256Hex, type HashedNode } from '@/lib/merkle'
-import { BASE, db } from '../handlers'
+import { BASE, db, error } from '../handlers'
 import { addDays, Decimal, json, notFound, requireAdmin, requireUser, todayIst } from './common'
 
 interface Snapshot {
@@ -114,10 +114,17 @@ export const proofHandlers = [
     await delay(900)
     const r = requireAdmin(request)
     if (!r.user) return r.res
+    const from = new URL(request.url).searchParams.get('from') ?? 'GENESIS'
+    if (from !== 'GENESIS' && from !== 'CHECKPOINT')
+      return error(400, 'VALIDATION_FAILED', 'Request validation failed', request, [
+        { field: 'from', message: 'must be GENESIS or CHECKPOINT' },
+      ])
+    const head = 48210 + db.transactions.length
     return json({
       intact: true,
-      checkedUpTo: 48210 + db.transactions.length,
+      checkedUpTo: head,
       firstBrokenPosition: null,
+      fromPosition: from === 'CHECKPOINT' ? head - 37 : 1,
     })
   }),
   http.get(`${BASE}/admin/ledger/solvency`, async ({ request }) => {

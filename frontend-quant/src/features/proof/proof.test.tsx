@@ -81,9 +81,14 @@ describe('Proof of Balance', () => {
     renderApp('/admin/reconcile')
     expect(await screen.findByText('Solvency')).toBeInTheDocument()
     expect(await screen.findByText(/×$/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Verify chain' }))
+    await user.click(screen.getByRole('button', { name: 'Full check' }))
     expect(
-      await screen.findByText(/Intact through seal/, {}, { timeout: 5000 }),
+      await screen.findByText(/Intact through seal.*\(from genesis\)/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    // The quick check starts at the last checkpoint and says so.
+    await user.click(screen.getByRole('button', { name: 'Quick check' }))
+    expect(
+      await screen.findByText(/\(from checkpoint #[\d,]+\)/, {}, { timeout: 5000 }),
     ).toBeInTheDocument()
   })
 })

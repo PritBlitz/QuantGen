@@ -783,7 +783,11 @@ export interface ChainVerifyDto {
   intact: boolean
   checkedUpTo: number
   firstBrokenPosition: number | null
+  /** Where the check started (added 2026-10-25): `1` = genesis, higher = the last checkpoint. */
+  fromPosition?: number
 }
+/** `CHECKPOINT` re-checks the last checkpoint's seal and only what came after it (F-POB-4). */
+export type ChainVerifyFrom = 'GENESIS' | 'CHECKPOINT'
 export interface SolvencyDto {
   totalLiabilities: MoneyString
   totalAssets: MoneyString

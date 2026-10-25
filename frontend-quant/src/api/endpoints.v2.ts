@@ -32,6 +32,7 @@ import type {
   CardRevealDto,
   CashflowDto,
   ChainVerifyDto,
+  ChainVerifyFrom,
   CohortsDto,
   CompileResultDto,
   ConversationDetailDto,
@@ -411,7 +412,8 @@ export const proofApi = {
     api
       .get<BalanceProofDto>(`/proofs/accounts/${seg(accountId)}`, { params: date ? { date } : {} })
       .then(data),
-  verifyChain: () => api.get<ChainVerifyDto>('/admin/ledger/verify-chain').then(data),
+  verifyChain: (from: ChainVerifyFrom = 'GENESIS') =>
+    api.get<ChainVerifyDto>('/admin/ledger/verify-chain', { params: { from } }).then(data),
   solvency: () => api.get<SolvencyDto>('/admin/ledger/solvency').then(data),
 }
 
