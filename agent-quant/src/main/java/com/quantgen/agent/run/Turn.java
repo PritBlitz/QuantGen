@@ -28,6 +28,8 @@ public final class Turn {
     int inputTokens;
     int outputTokens;
     String agent = "CONCIERGE";
+    /** Set when the user's message tries to override the assistant's rules: no proposal this turn. */
+    boolean proposalsBlocked;
     private final Set<String> seen = new HashSet<>();
 
     public Turn(String token, UUID conversationId, Sink sink, int maxToolCalls) {
