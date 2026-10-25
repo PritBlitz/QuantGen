@@ -199,6 +199,27 @@ export const riskHandlers = [
         recommendation: null,
         generatedAt: null,
       })
+    const doc = docs[0]?.id
+    const runId = `ua-${loan.id}`
+    if (!db.v2.traces.has(runId))
+      db.v2.traces.set(runId, {
+        runId,
+        startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+        totalMs: 2140,
+        costUsd: '0.00',
+        steps: [
+          {
+            agent: 'UNDERWRITING_ANALYST',
+            kind: 'MODEL',
+            name: 'write_memo',
+            status: 'OK',
+            latencyMs: 2140,
+            inputTokens: 6200,
+            outputTokens: 540,
+            detail: 'Read 2 pages; 4 figures, each checked against its page.',
+          },
+        ],
+      })
     const rnd = prng(loan.amount.length * 977)
     const stated = income.times(0.93 + rnd() * 0.05).toDecimalPlaces(0)
     const gap = income.minus(stated).div(income).times(100).toDecimalPlaces(1)
@@ -207,14 +228,15 @@ export const riskHandlers = [
       status: 'READY',
       memo: `Salary slips show a net monthly income of about ${inr(stated)}, ${gap.toString()}% below the declared ${inr(income)} (within normal deductions). Existing obligations: one consumer EMI of ₹4,200. The requested EMI of ${inr(loan.emi)} is ${emiRatio.toString()}% of verified income, inside the 50% rule. Employment appears stable (same employer for 3 slips). Recommend approval; consider asking for one more month of statements if the amount is above ₹5,00,000.`,
       extracted: [
-        { field: 'Employer', value: 'ACME Technologies Pvt Ltd', page: 1 },
-        { field: 'Net pay (Aug)', value: inr(stated), page: 1 },
-        { field: 'Net pay (Sep)', value: inr(stated.plus(310)), page: 2 },
-        { field: 'Other EMI', value: '₹4,200.00', page: 2 },
+        { field: 'EMPLOYER', value: 'ACME Technologies Pvt Ltd', page: 1, documentId: doc },
+        { field: 'MONTHLY_NET_INCOME', value: inr(stated), page: 1, documentId: doc },
+        { field: 'MONTHLY_NET_INCOME', value: inr(stated.plus(310)), page: 2, documentId: doc },
+        { field: 'EXISTING_EMI', value: '₹4,200.00', page: 2, documentId: doc },
       ],
       flags: gap.gt(10) ? ['Verified income is more than 10% below the declared income.'] : [],
       recommendation: emiRatio.gt(50) ? 'REJECT' : gap.gt(10) ? 'REVIEW' : 'APPROVE',
       generatedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+      runId,
     })
   }),
 

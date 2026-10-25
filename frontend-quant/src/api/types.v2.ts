@@ -643,13 +643,31 @@ export interface LoanDocumentDto {
   sizeBytes: number
   uploadedAt: IsoDateTime
 }
+/** F-RISK-5 (backend a65c28c). Unknown values are shown as sent. */
+export type UnderwritingField =
+  | 'MONTHLY_GROSS_INCOME'
+  | 'MONTHLY_NET_INCOME'
+  | 'EMPLOYER'
+  | 'EXISTING_EMI'
+  | 'OTHER_OBLIGATION'
+  | 'STATEMENT_PERIOD'
+  | 'AVERAGE_BALANCE'
 export interface UnderwritingDto {
   status: 'PENDING' | 'READY' | 'FAILED'
+  /** Plain text written by the agent: render as text only. */
   memo: string | null
-  extracted: Array<{ field: string; value: string; page: number }>
+  /** `documentId` (added 2026-10-25) matches GET /loans/{id}/documents. */
+  extracted: Array<{
+    field: UnderwritingField | string
+    value: string
+    page: number
+    documentId?: Uuid
+  }>
   flags: string[]
   recommendation: 'APPROVE' | 'REJECT' | 'REVIEW' | null
   generatedAt: IsoDateTime | null
+  /** The agent run (added 2026-10-25): `/admin/ai/runs/{runId}`; null until a run. */
+  runId?: Uuid | null
 }
 export interface AiUsageDto {
   tokens: { input: number; output: number }

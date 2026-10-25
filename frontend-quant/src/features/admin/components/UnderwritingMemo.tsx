@@ -1,9 +1,10 @@
 import { ChevronDown, FileText, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { errorMessage } from '@/api/errors'
-import type { UnderwritingDto } from '@/api/types'
+import type { UnderwritingDto, UnderwritingField } from '@/api/types'
 import { Badge, type BadgeTone } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TraceDialog } from '@/features/copilot/components/TraceDialog'
 import { formatRelative } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useLoanDocuments, useUnderwriting } from '../riskHooks'
@@ -17,15 +18,28 @@ const REC: Record<
   REVIEW: { label: 'Suggests a closer look', tone: 'warn' },
 }
 
+const FIELD: Record<UnderwritingField, string> = {
+  MONTHLY_GROSS_INCOME: 'Monthly gross income',
+  MONTHLY_NET_INCOME: 'Monthly net income',
+  EMPLOYER: 'Employer',
+  EXISTING_EMI: 'Existing EMI',
+  OTHER_OBLIGATION: 'Other obligation',
+  STATEMENT_PERIOD: 'Statement period',
+  AVERAGE_BALANCE: 'Average balance',
+}
+const fieldLabel = (f: string) => FIELD[f as UnderwritingField] ?? f
+
 /**
  * The Underwriting Analyst's memo for a pending loan (F-RISK-4), loaded on demand. Advisory
  * only: the admin decides, and the memo's figures cite the document page they came from.
  */
 export function UnderwritingMemo({ loanId }: { loanId: string }) {
   const [open, setOpen] = useState(false)
+  const [trace, setTrace] = useState<string | null>(null)
   const memo = useUnderwriting(loanId, open)
   const docs = useLoanDocuments(loanId)
   const u = memo.data
+  const docName = (id?: string) => (id ? docs.data?.find((d) => d.id === id)?.fileName : undefined)
   return (
     <div className="mt-4 rounded-[var(--radius-control)] bg-violet/[0.06] hairline">
       <button
@@ -56,7 +70,8 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
             </p>
           ) : u.status === 'FAILED' ? (
             <p className="text-muted">
-              The AI couldn’t read these documents. Review them yourself; the memo is optional.
+              {u.flags[0] ??
+                'The AI couldn’t read these documents. Review them yourself; the memo is optional.'}
             </p>
           ) : (
             <>
@@ -80,19 +95,33 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
                 <table className="w-full text-xs">
                   <caption className="sr-only">Figures read from the documents</caption>
                   <tbody>
-                    {u.extracted.map((x) => (
-                      <tr key={`${x.field}-${x.page}`} className="border-t border-border">
+                    {u.extracted.map((x, i) => (
+                      <tr
+                        key={`${x.field}-${x.documentId ?? ''}-${x.page}-${i}`}
+                        className="border-t border-border"
+                      >
                         <th scope="row" className="py-1.5 pr-3 text-left font-normal text-muted">
-                          {x.field}
+                          {fieldLabel(x.field)}
                         </th>
                         <td className="py-1.5 pr-3">{x.value}</td>
-                        <td className="py-1.5 text-right text-muted">p. {x.page}</td>
+                        <td className="py-1.5 text-right text-muted">
+                          {docName(x.documentId) ? `${docName(x.documentId)}, ` : ''}p. {x.page}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </>
+          )}
+          {u?.runId && u.status !== 'PENDING' && (
+            <button
+              type="button"
+              onClick={() => setTrace(u.runId ?? null)}
+              className="text-xs text-muted hover:text-violet"
+            >
+              See how it was written →
+            </button>
           )}
           {docs.data && docs.data.length > 0 && (
             <ul className="flex flex-wrap gap-1.5">
@@ -108,6 +137,7 @@ export function UnderwritingMemo({ loanId }: { loanId: string }) {
           )}
         </div>
       )}
+      {trace && <TraceDialog runId={trace} admin onClose={() => setTrace(null)} />}
     </div>
   )
 }
