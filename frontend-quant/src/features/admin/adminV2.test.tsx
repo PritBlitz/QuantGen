@@ -169,3 +169,39 @@ describe('loan documents and underwriting (Admin v2)', () => {
     expect(db.loans.find((l) => l.id === PRIYA_LOAN)?.status).toBe('PENDING')
   })
 })
+
+describe('reconcile explainer (F-RISK-6)', () => {
+  it('shows the advisory draft for a mismatch, as text, with its trace', async () => {
+    server.use(
+      http.get('/api/v1/admin/ledger/reconcile', () =>
+        HttpResponse.json({
+          balanced: false,
+          ledgerSum: '0.0000',
+          mismatches: [
+            {
+              ledgerAccountId: 'a1000000-0000-4000-8000-000000000001',
+              code: 'BANK_CASH',
+              cachedBalance: '1000.0000',
+              computedBalance: '900.0000',
+              explanation: {
+                summary: '<b>not html</b> The cached balance was bumped without a ledger line.',
+                likelyCause: 'A cache update without a posting',
+                affectedEntries: ['e1000000-0000-4000-8000-000000000001'],
+                runId: null,
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    signInAs('ADMIN')
+    const user = userEvent.setup()
+    renderApp('/admin/reconcile')
+    await user.click(await screen.findByRole('button', { name: 'Run reconciliation' }))
+    expect(await screen.findByText('A cache update without a posting')).toBeInTheDocument()
+    // Model text is rendered as text, never as markup.
+    expect(screen.getByText(/<b>not html<\/b>/)).toBeInTheDocument()
+    expect(screen.getByText('e1000000')).toBeInTheDocument()
+    expect(screen.getByText(/AI-written, advisory/)).toBeInTheDocument()
+  })
+})

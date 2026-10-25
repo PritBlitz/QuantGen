@@ -360,8 +360,46 @@ function LatestRoot({ root }: { root: ProofRootDto }) {
             #{root.chainHead.position.toLocaleString('en-IN')} · {short(root.chainHead.hash)}
           </dd>
         </div>
+        {root.anchor && (
+          <div className="col-span-2">
+            <dt className="text-xs text-muted">Also recorded in git</dt>
+            <dd className="mt-0.5 text-xs">
+              <AnchorLink anchor={root.anchor} /> ·{' '}
+              <code className="num">roots/{root.date}.json</code>
+              <span className="block text-muted">
+                Anyone can check that file holds this same root, so it can’t be changed later
+                without it showing.
+              </span>
+            </dd>
+          </div>
+        )}
       </dl>
     </Panel>
+  )
+}
+
+const COMMIT_RE = /^[0-9a-f]{40}$/
+
+/**
+ * The anchor commit. A link only for an https repo and a 40-hex SHA; anything else is shown as
+ * text, so a misconfigured repo URL can't become a `javascript:` link.
+ */
+function AnchorLink({ anchor }: { anchor: NonNullable<ProofRootDto['anchor']> }) {
+  const sha = anchor.commit.slice(0, 7)
+  let href: string | null = null
+  try {
+    const u = new URL(anchor.repo)
+    if (u.protocol === 'https:' && COMMIT_RE.test(anchor.commit))
+      href = `${u.origin}${u.pathname.replace(/\.git$|\/$/g, '')}/commit/${anchor.commit}`
+  } catch {
+    href = null
+  }
+  return href ? (
+    <a href={href} target="_blank" rel="noreferrer noopener" className="num underline">
+      commit {sha}
+    </a>
+  ) : (
+    <span className="num">commit {sha}</span>
   )
 }
 
@@ -372,7 +410,10 @@ function History({ roots }: { roots: ProofRootDto[] }) {
         {roots.map((r) => (
           <li key={r.date} className="flex items-baseline justify-between gap-3 py-2">
             <span>{formatDate(r.date)}</span>
-            <code className="num truncate text-xs text-muted">{short(r.root)}</code>
+            <code className="num truncate text-xs text-muted">
+              {short(r.root)}
+              {r.anchor && <span className="ml-1.5 text-gain">· in git</span>}
+            </code>
             <Money value={r.totalLiabilities} className="shrink-0 text-xs" />
           </li>
         ))}

@@ -45,6 +45,7 @@ export const securityHandlers = [
       razorpay: f.razorpay.enabled,
       cards: f.cards.enabled,
       mcp: f.mcp.enabled,
+      crypto: f.crypto.enabled,
     })
   }),
   http.get(`${BASE}/admin/feature-flags`, ({ request }) => {

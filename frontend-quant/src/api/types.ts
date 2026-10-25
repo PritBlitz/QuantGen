@@ -383,6 +383,16 @@ export interface ReconcileMismatch {
   cachedBalance: MoneyString
   /** Sum of the account's ledger lines. */
   computedBalance: MoneyString
+  /**
+   * F-RISK-6 (added 2026-10-25): the agent's advisory draft, written within a minute or so with the
+   * `ai` flag on; `null` until then or after 3 failures. Plain text: render as text only.
+   */
+  explanation?: {
+    summary: string
+    likelyCause: string
+    affectedEntries: Uuid[]
+    runId: Uuid | null
+  } | null
 }
 
 export interface ReconcileDto {

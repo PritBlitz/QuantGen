@@ -150,3 +150,22 @@ describe('order ticket', () => {
     expect(db.orders).toHaveLength(1)
   })
 })
+
+describe('live crypto prices (F-TRD-12)', () => {
+  it('shows read-only prices when the flag is on, and nothing when it is off', async () => {
+    signIn()
+    db.v2.flags.crypto.enabled = true
+    const { unmount } = renderApp('/markets')
+    const panel = await screen.findByRole('heading', { name: 'Crypto' })
+    const card = panel.closest('div.mt-6, section, [aria-labelledby]') as HTMLElement
+    expect(await within(card).findByText('BTC')).toBeInTheDocument()
+    expect(within(card).getByText('24h n/a')).toBeInTheDocument() // XRP comes without a change
+    expect(within(card).queryByRole('button', { name: /buy|trade/i })).not.toBeInTheDocument()
+    unmount()
+
+    db.v2.flags.crypto.enabled = false
+    renderApp('/markets')
+    expect(await screen.findByRole('heading', { name: 'Markets' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Crypto' })).not.toBeInTheDocument()
+  })
+})

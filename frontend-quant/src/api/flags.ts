@@ -9,6 +9,7 @@ export const FLAGS_OFF: FeatureFlagsDto = {
   razorpay: false,
   cards: false,
   mcp: false,
+  crypto: false,
 }
 
 /**
@@ -27,5 +28,5 @@ export function useFlags(): FeatureFlagsDto {
 }
 
 export function useFlag(flag: FeatureFlag): boolean {
-  return useFlags()[flag]
+  return useFlags()[flag] === true
 }

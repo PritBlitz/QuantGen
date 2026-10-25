@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { toDecimal } from '@/lib/money'
 import { cn } from '@/lib/utils'
+import { CryptoPrices } from './components/CryptoPrices'
 import { FeedBadge } from './components/FeedBadge'
 import { AllAlertsList } from './components/PriceAlerts'
 import { ALL_INSTRUMENTS, ManageWatchlistsDialog } from './components/Watchlists'
@@ -300,6 +301,7 @@ export function MarketsPage() {
           )}
         </div>
       </Card>
+      <CryptoPrices />
       <AllAlertsList />
     </div>
   )

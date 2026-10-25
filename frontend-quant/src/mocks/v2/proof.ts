@@ -77,7 +77,19 @@ export const proofHandlers = [
     await delay(200)
     const today = todayIst()
     const out: ProofRootDto[] = []
-    for (let d = 0; d < DAYS_KEPT; d++) out.push((await build(addDays(today, -d))).root)
+    for (let d = 0; d < DAYS_KEPT; d++) {
+      const root = (await build(addDays(today, -d))).root
+      // Today's root isn't committed yet (the API anchors every 10 minutes; F-POB-6).
+      const anchor =
+        d === 0
+          ? null
+          : {
+              repo: 'https://github.com/quantgen-demo/proof-roots',
+              commit: (await sha256Hex(`anchor|${root.date}`)).slice(0, 40),
+              committedAt: `${root.date}T19:10:00Z`,
+            }
+      out.push({ ...root, anchor })
+    }
     return json(out)
   }),
   http.get(`${BASE}/proofs/accounts/:accountId`, async ({ request, params }) => {

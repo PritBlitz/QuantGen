@@ -206,7 +206,38 @@ function runBacktest(
   }
 }
 
+/** A stand-in for the API's cached CoinGecko prices (F-TRD-12): drifts a little per minute. */
+const COINS = [
+  ['BTC', 'Bitcoin', 5_803_456.79],
+  ['ETH', 'Ethereum', 214_318.4],
+  ['SOL', 'Solana', 12_840.15],
+  ['XRP', 'XRP', 51.22],
+  ['ADA', 'Cardano', 38.6],
+  ['DOGE', 'Dogecoin', 13.07],
+] as const
+
 export const tradingHandlers = [
+  http.get(`${BASE}/market/crypto`, ({ request }) => {
+    const r = requireUser(request)
+    if (!r.user) return r.res
+    if (!db.v2.flags.crypto.enabled)
+      return error(503, 'FEATURE_DISABLED', 'Crypto prices are switched off', request)
+    const minute = Math.floor(Date.now() / 60_000)
+    const asOf = new Date(minute * 60_000).toISOString()
+    return json(
+      COINS.map(([symbol, name, base], i) => {
+        const rnd = prng(minute * 7 + i)
+        const move = (rnd() - 0.5) * 0.04
+        return {
+          symbol,
+          name,
+          priceInr: (base * (1 + move)).toFixed(2),
+          change24hPct: symbol === 'XRP' ? null : (move * 100).toFixed(2),
+          asOf,
+        }
+      }),
+    )
+  }),
   http.post(`${BASE}/orders`, async ({ request }) => {
     const b = (await request.clone().json()) as Record<string, unknown>
     if (!b.orderType || b.orderType === 'MARKET') return undefined // v1 handler fills it now

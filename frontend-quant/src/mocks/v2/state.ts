@@ -146,7 +146,7 @@ const isoDate = (daysFromNow: number) => {
 }
 
 export function createV2State(): V2State {
-  const flagNames: FeatureFlag[] = ['ai', 'autopilot', 'razorpay', 'cards', 'mcp']
+  const flagNames: FeatureFlag[] = ['ai', 'autopilot', 'razorpay', 'cards', 'mcp', 'crypto']
   const flags = Object.fromEntries(
     flagNames.map((name) => [
       name,

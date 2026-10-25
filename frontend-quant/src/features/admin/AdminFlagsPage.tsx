@@ -39,6 +39,11 @@ const ABOUT: Record<FeatureFlag, { name: string; on: string; off: string }> = {
     on: 'Customers can create read-only or read-and-propose tokens for MCP clients.',
     off: 'New tokens can’t be created and existing tokens are refused.',
   },
+  crypto: {
+    name: 'Live crypto prices (read-only)',
+    on: 'Markets shows BTC, ETH and other prices. The server fetches them from a free public feed; no trading.',
+    off: 'The crypto tab is hidden and the server stops calling the feed.',
+  },
 }
 
 /** `/admin/flags` (F-FLAG-1): kill switches. Every change is audited server-side. */

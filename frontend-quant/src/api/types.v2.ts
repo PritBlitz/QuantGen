@@ -95,7 +95,18 @@ export type NotificationTypeV2 =
   | 'LEDGER_INTEGRITY'
 
 // Feature flags (§12.8) ─────────────────────────────────────────────────────────────
-export type FeatureFlag = 'ai' | 'autopilot' | 'razorpay' | 'cards' | 'mcp'
+/** `crypto` added 2026-10-25 (F-TRD-12); an older backend omits it, which reads as off. */
+/** GET /market/crypto (F-TRD-12): read-only, served from the API's cache of a free public feed. */
+export interface CryptoPriceDto {
+  symbol: string
+  name: string
+  /** 2-dp string. */
+  priceInr: MoneyString
+  change24hPct: DecimalString | null
+  /** When the feed last updated this price (may lag if the feed is failing). */
+  asOf: IsoDateTime
+}
+export type FeatureFlag = 'ai' | 'autopilot' | 'razorpay' | 'cards' | 'mcp' | 'crypto'
 export type FeatureFlagsDto = Record<FeatureFlag, boolean>
 export interface AdminFeatureFlagDto {
   name: FeatureFlag
@@ -670,8 +681,8 @@ export interface UnderwritingDto {
   runId?: Uuid | null
 }
 export interface AiUsageDto {
-  /** The PRD leaves the shape open: :8080 sends one total (2026-10-25), the mock sends the split. */
-  tokens: number | { input: number; output: number }
+  /** Input + output in the range (pinned 2026-10-25). */
+  tokens: number
   costUsd: DecimalString
   byAgent: Array<{ agent: AgentName; runs: number; costUsd: DecimalString }>
   byDay: Array<{ date: IsoDate; costUsd: DecimalString; turns: number }>
@@ -767,6 +778,11 @@ export interface ProofRootDto {
   totalLiabilities: MoneyString
   leafCount: number
   chainHead: { position: number; hash: string }
+  /**
+   * F-POB-6 (added 2026-10-25): the git commit holding `roots/<date>.json`. `null` while anchoring is
+   * off or before that day's commit. The owner pushes, so a commit may not be public yet.
+   */
+  anchor?: { repo: string; commit: string; committedAt: IsoDateTime } | null
 }
 export interface ProofPathNode {
   hash: string

@@ -636,6 +636,66 @@ function KycRow({ label, children }: { label: string; children: ReactNode }) {
 }
 
 // ── Developer ───────────────────────────────────────────────────────────────────────────
+/** agent-quant's MCP endpoint (F-MCP-1). Loopback only unless infra exposes it (PRD §12.12). */
+const MCP_URL = import.meta.env.VITE_MCP_URL ?? 'http://127.0.0.1:8090/mcp'
+
+/**
+ * How to plug a token into Claude Desktop. The snippet carries a placeholder, never a real token:
+ * the token is shown once, in its own dialog, and the user pastes it in themselves.
+ */
+function ConnectHowTo() {
+  const config = JSON.stringify(
+    {
+      mcpServers: {
+        quantgen: {
+          command: 'npx',
+          // The token goes in `env`, not inline: mcp-remote mangles spaces in args on Windows.
+          args: ['mcp-remote', MCP_URL, '--header', 'Authorization: Bearer ${QG_PAT}'],
+          env: { QG_PAT: 'qg_pat_YOUR_TOKEN' },
+        },
+      },
+    },
+    null,
+    2,
+  )
+  return (
+    <Panel className="lg:col-span-12" eyebrow="How to" title="Connect Claude Desktop">
+      <ol className="list-decimal space-y-2 pl-5 text-sm">
+        <li>Create a token above and copy it. It’s shown only once.</li>
+        <li>
+          In Claude Desktop, open Settings → Developer → Edit Config, and add this to{' '}
+          <code className="num text-xs">claude_desktop_config.json</code>, with your token in place
+          of <code className="num text-xs">qg_pat_YOUR_TOKEN</code>:
+        </li>
+      </ol>
+      <div className="relative mt-3">
+        <pre className="num overflow-x-auto rounded-[var(--radius-control)] bg-surface-2 p-3 pr-12 text-xs hairline">
+          {config}
+        </pre>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="absolute right-2 top-2"
+          aria-label="Copy config"
+          onClick={() =>
+            void navigator.clipboard?.writeText(config).then(
+              () => toast.success('Config copied'),
+              () => toast.error('Couldn’t copy'),
+            )
+          }
+        >
+          <Copy aria-hidden="true" />
+        </Button>
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Restart Claude Desktop, then ask “What’s my balance?”. The server is{' '}
+        <code className="num">{MCP_URL}</code>, so it only works on the computer running QuantGen.
+        Anything it proposes waits for you below; revoking the token cuts it off at once.
+      </p>
+    </Panel>
+  )
+}
+
 function DeveloperTab() {
   const tokens = useTokens()
   const create = useCreateToken()
@@ -751,6 +811,7 @@ function DeveloperTab() {
           </ul>
         )}
       </Panel>
+      <ConnectHowTo />
       <WaitingApprovals
         className="lg:col-span-12"
         agent="MCP_CLIENT"

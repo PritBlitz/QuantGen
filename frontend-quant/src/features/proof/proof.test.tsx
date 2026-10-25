@@ -92,3 +92,55 @@ describe('Proof of Balance', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('external anchoring (F-POB-6)', () => {
+  const root = (anchor: unknown) => [
+    {
+      date: '2026-10-25',
+      root: 'ab'.repeat(32),
+      totalLiabilities: '1000.00',
+      leafCount: 3,
+      chainHead: { position: 10, hash: 'cd'.repeat(32) },
+      anchor,
+    },
+  ]
+
+  it('links today’s root to its git commit', async () => {
+    const commit = 'e'.repeat(40)
+    server.use(
+      http.get('/api/v1/public/proofs/roots', () =>
+        HttpResponse.json(
+          root({
+            repo: 'https://github.com/qg/roots.git',
+            commit,
+            committedAt: '2026-10-25T19:10:00Z',
+          }),
+        ),
+      ),
+    )
+    signInAs('CUSTOMER')
+    renderApp('/proof')
+    const link = await screen.findByRole('link', { name: 'commit eeeeeee' })
+    expect(link).toHaveAttribute('href', `https://github.com/qg/roots/commit/${commit}`)
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    expect(screen.getByText('roots/2026-10-25.json')).toBeInTheDocument()
+  })
+
+  it('never turns a non-https repo into a link', async () => {
+    server.use(
+      http.get('/api/v1/public/proofs/roots', () =>
+        HttpResponse.json(
+          root({
+            repo: 'javascript:alert(1)',
+            commit: 'f'.repeat(40),
+            committedAt: '2026-10-25T19:10:00Z',
+          }),
+        ),
+      ),
+    )
+    signInAs('CUSTOMER')
+    renderApp('/proof')
+    expect(await screen.findByText('commit fffffff')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /commit fffffff/ })).not.toBeInTheDocument()
+  })
+})

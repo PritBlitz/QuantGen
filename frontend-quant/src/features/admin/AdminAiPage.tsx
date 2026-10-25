@@ -58,14 +58,7 @@ export function AdminAiPage() {
                   : formatUsd(u.costUsd)
               }
             />
-            {typeof u.tokens === 'number' ? (
-              <Tile label="Tokens" value={formatCount(String(u.tokens), true)} />
-            ) : (
-              <>
-                <Tile label="Input tokens" value={formatCount(String(u.tokens.input), true)} />
-                <Tile label="Output tokens" value={formatCount(String(u.tokens.output), true)} />
-              </>
-            )}
+            <Tile label="Tokens (input + output)" value={formatCount(String(u.tokens), true)} />
             <Tile
               label="Monthly budget used"
               value={formatPercent(u.budget.usedPct, 0)}

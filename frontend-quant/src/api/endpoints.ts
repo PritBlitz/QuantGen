@@ -7,6 +7,7 @@ import type {
   AccountDto,
   AccountStatusRequest,
   AdminLoanDto,
+  CryptoPriceDto,
   AdminLoanQuery,
   AdminUserDetailDto,
   AdminUserDto,
@@ -117,6 +118,8 @@ export const marketApi = {
   orders: (params: PageQuery = {}) =>
     api.get<Page<OrderDto>>('/orders', { params }).then((r) => r.data),
   portfolio: () => api.get<PortfolioDto>('/portfolio').then((r) => r.data),
+  /** F-TRD-12, flag `crypto`: 503 FEATURE_DISABLED when off, 503 GATEWAY_UNAVAILABLE before the first fetch. */
+  crypto: () => api.get<CryptoPriceDto[]>('/market/crypto').then((r) => r.data),
 }
 
 // §7.6 Loans

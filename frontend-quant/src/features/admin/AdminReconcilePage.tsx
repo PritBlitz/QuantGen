@@ -1,15 +1,18 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CircleAlert, CircleCheck, Link2, Loader2, Play, Scale } from 'lucide-react'
+import { CircleAlert, CircleCheck, Link2, Loader2, Play, Scale, Sparkles } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { useState } from 'react'
 import { proofApi } from '@/api/endpoints.v2'
 import { errorMessage, toApiError } from '@/api/errors'
-import type { ChainVerifyFrom } from '@/api/types'
+import { useFlag } from '@/api/flags'
+import type { ChainVerifyFrom, ReconcileMismatch } from '@/api/types'
 import { useReconcile } from '@/api/queries'
 import { Money } from '@/components/Money'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TraceDialog } from '@/features/copilot/components/TraceDialog'
 import { CardError } from '@/features/dashboard/components/CardShell'
 import { Decimal } from '@/lib/money'
 import { EASE_OUT_EXPO } from '@/lib/motion'
@@ -179,6 +182,7 @@ export function AdminReconcilePage() {
                     </tbody>
                   </table>
                 </div>
+                <Explanations mismatches={data.mismatches} />
               </Card>
             )}
           </motion.div>
@@ -186,6 +190,73 @@ export function AdminReconcilePage() {
       </div>
 
       <IntegrityChecks />
+    </div>
+  )
+}
+
+/**
+ * The Reconcile Explainer's drafts (F-RISK-6): advice only. Nothing in the ledger changes; a fix is
+ * still a reversing entry made by a person.
+ */
+function Explanations({ mismatches }: { mismatches: ReconcileMismatch[] }) {
+  const ai = useFlag('ai')
+  const [trace, setTrace] = useState<string | null>(null)
+  const written = mismatches.flatMap((m) => (m.explanation ? [{ m, x: m.explanation }] : []))
+  if (!ai && written.length === 0) return null
+  return (
+    <div className="space-y-3 border-t border-border px-5 py-4">
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        <Sparkles aria-hidden="true" className="size-4 text-violet" /> What may have happened
+        <span className="text-xs font-normal text-muted">AI-written, advisory</span>
+      </h3>
+      {written.length === 0 ? (
+        <p className="text-sm text-muted">
+          The explainer drafts a note for each mismatch within a minute or two. Run the check again
+          to see it.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {written.map(({ m, x }) => {
+            return (
+              <li
+                key={m.ledgerAccountId}
+                className="rounded-[var(--radius-control)] bg-violet/[0.06] p-3 text-sm hairline"
+              >
+                <p className="text-xs text-muted">
+                  {m.code ?? 'Customer account'} ·{' '}
+                  <span className="num">{m.ledgerAccountId.slice(0, 8)}…</span>
+                </p>
+                <p className="mt-1 font-medium">{x.likelyCause}</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted">{x.summary}</p>
+                {x.affectedEntries.length > 0 && (
+                  <p className="mt-2 text-xs text-muted">
+                    Entries to look at:{' '}
+                    {x.affectedEntries.map((id, i) => (
+                      <span key={id} className="num" title={id}>
+                        {i > 0 && ', '}
+                        {id.slice(0, 8)}
+                      </span>
+                    ))}
+                  </p>
+                )}
+                {x.runId && (
+                  <button
+                    type="button"
+                    onClick={() => setTrace(x.runId)}
+                    className="mt-2 text-xs text-muted hover:text-violet"
+                  >
+                    See how it was written →
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <p className="text-xs text-muted">
+        Fix mismatches with reversing entries. The draft never changes the ledger.
+      </p>
+      {trace && <TraceDialog runId={trace} admin onClose={() => setTrace(null)} />}
     </div>
   )
 }

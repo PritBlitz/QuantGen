@@ -251,7 +251,7 @@ export const riskHandlers = [
     })
     const cost = byDay.reduce((s, d) => s.plus(d.costUsd), new Decimal(0))
     return json({
-      tokens: { input: 18_420_000, output: 1_210_000 },
+      tokens: 19_630_000,
       costUsd: cost.toFixed(2),
       byAgent: [
         { agent: 'CONCIERGE', runs: 9120, costUsd: cost.times(0.46).toFixed(2) },
