@@ -107,9 +107,11 @@ function Builder({
       setWarnings(res.warnings)
       if (!name) setName(text.trim().slice(0, 40))
     },
-    // No Planner yet (503 FEATURE_DISABLED): fall back to the form, keeping the idea in the text box.
+    // No Planner (503 FEATURE_DISABLED, or AI_UNAVAILABLE when agent-quant is down or not set up):
+    // fall back to the form, keeping the idea in the text box. AI_BUSY stays inline: worth a retry.
     onError: (err) => {
-      if (toApiError(err).code === 'FEATURE_DISABLED') {
+      const code = toApiError(err).code
+      if (code === 'FEATURE_DISABLED' || code === 'AI_UNAVAILABLE') {
         setDraft(blank)
         toast.info('Writing rules from a sentence isn’t available yet. Fill in the form instead.')
       }

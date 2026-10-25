@@ -1056,3 +1056,65 @@ test('gap closes: unblock a requester, leave a split group, close an empty accou
     await Promise.all([me.ctx.dispose(), asker.ctx.dispose()])
   }
 })
+
+// Copilot + Planner through :8080 → agent-quant → the free-tier model. The free tier may be out of
+// quota (a clean AI_BUSY), so each step accepts either a real answer or the busy state, and never
+// retries (no quota burnt). Either way the user's message is stored and nothing moves.
+test('copilot and rule drafting: a real answer, or a clean busy state', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
+  test.setTimeout(150_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const flags = (await (
+    await admin.get('/api/v1/feature-flags', { headers: auth })
+  ).json()) as Record<string, boolean>
+  const set = (name: string, enabled: boolean) =>
+    admin.put(`/api/v1/admin/feature-flags/${name}`, { headers: auth, data: { enabled } })
+  await set('ai', true)
+  await set('autopilot', true)
+  const me = await apiCustomer(playwright, baseURL, 'copilot')
+  try {
+    await signIn(page, me.email, me.password, /\/dashboard$/)
+    await page.goto('/copilot')
+    await page.getByLabel('Message Copilot').fill('What’s my balance?')
+    await page.keyboard.press('Enter')
+    const answered = page.getByRole('button', { name: /How I got this/ })
+    const busy = page.getByText(/assistant is busy right now|assistant isn't available/i)
+    await expect(answered.or(busy).first()).toBeVisible({ timeout: 90_000 })
+    // The question is stored whatever the outcome (backend persists before streaming).
+    const convs = await (
+      await me.ctx.get('/api/v1/copilot/conversations', { headers: me.headers })
+    ).json()
+    expect(convs.length).toBe(1)
+    const detail = await (
+      await me.ctx.get(`/api/v1/copilot/conversations/${convs[0].id}`, { headers: me.headers })
+    ).json()
+    expect(detail.messages[0]).toMatchObject({ role: 'USER', text: 'What’s my balance?' })
+    // No proposal for a balance question; nothing moved.
+    expect(
+      await (await me.ctx.get('/api/v1/intents', { headers: me.headers })).json(),
+    ).toHaveLength(0)
+
+    // Planner: a draft to check and replay, or the busy message inline (the idea stays in the box).
+    await page.goto('/autopilot/new')
+    await page
+      .getByLabel('Describe your rule')
+      .fill('Every month on the 5th, move ₹500 to savings.')
+    await page.getByRole('button', { name: 'Turn into a rule' }).click()
+    const drafted = page.getByRole('button', { name: /Replay the last \d+ days/ })
+    const notNow = page.getByText(
+      /assistant is busy right now|Fill in the form instead|assistant isn't available/i,
+    )
+    await expect(drafted.or(notNow).first()).toBeVisible({ timeout: 90_000 })
+  } finally {
+    await set('ai', flags.ai ?? false)
+    await set('autopilot', flags.autopilot ?? false)
+    await Promise.all([admin.dispose(), me.ctx.dispose()])
+  }
+})

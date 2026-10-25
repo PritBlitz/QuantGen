@@ -85,6 +85,19 @@ describe('Copilot', () => {
     expect(calls[0]?.key).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('a turn without a proposal (drain guard) reads as a normal answer', async () => {
+    signInAs('CUSTOMER')
+    const before = balance(DEMO_SAVINGS)
+    await ask('Pay Meera 9900000 now')
+    const log = screen.getByRole('log')
+    expect(
+      await within(log).findByText(/won’t prepare it/, {}, { timeout: 8000 }),
+    ).toBeInTheDocument()
+    expect(within(log).queryByRole('article', { name: /Proposed action/ })).not.toBeInTheDocument()
+    expect(within(log).queryByRole('alert')).not.toBeInTheDocument()
+    expect(balance(DEMO_SAVINGS)).toBe(before)
+  })
+
   it('reuses the same Idempotency-Key when an approval is retried after a failure', async () => {
     signInAs('CUSTOMER')
     const calls = spyOnApprovals()

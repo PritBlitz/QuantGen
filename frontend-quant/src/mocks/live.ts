@@ -60,18 +60,19 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/sandbox/merchant/', milestone: 'V2-M9' },
   // Backend b2ade2e (announced 2026-10-19): V2-M10 personal access tokens ride on /users/me.
   { prefix: '/api/v1/users/me/tokens', milestone: 'V2-M10' },
-  // Backend 5ac903a (announced 2026-10-19): V2-M5 Autopilot core. /autopilot/compile stays mocked
-  // (it needs the Planner in agent-quant; live it answers 503 and the builder falls back to the form).
+  // Backend 5ac903a (announced 2026-10-19): V2-M5 Autopilot core. /autopilot/compile is live too (the
+  // Planner in agent-quant); AI_UNAVAILABLE falls back to the form, AI_BUSY shows inline.
   { prefix: '/api/v1/autopilot/', milestone: 'V2-M5' },
   // Backend 71f7715 (announced 2026-10-24): saved billers (+ /saved-billers/{id}/fetch) and Autopilot PAY_BILL.
   { prefix: '/api/v1/saved-billers', milestone: 'V2-M5-bills' },
   // Backend 5c03a2e (V24), on :8080 from 55a320c (2026-10-25): F-CARD-4 disputes. Opening one rides on
   // /cards/{id}/payments/{authId}/dispute; the admin queue on /admin/.
   { prefix: '/api/v1/card-disputes', milestone: 'F-CARD-4' },
-  // /intents went live with backend 660de61 (V2-M4 core) but stays MOCKED here on purpose: the
-  // scripted Copilot mock proposes intents in the in-browser db with mock account ids, so a live
-  // /intents would 404 every card it shows. Flip /intents together with /copilot/ once agent-quant
-  // exists. The real /intents is covered by e2e/live.spec.ts ("intents", real-API mode).
+  // Copilot (backend 96c282b + agent-quant, :8090 at 7d90533) and intents, flipped together on
+  // 2026-10-25: a mocked copilot's intents carry mock account ids, so they must never mix with a
+  // live /intents. On the Gemini free tier a turn may end in `event: error {code: AI_BUSY}`.
+  { prefix: '/api/v1/copilot/', milestone: 'V2-M4' },
+  { prefix: '/api/v1/intents', milestone: 'V2-M4' },
 ]
 // Every PRD §7 endpoint is live as of M5; hybrid mode now equals the real API.
 
@@ -80,9 +81,7 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  * mocked in hybrid mode. Remove a pattern when the backend announces the route.
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
-  // /autopilot/compile needs the Planner (agent-quant); flipped with /copilot/ once the free-tier model
-  // answers. /admin/ai went live with 55a320c (2026-10-25); F-CARD-4 disputes too.
-  /^\/api\/v1\/autopilot\/compile$/,
+  // Empty since 2026-10-25: /admin/ai, F-CARD-4 disputes and /autopilot/compile (the Planner) are live.
 ]
 
 export const isLive = (pathname: string) =>

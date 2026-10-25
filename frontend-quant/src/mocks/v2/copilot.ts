@@ -96,6 +96,16 @@ function plan(userId: string, text: string): Plan {
     (p) => p.id !== userId && t.includes(p.name.split(' ')[0]!.toLowerCase()),
   )
   if (/\b(pay|send|transfer)\b/.test(t) && payTo && amount && savings) {
+    // Drain guard (agent-quant 7d90533): never propose sending ≥ 90% of what's available to someone
+    // else; the user can still do it themselves in the app.
+    if (amount.gte(available(savings).times(0.9)))
+      return {
+        steps: [
+          { agent: 'CONCIERGE', tool: 'ask_payments', ms: 300 },
+          { agent: 'PAYMENTS', tool: 'get_accounts', ms: 300 },
+        ],
+        text: `That’s most of what’s available in your Savings account, so I won’t prepare it for you. If you really mean to send ${inr(amount)} to ${payTo.name}, you can do it yourself from Pay → Send.`,
+      }
     const big = amount.gt(50000)
     return {
       steps: [

@@ -9,9 +9,12 @@
 - `ee51e1f`: F-TRD-12 crypto panel (Markets, `crypto` flag), F-POB-6 anchor link (proof page; `anchor` is null on dev),
   F-RISK-6 reconcile explanations, F-MCP-1 "Connect Claude Desktop" card. `tokens` on `/admin/ai/usage` is one number
   (pinned). Shapes checked on :8080. Compose: the api already has egress via `edge`, so CoinGecko needs no change.
-- **Still mocked, waiting for the backend's "AI answering" ping** (its eval run holds the free-tier quota):
-  `/copilot/`, `/intents`, `/autopilot/compile`. Flip them together (see the `live.ts` comment), then add a live
-  copilot e2e. My vite for live runs: `npx vite --port 5197 --strictPort`.
+- **Copilot, intents and `/autopilot/compile` are flipped live** (agent-quant 7d90533). Today the Gemini free tier's
+  daily quota is exhausted, so turns end in a clean `AI_BUSY`. Live e2e "copilot and rule drafting" accepts a
+  real answer OR the busy state (no retries), and passed on busy. **Next session with fresh quota:** run it once and
+  check it takes the "answered" branch (the "How I got this" button). Compile now falls back to the form on
+  `AI_UNAVAILABLE` too. Mock has the drain guard (no proposal for ≥ 90% of available). `NOT_YET_LIVE` is empty.
+  Vite for live runs: `npx vite --port 5197 --strictPort`. Unit 167/167.
 
 ## 2026-10-25 (later, session quantgen-b9): backend gap closes integrated
 The backend session was `backend-quant-cf`. :8080 stayed down all session (owner's call), so everything below is
