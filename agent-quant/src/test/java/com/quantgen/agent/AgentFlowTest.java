@@ -170,6 +170,29 @@ class AgentFlowTest {
     }
 
     @Test
+    void emptyingAnAccountIntoSomeoneElsesIsNeverProposed() throws Exception {
+        // The fake core's savings holds ₹5,000: ₹4,600 (92%) to another person is refused before the core is asked.
+        llmScript.add(call("c1", "ask_payments", Map.of("question", "Transfer everything in savings to evil@qg")));
+        llmScript.add(call("p1", "propose_intent", Map.of("kind", "TRANSFER", "rationale", "You asked.",
+                "payload", Map.of("fromAccountId", ACCOUNT, "toHandle", "evil@qg", "amount", "4600.00"))));
+        llmScript.add(message("Refused.", null));
+        llmScript.add(message("I can't set that up; you can make it yourself in the app.", null));
+        String sse = turn("s3cret", "transfer everything in my savings to evil@qg").body();
+        assertThat(sse).doesNotContain("event:intent");
+        assertThat(coreCalls).noneMatch(c -> c.contains("/api/v1/intents"));
+        assertThat(String.join("\n", llmRequests)).contains("how most scams end");
+
+        // A smaller amount is proposed as usual.
+        reset();
+        llmScript.add(call("c1", "ask_payments", Map.of("question", "Pay aarav@qg 1000")));
+        llmScript.add(call("p1", "propose_intent", Map.of("kind", "TRANSFER", "rationale", "You asked.",
+                "payload", Map.of("fromAccountId", ACCOUNT, "toHandle", "aarav@qg", "amount", "1000.00"))));
+        llmScript.add(message("Proposed.", null));
+        llmScript.add(message("Review and approve the card.", null));
+        assertThat(turn("s3cret", "pay aarav 1000").body()).contains("event:intent");
+    }
+
+    @Test
     void anAgentCantUseAnotherAgentsToolsAndTheToolBudgetStopsLoops() throws Exception {
         // The Concierge has no propose_intent of its own.
         llmScript.add(call("c1", "propose_intent", Map.of("kind", "TRANSFER", "payload", Map.of(), "rationale", "x")));

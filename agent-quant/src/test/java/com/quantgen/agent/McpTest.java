@@ -134,7 +134,8 @@ class McpTest {
         JsonNode call = rpc("tools/call", "{\"name\":\"propose_intent\",\"arguments\":{\"kind\":\"TRANSFER\","
                 + "\"payload\":{\"toHandle\":\"aarav@qg\",\"amount\":\"500.00\"},\"rationale\":\"Rent\"}}");
         assertThat(call.path("result").path("content").get(0).path("text").asString()).contains("approval card");
-        assertThat(coreCalls).containsExactly("POST /api/v1/intents Bearer " + PAT);
+        // The drain guard reads the balance first (₹500 of ₹5,000 is fine), both with the client's token.
+        assertThat(coreCalls).containsExactly("GET /api/v1/accounts Bearer " + PAT, "POST /api/v1/intents Bearer " + PAT);
 
         JsonNode refused = rpc("tools/call", "{\"name\":\"get_spending\",\"arguments\":{}}");
         assertThat(refused.path("result").path("isError").asBoolean()).isTrue();

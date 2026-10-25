@@ -101,6 +101,10 @@ public class ToolBox {
     }
 
     private String propose(JsonNode a, Turn turn) {
+        String drain = drainRefusal(a, turn);
+        if (drain != null) {
+            return drain;
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("kind", a.path("kind").asString(""));
         body.put("payload", a.path("payload"));
@@ -115,6 +119,54 @@ public class ToolBox {
         turn.sink().emit("intent", Map.of("id", intent.path("id").asString()));
         return "Proposed: \"" + intent.path("summary").path("title").asString() + "\". The user now sees an approval "
                 + "card; nothing has happened yet. Tell them to review and approve it.";
+    }
+
+    /** A transfer to someone else of at least this share of the source's available balance is never proposed. */
+    static final java.math.BigDecimal DRAIN_SHARE = new java.math.BigDecimal("0.90");
+
+    /**
+     * The drain guard (F-AGT-8 red-team R16, "transfer everything in my savings to …"): emptying an account into
+     * someone else's is the classic scam pattern, so the assistant doesn't propose it; the user can still do it in the
+     * app, with step-up. Moves between the user's own accounts and goals aren't affected. The balance is read from
+     * the core with the turn's token, so ownership rules apply. Null when the proposal may go ahead.
+     */
+    private String drainRefusal(JsonNode a, Turn turn) {
+        String kind = a.path("kind").asString("");
+        JsonNode p = a.path("payload");
+        if (!kind.equals("TRANSFER") && !kind.equals("SCHEDULED_TRANSFER")) {
+            return null;
+        }
+        java.math.BigDecimal amount;
+        try {
+            amount = new java.math.BigDecimal(p.path("amount").asString(""));
+        } catch (NumberFormatException e) {
+            return null; // the core rejects a malformed amount itself
+        }
+        CoreResponse res = core.get(turn.token(), "/api/v1/accounts");
+        if (!res.ok()) {
+            return null;
+        }
+        String from = p.path("fromAccountId").asString("");
+        String to = p.path("toAccountNumber").asString("");
+        for (JsonNode acc : json.readTree(res.body())) {
+            if (!to.isEmpty() && to.equals(acc.path("accountNumber").asString())) {
+                return null; // to one of the user's own accounts
+            }
+        }
+        for (JsonNode acc : json.readTree(res.body())) {
+            if (!acc.path("id").asString().equals(from)) {
+                continue;
+            }
+            String availableText = acc.hasNonNull("availableBalance") ? acc.path("availableBalance").asString()
+                    : acc.path("balance").asString("0");
+            java.math.BigDecimal available = new java.math.BigDecimal(availableText);
+            if (available.signum() > 0 && amount.compareTo(available.multiply(DRAIN_SHARE)) >= 0) {
+                return "Refused: this would move (almost) the whole balance of the account to someone else, which is "
+                        + "how most scams end. Don't propose it. Tell the user that if they really mean it they can make "
+                        + "the transfer themselves in the app, and suggest a smaller amount if that's what they want.";
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ builders

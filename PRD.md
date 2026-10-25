@@ -1292,6 +1292,11 @@ Backend notes (copilot, core side, implemented 2026-10-25; D-044 free-tier provi
   id: <runId>}`. The core renders that run itself (rule name and version, trigger summary, outcome, each action
   with amount, status and error) and adds it to what the agent sees. The stored message is the user's text only.
   Someone else's or an unknown run → `404`; another `type` → `400 context.type`.
+- **Proposal guards in agent-quant (F-AGT-8 red-team findings, 2026-10-25):** (1) a turn whose message tries to
+  override the assistant's rules ("ignore your previous instructions", "admin mode", "don't ask me to approve", …)
+  may read and answer but proposes nothing; (2) a `TRANSFER` / `SCHEDULED_TRANSFER` to someone else for ≥ 90% of the
+  source account's available balance is never proposed (the user can still make it in the app, with step-up). Both
+  apply to MCP clients too. Moves between the user's own accounts and goals are unaffected.
 
 ### 12.7 Autopilot
 | Method | Path | Body | Response |
