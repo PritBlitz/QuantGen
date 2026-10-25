@@ -65,6 +65,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
   { prefix: '/api/v1/autopilot/', milestone: 'V2-M5' },
   // Backend 71f7715 (announced 2026-10-24): saved billers (+ /saved-billers/{id}/fetch) and Autopilot PAY_BILL.
   { prefix: '/api/v1/saved-billers', milestone: 'V2-M5-bills' },
+  // Backend 5c03a2e (V24), on :8080 from 55a320c (2026-10-25): F-CARD-4 disputes. Opening one rides on
+  // /cards/{id}/payments/{authId}/dispute; the admin queue on /admin/.
+  { prefix: '/api/v1/card-disputes', milestone: 'F-CARD-4' },
   // /intents went live with backend 660de61 (V2-M4 core) but stays MOCKED here on purpose: the
   // scripted Copilot mock proposes intents in the in-browser db with mock account ids, so a live
   // /intents would 404 every card it shows. Flip /intents together with /copilot/ once agent-quant
@@ -77,14 +80,9 @@ export const LIVE_PREFIXES: ReadonlyArray<{ prefix: string; milestone: string }>
  * mocked in hybrid mode. Remove a pattern when the backend announces the route.
  */
 export const NOT_YET_LIVE: ReadonlyArray<RegExp> = [
-  // /admin/ai stays mocked until V2-M4. (V2-M6, backend 82ee419, made fraud cases, loan
-  // documents and underwriting live on 2026-10-19; they ride on the /admin/ and /loans prefixes.)
-  /^\/api\/v1\/admin\/ai(\/|$)/,
+  // /autopilot/compile needs the Planner (agent-quant); flipped with /copilot/ once the free-tier model
+  // answers. /admin/ai went live with 55a320c (2026-10-25); F-CARD-4 disputes too.
   /^\/api\/v1\/autopilot\/compile$/,
-  // F-CARD-4 disputes (backend 5c03a2e, V24) sit under the live /cards and /admin/ prefixes; mocked until
-  // they're on :8080. (/card-disputes isn't under a live prefix, so it's mocked already.)
-  /^\/api\/v1\/cards\/[^/]+\/payments(\/|$)/,
-  /^\/api\/v1\/admin\/card-disputes(\/|$)/,
 ]
 
 export const isLive = (pathname: string) =>

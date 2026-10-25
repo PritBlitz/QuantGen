@@ -58,12 +58,23 @@ export function AdminAiPage() {
                   : formatUsd(u.costUsd)
               }
             />
-            <Tile label="Input tokens" value={formatCount(String(u.tokens.input), true)} />
-            <Tile label="Output tokens" value={formatCount(String(u.tokens.output), true)} />
+            {typeof u.tokens === 'number' ? (
+              <Tile label="Tokens" value={formatCount(String(u.tokens), true)} />
+            ) : (
+              <>
+                <Tile label="Input tokens" value={formatCount(String(u.tokens.input), true)} />
+                <Tile label="Output tokens" value={formatCount(String(u.tokens.output), true)} />
+              </>
+            )}
             <Tile
               label="Monthly budget used"
               value={formatPercent(u.budget.usedPct, 0)}
-              sub={`of ${formatUsd(u.budget.monthlyCapUsd)}`}
+              sub={
+                // On the free tier there's no dollar cap; the share is of the monthly token cap.
+                new Decimal(u.budget.monthlyCapUsd).isZero()
+                  ? 'of the monthly token cap'
+                  : `of ${formatUsd(u.budget.monthlyCapUsd)}`
+              }
               tone={used && used.gte(90) ? 'loss' : used && used.gte(75) ? 'warn' : undefined}
               bar={used ? Math.min(100, used.toNumber()) : 0}
             />

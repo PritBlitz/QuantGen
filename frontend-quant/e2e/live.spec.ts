@@ -327,6 +327,116 @@ test('cards: issue, reveal with step-up, pay the demo store → hold → capture
   }
 })
 
+// F-CARD-4 (backend 5c03a2e): a captured card payment is disputed by the customer and refunded by an
+// admin. Opening moves no money; the refund does, exactly once.
+test('card disputes: dispute a captured payment, an admin refunds it', async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
+  test.setTimeout(180_000)
+  const admin = await playwright.request.newContext({ baseURL })
+  const login = await admin.post('/api/v1/auth/login', {
+    data: { email: 'admin@quantgen.dev', password: 'Admin@1234' },
+  })
+  const auth = { Authorization: `Bearer ${(await login.json()).accessToken}` }
+  const wasOn = (await (await admin.get('/api/v1/feature-flags', { headers: auth })).json())
+    .cards as boolean
+  await admin.put('/api/v1/admin/feature-flags/cards', { headers: auth, data: { enabled: true } })
+  try {
+    const n = Date.now().toString().slice(-9)
+    const email = `dispute${n}@example.com`
+    await page.goto('/register')
+    await page.getByLabel('Full name').fill('Dispute Tester')
+    await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Phone').fill(`+91${n}4`)
+    await page.getByLabel('Password', { exact: true }).fill('Live@12345')
+    await page.getByLabel('Confirm password').fill('Live@12345')
+    await page.getByRole('button', { name: /create account/i }).click()
+    await expect(page).toHaveURL(/\/dashboard$/)
+
+    await go(page, 'Accounts')
+    await page.getByRole('button', { name: 'Add money' }).click()
+    const dep = page.getByRole('dialog', { name: 'Add money' })
+    await dep.getByRole('textbox', { name: 'Amount' }).fill('5000')
+    await dep.getByRole('button', { name: 'Review' }).click()
+    await dep.getByRole('button', { name: 'Add ₹5,000.00' }).click()
+    await expect(dep.getByRole('img', { name: 'Deposit confirmed' })).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await page.goto('/settings/security')
+    await page.getByRole('group', { name: 'Choose a PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await page.getByRole('group', { name: 'Confirm PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    const pw = page.getByLabel('Account password')
+    if (await pw.isVisible()) await pw.fill('Live@12345')
+    await page.getByRole('button', { name: 'Set PIN' }).click()
+    await expect(page.getByText('Set', { exact: true }).first()).toBeVisible()
+
+    await go(page, 'Cards')
+    await page.getByRole('button', { name: 'Issue card' }).first().click()
+    const face = page.getByRole('group', { name: /^Virtual card ending \d{4}$/ })
+    await expect(face).toBeVisible()
+    await page.getByRole('button', { name: 'Show card details' }).click()
+    await page.getByRole('group', { name: 'Transaction PIN' }).locator('input').first().click()
+    await page.keyboard.type('246810')
+    await expect(page.getByRole('button', { name: 'Hide now' })).toBeVisible()
+    const pan = (await face.locator('p.num').innerText()).replace(/\s/g, '')
+    const nums = await face.locator('div.num > span').allInnerTexts()
+    const expiry = nums[0]!.match(/\d{2}\/\d{2}/)![0]
+    const cvv = nums[1]!.match(/\d{3}/)![0]
+
+    await page.getByRole('link', { name: 'Try the demo store' }).click()
+    await page.getByRole('radio', { name: /Filter coffee beans/ }).click()
+    await page.getByLabel('Card number').fill(pan)
+    await page.getByLabel('Expiry').fill(expiry.replace('/', ''))
+    await page.getByLabel('CVV').fill(cvv)
+    await page.getByRole('button', { name: /^Pay/ }).click()
+    await expect(page.getByText('Paid', { exact: true })).toBeVisible({ timeout: 15_000 })
+
+    // The captured payment is disputable from the card page.
+    await go(page, 'Cards')
+    await page
+      .getByRole('button', { name: /^Dispute .+ payment$/ })
+      .first()
+      .click()
+    const dlg = page.getByRole('dialog', { name: 'Dispute this payment?' })
+    await dlg.getByRole('combobox').click()
+    await page.getByRole('option', { name: 'I didn’t receive it' }).click()
+    await dlg.getByRole('button', { name: 'Raise dispute' }).click()
+    await expect(dlg).toBeHidden()
+    await expect(page.getByText('Under review').first()).toBeVisible()
+    await signOut(page)
+
+    // Admin refunds it with a reason.
+    await signIn(page, 'admin@quantgen.dev', 'Admin@1234', /\/admin$/)
+    await page.goto('/admin/disputes')
+    await page
+      .getByRole('button', { name: /^Refund .+ dispute$/ })
+      .first()
+      .click()
+    const confirm = page.getByRole('dialog', { name: 'Refund this dispute?' })
+    await confirm.getByRole('textbox').fill('Merchant confirmed it never shipped.')
+    await confirm.getByRole('button', { name: 'Refund' }).click()
+    await expect(confirm).toBeHidden()
+    await signOut(page)
+
+    // The customer has the money back and sees the outcome.
+    await signIn(page, email, 'Live@12345', /\/dashboard$/)
+    await go(page, 'Accounts')
+    await expect(page.getByText('₹5,000.00').first()).toBeVisible()
+    await go(page, 'Cards')
+    await expect(page.getByText('Refunded').first()).toBeVisible()
+  } finally {
+    await admin.put('/api/v1/admin/feature-flags/cards', {
+      headers: auth,
+      data: { enabled: wasOn },
+    })
+    await admin.dispose()
+  }
+})
+
 /** A fresh customer created through the API, with its own cookie jar. */
 async function apiCustomer(
   playwright: { request: APIRequest },
@@ -922,7 +1032,8 @@ test('gap closes: unblock a requester, leave a split group, close an empty accou
     await page.getByRole('button', { name: 'Leave', exact: true }).click()
     await page.getByRole('button', { name: 'Leave group' }).click()
     await expect(page).toHaveURL(/\/pay\/splits$/)
-    await expect(page.getByText('Live e2e group')).toBeHidden()
+    // The list no longer links to it (the toast still names it, so don't match text page-wide).
+    await expect(page.getByRole('link', { name: /Live e2e group/ })).toHaveCount(0)
     expect(
       (await me.ctx.get(`/api/v1/split-groups/${group.id}`, { headers: me.headers })).status(),
     ).toBe(404)

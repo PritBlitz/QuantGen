@@ -670,7 +670,8 @@ export interface UnderwritingDto {
   runId?: Uuid | null
 }
 export interface AiUsageDto {
-  tokens: { input: number; output: number }
+  /** The PRD leaves the shape open: :8080 sends one total (2026-10-25), the mock sends the split. */
+  tokens: number | { input: number; output: number }
   costUsd: DecimalString
   byAgent: Array<{ agent: AgentName; runs: number; costUsd: DecimalString }>
   byDay: Array<{ date: IsoDate; costUsd: DecimalString; turns: number }>

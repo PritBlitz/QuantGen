@@ -19,6 +19,8 @@ export const SHIPPED_MILESTONES: ReadonlyArray<string> = [
   'V2-M5',
   'V2-M5-extended',
   'V2-M5-bills',
+  // Backend 5c03a2e on :8080 from 55a320c (2026-10-25).
+  'F-CARD-4',
 ]
 
 const fullyMocked =

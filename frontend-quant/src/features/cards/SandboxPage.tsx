@@ -1,4 +1,5 @@
 import { CheckCircle2, Loader2, ShoppingBag, Store, XCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { cardsApi } from '@/api/endpoints.v2'
 import { errorMessage, toApiError } from '@/api/errors'
@@ -103,6 +104,12 @@ export function SandboxPage() {
   const [paying, setPaying] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
+  const qc = useQueryClient()
+  /** Capture and refund change the card's payment list (and what can be disputed), not just balances. */
+  const settled = () => {
+    void invalidate('accounts', 'transfers')
+    void qc.invalidateQueries({ queryKey: ['cards'] })
+  }
   const timers = useRef<number[]>([])
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
   // One Idempotency-Key per checkout attempt: a retry after a network error reuses it; any edit
@@ -141,7 +148,7 @@ export function SandboxPage() {
         update(authId, { status: 'EXPIRED', reason: undefined })
       else update(authId, { reason: errorMessage(err) })
     } finally {
-      void invalidate('accounts', 'transfers')
+      settled()
     }
   }
   async function refund(authId: string) {
@@ -151,7 +158,7 @@ export function SandboxPage() {
     } catch (e) {
       update(authId, { reason: errorMessage(e) })
     } finally {
-      void invalidate('accounts', 'transfers')
+      settled()
     }
   }
 

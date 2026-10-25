@@ -249,7 +249,9 @@ function IntegrityChecks() {
                 {fromPos != null &&
                   (fromPos <= 1
                     ? ' (from genesis)'
-                    : ` (from checkpoint #${fromPos.toLocaleString('en-IN')})`)}
+                    : fromPos > chain.data.checkedUpTo
+                      ? ' (nothing new since the last checkpoint)'
+                      : ` (from checkpoint #${fromPos.toLocaleString('en-IN')})`)}
               </p>
             ) : (
               <p role="alert" className="flex items-center gap-2 text-loss">
