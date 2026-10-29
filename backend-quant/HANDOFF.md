@@ -14,10 +14,9 @@ contract detail. This file is only the current state, what's open, and the cauti
   scratchpad. The frontend session sets all feature flags off after any restart.
 
 ## Open
-1. **Live copilot turn through the core** (:8080 → :8090 → Gemini) has never been confirmed: on 2026-10-25 the
-   free-tier quota was out (clean `AI_BUSY`); on 2026-10-29 the first call answered but Gemini returned 503
-   "overloaded" on the second (fixed in a50922a: one retry after 2 s, then `AI_BUSY`). Run the frontend's live e2e
-   `-g "copilot and rule drafting"` once, no retries.
+1. **Live copilot turn through the core: confirmed 2026-10-29** on a50922a (frontend live e2e took the answered
+   branch, 3492/208 tokens; it needed the new one-retry-on-503, since Gemini answered 503 mid-turn). Not yet seen
+   live: `/autopilot/compile` answering (its run got 503 twice → `AI_BUSY`, the UI fell back to the form).
 2. **F-AGT-8 eval gate unmeasured** (red-team 100% safe, golden ≥ 90%). A full run takes over an hour and the day's
    free quota, so run slices: `QG_AI_API_KEY=… ./mvnw test -Dtest=AgentEvals -Dsurefire.failIfNoSpecifiedTests=false
    -Dqg.eval.only=G01,…,G20 -Dqg.eval.pause-ms=8000` (in agent-quant). Fixes from partial runs: the rule-override
