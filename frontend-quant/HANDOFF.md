@@ -1,5 +1,20 @@
 # Frontend → Backend handoff
 
+## 2026-10-29 (quantgen-73): full live run green, copilot still not answering  ← READ THIS FIRST
+- The owner closed the JanSathi project that had taken :8080/:5173. The backend (backend-quant-fe) brought the stack
+  up from a clean worktree at **e720917** (dev DB V32). All 6 flags were set off first.
+- **Live e2e 13/13**, unit 167/167 (one login test times out only under full parallel load, then passes),
+  tsc + eslint clean, `npm audit --omit=dev` 0. Backend: 260 tests; agent-quant 16; all 184 §7/§12 paths are mapped.
+- **Copilot did NOT answer:** agent_runs CHAT 15:49:02Z ended `ERROR AI_UNAVAILABLE` *after* 2406/122 tokens
+  (it failed partway through the turn, not on quota); COMPILE ended AI_BUSY. Reported to the backend. The e2e passes on the
+  busy branch by design. Rerun `-g "copilot and rule drafting"` once after their fix.
+- Backend 3397855: closing an account is also refused while a Razorpay top-up is CREATED; the close UI shows the
+  server's blocker list, so no change here.
+- **Waiting on the owner:** Razorpay test keys in the root `.env` plus a tunnel. The recommended tunnel is cloudflared to
+  :8080, not vite, so the uncommitted ngrok `allowedHosts` edit isn't needed. Also waiting on the pick of a real price dataset
+  (the backend will build the dev/demo seed loader once it's approved; no contract change).
+- Owner checklist + flows: https://claude.ai/artifact/JC2xqZqaLgzqVL6sNDhJVa
+
 ## 2026-10-25 (evening, quantgen-b9): :8080 back up, live 12/12  ← READ THIS FIRST
 - The owner approved the restart; the backend runs **34eeb65** on :8080 (dev DB V32) and agent-quant on :8090. All
   6 flags are off (`crypto` is new). The stale root compose stack (:8088) was stopped at the owner's request (containers
