@@ -12,6 +12,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +55,7 @@ import com.quantgen.trading.domain.OrderSide;
 import com.quantgen.trading.service.OrderService;
 import com.quantgen.trading.service.PricesUpdatedEvent;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -587,7 +589,10 @@ public class AutopilotEngine implements EventConsumer {
         };
     }
 
-    /** Active rules with this trigger type; for MONEY_RECEIVED only the owner of {@code accountId}. */
+    /**
+     * Active rules with this trigger type; for MONEY_RECEIVED only the owner of {@code accountId}. A rule whose stored
+     * DSL can't be read is skipped (logged by id only), so one bad row never stops everyone else's automation.
+     */
     private List<ActiveRule> active(String triggerType, UUID accountId) {
         String byOwner = accountId == null ? "" : " AND r.user_id = (SELECT user_id FROM accounts WHERE id = ?)";
         Object[] args = accountId == null ? new Object[] {triggerType} : new Object[] {triggerType, accountId};
@@ -596,9 +601,14 @@ public class AutopilotEngine implements EventConsumer {
                 (rs, i) -> {
                     UUID id = rs.getObject("id", UUID.class);
                     int version = rs.getInt("version");
-                    return new ActiveRule(id, rs.getObject("user_id", UUID.class), rs.getString("name"), version,
-                            rules.version(id, version));
-                }, args);
+                    try {
+                        return new ActiveRule(id, rs.getObject("user_id", UUID.class), rs.getString("name"), version,
+                                rules.version(id, version));
+                    } catch (JacksonException e) {
+                        log.error("Autopilot rule {} v{} has an unreadable DSL; skipped", id, version);
+                        return null;
+                    }
+                }, args).stream().filter(Objects::nonNull).toList();
     }
 
     private static DayOfWeek weekday(String w) {

@@ -301,7 +301,9 @@ class IntentsIT extends IntegrationTest {
         assertThat(intent.get("requiresStepUp").asBoolean()).isTrue();
         String id = intent.get("id").asString();
 
-        // Two approvals at once (a double tap with fresh keys): one pays, the other finds it decided.
+        // Two approvals at once (a double tap with fresh keys): one pays, the other finds it decided. The PIN is set
+        // first: two racing first-PIN setups would make the second one need a step-up (correctly), failing the test.
+        Bank.ensurePin(this, s);
         CompletableFuture<Response> a = CompletableFuture.supplyAsync(() -> approve(s, id, UUID.randomUUID(), true));
         CompletableFuture<Response> b = CompletableFuture.supplyAsync(() -> approve(s, id, UUID.randomUUID(), true));
         assertThat(List.of(a.get().status(), b.get().status())).containsExactlyInAnyOrder(200, 409);

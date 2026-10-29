@@ -240,6 +240,29 @@ class AutopilotIT extends IntegrationTest {
     }
 
     @Test
+    void anUnreadableRuleIsSkippedAndTheOthersStillRun() {
+        TestUsers.Session broken = TestUsers.registerAndLogin(this);
+        UUID bad = jdbc.queryForObject("""
+                INSERT INTO autopilot_rules (user_id, name, version, status, trigger_type) VALUES (?, 'Corrupt', 1, 'ACTIVE',
+                'SCHEDULE') RETURNING id""", UUID.class, broken.userId());
+        jdbc.update("INSERT INTO autopilot_rule_versions (rule_id, version, dsl) VALUES (?, 1, '{}')", bad);
+
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        UUID savings = Bank.firstAccountId(this, s);
+        Bank.deposit(this, s, savings, "500.00");
+        String a = goal(s, "A");
+        activate(s, "Weekly", rule(Map.of("type", "SCHEDULE", "frequency", "WEEKLY", "weekday", "WED"),
+                List.of(transfer(savings.toString(), a, "FIXED", "100.00")), "100.00", "100000.00"));
+        LocalDate wed = LocalDate.of(2027, 3, 1).with(TemporalAdjusters.nextOrSame(DayOfWeek.WEDNESDAY));
+
+        engine.runDaily(wed); // one corrupt row must not stop everyone else's automation
+        assertThat(Bank.balance(this, s, UUID.fromString(a))).isEqualTo("100.00");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM autopilot_runs WHERE rule_id = ?", Long.class, bad))
+                .isZero();
+        jdbc.update("UPDATE autopilot_rules SET status = 'DELETED' WHERE id = ?", bad); // leave nothing for other tests
+    }
+
+    @Test
     void failuresStopTheRunAndThreeInARowPauseTheRule() {
         TestUsers.Session s = TestUsers.registerAndLogin(this);
         UUID savings = Bank.firstAccountId(this, s);

@@ -182,10 +182,11 @@ class CopilotIT extends IntegrationTest {
         TestUsers.Session s = TestUsers.registerAndLogin(this);
         TestUsers.Session other = TestUsers.registerAndLogin(this);
         String conv = conversation(s);
-        // A finished run of the user's own rule (inserted directly: the engine is tested elsewhere).
+        // A finished run of the user's own rule (inserted directly: the engine is tested elsewhere). PAUSED, so the
+        // engine never picks up its placeholder DSL when another test class runs the daily scheduler later.
         UUID ruleId = jdbc.queryForObject("""
-                INSERT INTO autopilot_rules (user_id, name, version, status, trigger_type) VALUES (?, 'Rent', 1, 'ACTIVE',
-                'SCHEDULE') RETURNING id""", UUID.class, s.userId());
+                INSERT INTO autopilot_rules (user_id, name, version, status, paused_reason, trigger_type)
+                VALUES (?, 'Rent', 1, 'PAUSED', 'Paused by you.', 'SCHEDULE') RETURNING id""", UUID.class, s.userId());
         jdbc.update("INSERT INTO autopilot_rule_versions (rule_id, version, dsl) VALUES (?, 1, '{}')", ruleId);
         UUID runId = jdbc.queryForObject("""
                 INSERT INTO autopilot_runs (rule_id, user_id, rule_version, trigger_event_id, trigger_summary, planned_total,
