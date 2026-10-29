@@ -3,15 +3,23 @@
 History before 2026-10-29 lives in `git log` (and in this file's own history); the PRD "Backend notes" hold every
 contract detail. This file is only the current state, what's open, and the cautions that still apply.
 
-## State (2026-10-29, session backend-quant-fe)
+## State (2026-10-30, session backend-quant-fe)
 - **Every PRD §7/§11/§12 backend item is built**, P2s included (F-TRD-9 is an Autopilot template; F-UX-5 Hindi was
   dropped by the owner). A script audit maps all 184 PRD §7/§12 endpoints to controllers in `backend-quant` or
-  `agent-quant`.
-- Tests: backend `./mvnw verify` 261 (unit + IT, Testcontainers, Docker must run); agent-quant `./mvnw test` 17
-  (fake LLM, fake core, no cost). Dev DB at **V32**.
-- Running: :5433 dev Postgres (`docker-compose.dev.yml`), :8080 API jar (dev profile, `QG_RATE_LIMIT_ENABLED=false`,
-  `-Xmx512m`), :8090 agent-quant (dev profile, Gemini key from the root `.env`). Jars and logs are in the session
-  scratchpad. The frontend session sets all feature flags off after any restart.
+  `agent-quant`. Added 2026-10-29/30 at the owner's request: real NSE closes in backtests (D-046, `0d43604`), the
+  daily NSE sync + one-time live-price rebase (D-047, `dc24786`; rebased on the dev DB 2026-10-30 00:49 IST), the
+  payments view with receipt numbers (PRD §12.4, `da19127`, V34), Razorpay live-key refusal (`533beac`), agent drain
+  guard fails closed (`2d9dae6`).
+- Tests: backend `./mvnw verify` (39 IT classes + unit, Testcontainers, Docker must run); agent-quant `./mvnw test`
+  17 (fake LLM, fake core, no cost). Dev DB at **V34**.
+- Running: :5433 dev Postgres (`docker-compose.dev.yml`), :8080 API (dev profile, `QG_RATE_LIMIT_ENABLED=false`,
+  `-Xmx512m`, the three `QG_RAZORPAY_*` from the root `.env`), :8090 agent-quant (dev profile, Gemini key from the
+  root `.env`). Jars, logs and two pre-migration dev DB dumps are in **`backend-quant/target/run/`** (C: was full;
+  `mvn clean` deletes them). The frontend session sets all feature flags off after any restart.
+- Razorpay test mode is live: a ₹500 test payment credited once via verify. The webhook isn't registered in the
+  dashboard yet (owner: tunnel + paste the same `QG_RAZORPAY_WEBHOOK_SECRET` value).
+- **Machine limits:** C: had < 300 MB free and RAM ~1–2 GB free; full verifies crashed twice with JVM out-of-memory
+  (rerun the crashed class alone; stop :8090 while verifying).
 
 ## Open
 1. **Live copilot turn through the core: confirmed 2026-10-29** on a50922a (frontend live e2e took the answered
