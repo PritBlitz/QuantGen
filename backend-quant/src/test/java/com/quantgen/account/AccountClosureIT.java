@@ -68,4 +68,22 @@ class AccountClosureIT extends IntegrationTest {
         assertThat(get("/api/v1/accounts/" + acc, s.accessToken()).jsonBody().get("status").asString())
                 .isEqualTo("ACTIVE");
     }
+
+    @Test
+    void anUnpaidTopupBlocksClosingUntilItEnds() {
+        TestUsers.Session s = TestUsers.registerAndLogin(this);
+        UUID acc = UUID.fromString(postJson("/api/v1/accounts", Map.of("type", "CHECKING"), Bank.auth(s)).jsonBody()
+                .get("id").asString());
+        UUID topup = UUID.randomUUID();
+        jdbc.update("INSERT INTO topups (id, user_id, account_id, amount, gateway_order_id) "
+                + "VALUES (?, ?, ?, 500.00, 'order_closure_test')", topup, s.userId(), acc);
+
+        // The customer may be paying right now; closing would leave a captured payment nowhere to land.
+        Response blocked = close(s, acc, true);
+        assertThat(blocked.status()).isEqualTo(409);
+        assertThat(blocked.jsonBody().get("message").asString()).contains("a Razorpay top-up to it isn't finished");
+
+        jdbc.update("UPDATE topups SET status = 'EXPIRED' WHERE id = ?", topup);
+        assertThat(close(s, acc, true).status()).isEqualTo(200);
+    }
 }

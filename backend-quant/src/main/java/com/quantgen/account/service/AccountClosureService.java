@@ -83,6 +83,9 @@ public class AccountClosureService {
         if (held.signum() != 0) {
             out.add("₹" + Money.toJson(held) + " is on hold (a card payment or a transfer under review)");
         }
+        if (count("SELECT count(*) FROM topups WHERE account_id = ? AND status = 'CREATED'", id) > 0) {
+            out.add("a Razorpay top-up to it isn't finished (wait up to 30 minutes)");
+        }
         if (count("SELECT count(*) FROM loans WHERE disburse_account_id = ? AND status IN ('PENDING', 'APPROVED', 'ACTIVE')", id) > 0) {
             out.add("a loan is paid into or repaid from it");
         }

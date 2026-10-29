@@ -120,6 +120,13 @@ public class TopupService {
                 log.warn("Could not create a Razorpay order for top-up {}: {}", id, e.getMessage());
                 throw new ApiException(ErrorCode.GATEWAY_UNAVAILABLE, "The payment gateway can't be reached; try again");
             }
+            // Shares the row lock AccountClosureService takes: either the close sees this CREATED top-up as a
+            // blocker, or this sees the account CLOSED. Taken after the gateway call so no lock spans network I/O.
+            jdbc.queryForList("SELECT id FROM ledger_accounts WHERE id = ? FOR SHARE", UUID.class, accountId);
+            if (!AccountStatus.ACTIVE.name().equals(
+                    jdbc.queryForObject("SELECT status FROM accounts WHERE id = ?", String.class, accountId))) {
+                throw new ApiException(ErrorCode.INVALID_STATE, "This account cannot be topped up");
+            }
             jdbc.update("INSERT INTO topups (id, user_id, account_id, amount, gateway_order_id) VALUES (?, ?, ?, ?, ?)",
                     id, userId, accountId, amount, orderId);
             return find(id).orElseThrow();
