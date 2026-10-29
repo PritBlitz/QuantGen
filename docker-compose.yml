@@ -56,6 +56,13 @@ services:
       # 503 AI_UNAVAILABLE and everything else works (D-039).
       QG_AGENT_URL: http://agent:8090
       QG_AGENT_SECRET: ${QG_AGENT_SECRET:-}
+      # Razorpay top-ups (PRD §7.9). Unset → 503 GATEWAY_UNAVAILABLE; the API refuses non-rzp_test_ keys.
+      QG_RAZORPAY_KEY_ID: ${QG_RAZORPAY_KEY_ID:-}
+      QG_RAZORPAY_KEY_SECRET: ${QG_RAZORPAY_KEY_SECRET:-}
+      QG_RAZORPAY_WEBHOOK_SECRET: ${QG_RAZORPAY_WEBHOOK_SECRET:-}
+      # Real NSE end-of-day prices (D-046/D-047): back-fill, one rebase, then 18:30 IST daily.
+      # Needs outbound HTTPS to nsearchives.nseindia.com (the api is on `edge`). false = simulated prices.
+      QG_MARKET_SYNC_ENABLED: ${QG_MARKET_SYNC_ENABLED:-true}
       TZ: UTC
     volumes:
       # Loan documents (PRD §12.8). The image creates this dir owned by uid 10001, and a fresh
