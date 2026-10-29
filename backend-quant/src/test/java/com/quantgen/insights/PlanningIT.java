@@ -87,7 +87,9 @@ class PlanningIT extends IntegrationTest {
         String bobNumber = Bank.firstAccountNumber(this, bob);
         Bank.deposit(this, alice, savings, "3000.00");
         book(alice, savings, "1000.00", 7);                                       // pays back 1000.67 on day 7
-        schedule(alice, savings, bobNumber, "1500.00", "MONTHLY", today().plusDays(1));
+        // Monthly runs only on days 1-28; within 20 days a ONCE item on the same date forecasts identically.
+        LocalDate tomorrow = today().plusDays(1);
+        schedule(alice, savings, bobNumber, "1500.00", tomorrow.getDayOfMonth() <= 28 ? "MONTHLY" : "ONCE", tomorrow);
         schedule(alice, savings, bobNumber, "2000.00", "ONCE", today().plusDays(10));
 
         JsonNode f = get("/api/v1/insights/forecast?days=20", alice.accessToken()).jsonBody();
