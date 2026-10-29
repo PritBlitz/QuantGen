@@ -1059,7 +1059,8 @@ Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; im
     expenses (equal splits are among current members); the group leaves your list and `GET` answers `404`. V27.
   - *Closing an account:* savings, checking or goal (an FD → `400`; use its own close). Needs `X-Step-Up-Token`
     for `SECURITY_SETTINGS`. The balance must be 0 with no holds, and nothing may depend on it: a loan, an FD paying
-    out to it, an active or paused scheduled transfer, an Autopilot rule, your handle, round-ups. Otherwise
+    out to it, an active or paused scheduled transfer, an Autopilot rule, your handle, round-ups, an unfinished
+    (`CREATED`) Razorpay top-up (added 2026-10-29: a payment captured after closing had nowhere to land). Otherwise
     `409 INVALID_STATE`, with a message listing each blocker. Frozen → `422 ACCOUNT_FROZEN`; already closed →
     `409`. A closed account takes no money in or out, its card is frozen, and it stops counting toward the
     3-account cap. Audited `ACCOUNT_CLOSED`.
