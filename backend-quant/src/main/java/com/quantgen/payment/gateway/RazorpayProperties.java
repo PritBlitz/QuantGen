@@ -11,6 +11,10 @@ public record RazorpayProperties(String keyId, String keySecret, String webhookS
 
     public RazorpayProperties {
         baseUrl = baseUrl == null || baseUrl.isBlank() ? "https://api.razorpay.com/v1" : baseUrl;
+        // D-036: test mode only. A live key would move real money, so refuse to start (without echoing the key).
+        if (notBlank(keyId) && !keyId.startsWith("rzp_test_")) {
+            throw new IllegalStateException("QG_RAZORPAY_KEY_ID must be a Razorpay test-mode key (rzp_test_...)");
+        }
     }
 
     /** Orders can be created and payments verified. */
