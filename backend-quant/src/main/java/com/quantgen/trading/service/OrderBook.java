@@ -7,6 +7,8 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -162,6 +165,38 @@ public class OrderBook {
         }
         end(o, OrderStatus.CANCELLED);
         return dto(id);
+    }
+
+    /** An order {@link #cancelOpen} cancelled, so its owner can be told. */
+    public record Cancelled(UUID orderId, UUID userId, String symbol, OrderSide side, long quantity) {
+    }
+
+    /**
+     * D-047, step 1 of the rebase lock order (orders → simulator lock → instruments): locks every OPEN order on
+     * {@code symbols} in id order, the same row-first order {@link #matchAll} and {@link #cancel} use.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockOpen(Collection<String> symbols) {
+        jdbc.queryForList("SELECT id FROM orders WHERE status = 'OPEN' AND symbol = ANY (?) ORDER BY id FOR UPDATE",
+                UUID.class, (Object) symbols.toArray(String[]::new));
+    }
+
+    /**
+     * D-047: cancels every OPEN order on {@code symbols} in the caller's transaction, releasing holds and reserved
+     * shares. Rows another transaction holds right now are skipped: that is the matcher, which then fills at the
+     * new price once the caller commits.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<Cancelled> cancelOpen(Collection<String> symbols) {
+        List<UUID> ids = jdbc.queryForList("SELECT id FROM orders WHERE status = 'OPEN' AND symbol = ANY (?) "
+                + "ORDER BY id FOR UPDATE SKIP LOCKED", UUID.class, (Object) symbols.toArray(String[]::new));
+        List<Cancelled> out = new ArrayList<>();
+        for (UUID id : ids) {
+            Open o = lock(id, false).orElseThrow();
+            end(o, OrderStatus.CANCELLED);
+            out.add(new Cancelled(o.id(), o.userId(), o.symbol(), o.side(), o.quantity()));
+        }
+        return out;
     }
 
     @Scheduled(fixedDelayString = "${qg.orders.expiry-millis:60000}")

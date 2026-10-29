@@ -1487,8 +1487,10 @@ Backend notes (V2-M7, implemented 2026-10-18):
   initialCash 1,000–1,00,00,000}`. Strategy bounds: `SMA_CROSS` fast 2–100, slow fast+1–250; `RSI` period 2–50,
   buyBelow 1–98, sellAbove > buyBelow ≤ 99; `BUY_THE_DIP` dropPct 0.5–50 (vs the 20-day high), takeProfitPct
   0.5–100; `REBALANCE` everyDays 1–365, weights for exactly the symbols, summing to 100. Prices are **real NSE
-  daily closes** for the 14 real companies up to 2026-01-22, then a deterministic walk from the last real close; QGEN
-  is simulated throughout (2026-10-29, D-046; same request, same result). Shapes are unchanged. Whole shares, no
+  daily closes** for the 14 real companies (the vendored file to 2026-01-22, then NSE's daily end-of-day file,
+  back-adjusted for splits and bonuses), then a deterministic walk from the last real close; QGEN is simulated
+  throughout (D-046, D-047; same data, same result). Live prices of those 14 start each day from the real close
+  (rebased once on 2026-10-30: open orders on them were cancelled, PRICE_CROSSES rules paused). Shapes are unchanged. Whole shares, no
   fees; the non-rebalance strategies split cash equally per symbol, all in / all out. `equity` ≤ 400 points.
   `winRatePct` = profitable sells / all sells. `GET /backtests` = the last 20 (older ones are deleted).
 - **Tax P&L:** `fy` like `2026-27` (default: the current FY), else `400`; `format=json|csv` (else `400`). Sells

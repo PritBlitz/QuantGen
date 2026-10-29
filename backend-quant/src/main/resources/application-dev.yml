@@ -7,6 +7,9 @@ spring:
     password: ${QG_DB_PASSWORD:quantgen}
 
 qg:
+  market:
+    sync:
+      enabled: ${QG_MARKET_SYNC_ENABLED:true}
   agent:
     # Dev-only default; agent-quant's dev profile uses the same value. Prod reads QG_AGENT_SECRET.
     secret: ${QG_AGENT_SECRET:dev-only-agent-secret-do-not-use-in-prod}

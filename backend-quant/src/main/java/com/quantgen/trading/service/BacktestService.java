@@ -57,18 +57,20 @@ public class BacktestService {
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
     private final Clock clock;
+    private final MarketHistory history;
 
-    public BacktestService(JdbcTemplate jdbc, JsonMapper json, Clock clock) {
+    public BacktestService(JdbcTemplate jdbc, JsonMapper json, Clock clock, MarketHistory history) {
         this.jdbc = jdbc;
         this.json = json;
         this.clock = clock;
+        this.history = history;
     }
 
     // ------------------------------------------------------------------ history
 
-    /** Daily close of {@code symbol} on {@code day} (deterministic, 2 dp). */
+    /** Daily close of {@code symbol} on {@code day} (deterministic for the same data, 2 dp). */
     double close(String symbol, LocalDate day) {
-        return MarketHistory.close(symbol, day);
+        return history.close(symbol, day);
     }
 
     // ------------------------------------------------------------------ API

@@ -52,6 +52,7 @@ import com.quantgen.payment.service.TransferService;
 import com.quantgen.trading.api.TradingDtos.OrderDto;
 import com.quantgen.trading.api.TradingDtos.OrderRequest;
 import com.quantgen.trading.domain.OrderSide;
+import com.quantgen.trading.service.LivePricesRebasedEvent;
 import com.quantgen.trading.service.OrderService;
 import com.quantgen.trading.service.PricesUpdatedEvent;
 
@@ -258,6 +259,27 @@ public class AutopilotEngine implements EventConsumer {
     }
 
     // ------------------------------------------------------------------ PRICE_CROSSES (ticks)
+
+    /**
+     * D-047: live prices just jumped to real NSE levels, so a line drawn at the old level means nothing now and would
+     * fire every day. Pauses those rules in the rebase's own transaction (synchronous listener); the owner reviews the
+     * level and resumes. Runs whether or not Autopilot is switched on.
+     */
+    @EventListener
+    void onRebase(LivePricesRebasedEvent event) {
+        String reason = "Paused because live prices moved to real market levels. Check the price level and resume.";
+        jdbc.query("""
+                UPDATE autopilot_rules r SET status = 'PAUSED', paused_reason = ?, updated_at = now()
+                  FROM autopilot_rule_versions v
+                 WHERE v.rule_id = r.id AND v.version = r.version AND r.status = 'ACTIVE'
+                   AND r.trigger_type = 'PRICE_CROSSES' AND (v.dsl::jsonb -> 'trigger' ->> 'symbol') = ANY (?)
+                RETURNING r.id, r.user_id, r.name
+                """, rs -> {
+            notifications.notify(rs.getObject("user_id", UUID.class), NotificationType.RULE_PAUSED,
+                    "Autopilot rule paused", "“" + rs.getString("name") + "”: " + reason);
+            log.info("Paused PRICE_CROSSES rule {} for the switch to real prices", rs.getObject("id", UUID.class));
+        }, reason, event.symbols().toArray(String[]::new));
+    }
 
     @EventListener
     void onPrices(PricesUpdatedEvent event) {

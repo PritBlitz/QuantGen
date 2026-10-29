@@ -75,7 +75,8 @@ you make a new one.
 | D-043 | Analytics computed live; the nightly roll-up waits for a slow query | Accepted |
 | D-044 | Free-tier LLM through an OpenAI-compatible client (Gemini by default) | Accepted |
 | D-045 | `agent-quant` is stateless; the core stores conversations and traces | Accepted |
-| D-046 | Backtests replay real NSE daily closes (vendored public dataset); live prices stay simulated | Accepted |
+| D-046 | Backtests replay real NSE daily closes (vendored public dataset); live prices stay simulated | Accepted (live part superseded by D-047) |
+| D-047 | Daily NSE end-of-day sync; live prices rebased to real levels once, then re-anchored daily | Accepted |
 
 ---
 
@@ -530,3 +531,23 @@ you make a new one.
   holding and could trigger open limit/stop orders at once, so it needs its own decision. Fine for a demo; a
   commercial launch needs a licensed feed.
 - **Revisit when:** a licensed feed is affordable, or the owner wants live prices rebased (then pause open orders).
+
+### D-047 · Daily NSE end-of-day sync; live prices rebased to real levels once, then re-anchored daily
+- **Date / status:** 2026-10-30 · Accepted (the owner chose "Rebase to real" and asked for data that refreshes
+  itself instead of manual downloads)
+- **Context:** the D-046 dataset is frozen at 2026-01-22. NSE publishes an official end-of-day file ("bhavcopy",
+  UDiFF zip) for every trading day; a missing day answers 404.
+- **Decision:** `MarketDataSync` (weekdays 18:30 IST and once at start-up; `qg.market.sync.enabled`, on in dev, off by
+  default and in tests) fetches each calendar day since the last one checked, one request at a time, from a fixed,
+  config-only host (`BhavcopyClient`: no redirects, size caps, in-memory zip, BigDecimal, the file's date must match).
+  Rows go to `market_daily_closes` (V33). When NSE's previous close differs from ours by more than 1%, the ratio is a
+  corporate action stored in `market_adjustments` and back-adjusts older closes, so backtests show no fake crashes.
+  Any error stops the run without skipping a day. Fetched data stays in the database, never in git (NSE's terms).
+  The first complete run **rebases** live prices of the 14 real companies to their latest real close in one
+  transaction that also cancels every open order on them (holds released, owners told) and pauses PRICE_CROSSES
+  rules on them (owners told), so the jump fills and fires nothing. Later runs re-anchor price and opening price to
+  each new close; the simulator walks around it during the day. QGEN stays simulated. No DTO or contract change.
+- **Trade-off:** holdings are revalued once (owner accepted); intraday prices are still simulated; price alerts are
+  left as they are (they only notify, and after the switch what they say is true). A response body read is not
+  time-bounded (NSE is a fixed host; a stuck run's claim expires after 30 minutes).
+- **Revisit when:** a licensed intraday feed is affordable, or NSE changes the file format (the parser fails loudly).

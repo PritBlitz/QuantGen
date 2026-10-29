@@ -74,6 +74,12 @@ qg:
   market:
     simulator-enabled: true
     tick-millis: 3000
+    sync:
+      # D-047: fetch NSE's end-of-day file daily for the 14 real symbols and anchor live prices to it.
+      # The first complete run moves live prices to real levels (cancels open orders on them, pauses price rules).
+      enabled: ${QG_MARKET_SYNC_ENABLED:false}
+      base-url: https://nsearchives.nseindia.com/content/cm/
+      pause-millis: 1500
   cors:
     allowed-origins: ${QG_CORS_ORIGINS:http://localhost:5173}
   demo:
