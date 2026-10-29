@@ -1276,7 +1276,7 @@ Backend notes (copilot, core side, implemented 2026-10-25; D-044 free-tier provi
 - **Stream:** `token`, `tool`, `intent` (the core re-reads the intent, so only the user's own intent proposed in this
   conversation is sent, rendered by the server), `citation` (only the listed types; id `[A-Za-z0-9._:-]{1,64}`, label
   ≤ 80 chars), then `done {runId, usage}` or `error {code, message}`. Mid-stream codes: `AI_BUSY` (provider rate
-  limit), `AI_UNAVAILABLE`, `TOOL_LIMIT`, `INTERNAL`; the message is the core's own text, never the provider's. Tokens
+  limit, or overloaded twice: a 503 gets one retry after 2 s, 2026-10-29), `AI_UNAVAILABLE`, `TOOL_LIMIT`, `INTERNAL`; the message is the core's own text, never the provider's. Tokens
   arrive in bursts (the provider call isn't streamed). Response header `X-Accel-Buffering: no` for nginx.
 - **Storage:** the user's message is stored once the agent accepts the turn; the assistant's (with intents,
   citations, `runId`, partial text on error) before the stream closes. The title is the first message (≤ 60 chars).

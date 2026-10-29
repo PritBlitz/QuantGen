@@ -32,7 +32,9 @@ public class LlmClient {
     public record Reply(JsonNode message, int inputTokens, int outputTokens) {
     }
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static final Duration OVERLOAD_RETRY_PAUSE = Duration.ofSeconds(2);
+
+    private final HttpClient http =HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final Settings settings;
     private final JsonMapper json;
 
@@ -63,14 +65,15 @@ public class LlmClient {
                 .timeout(settings.llmTimeout())
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
                 .build();
-        HttpResponse<String> res;
-        try {
-            res = http.send(req, HttpResponse.BodyHandlers.ofString());
-        } catch (IOException e) {
-            throw new LlmException("provider unreachable: " + e.getClass().getSimpleName(), false);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new LlmException("interrupted", false);
+        HttpResponse<String> res = send(req);
+        if (res.statusCode() == 503) {
+            // "Overloaded, try again": transient and not billed, so one retry after a pause; then it's busy, not down.
+            log.warn("LLM provider answered 503; retrying once");
+            pause();
+            res = send(req);
+            if (res.statusCode() == 503) {
+                throw new LlmException("provider overloaded", true);
+            }
         }
         if (res.statusCode() == 429) {
             throw new LlmException("provider rate limit", true);
@@ -87,5 +90,25 @@ public class LlmClient {
         }
         return new Reply(message, root.path("usage").path("prompt_tokens").asInt(0),
                 root.path("usage").path("completion_tokens").asInt(0));
+    }
+
+    private HttpResponse<String> send(HttpRequest req) {
+        try {
+            return http.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            throw new LlmException("provider unreachable: " + e.getClass().getSimpleName(), false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LlmException("interrupted", false);
+        }
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(OVERLOAD_RETRY_PAUSE);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LlmException("interrupted", false);
+        }
     }
 }

@@ -283,4 +283,19 @@ class AgentFlowTest {
         assertThat(turn(null, "hello").statusCode()).isEqualTo(403);
         assertThat(llmRequests).hasSize(1);
     }
+
+    @Test
+    void anOverloadedProviderGetsOneRetryThenReadsAsBusy() throws Exception {
+        llmScript.add(503);
+        llmScript.add(message("Hello! How can I help?", null));
+        assertThat(turn("s3cret", "hello").body()).contains("How can I help").doesNotContain("event:error");
+        assertThat(llmRequests).hasSize(2);
+
+        llmRequests.clear();
+        llmScript.add(503);
+        llmScript.add(503);
+        String sse = turn("s3cret", "hello").body();
+        assertThat(sse).contains("event:error").contains("AI_BUSY").doesNotContain("quota");
+        assertThat(llmRequests).hasSize(2);
+    }
 }
