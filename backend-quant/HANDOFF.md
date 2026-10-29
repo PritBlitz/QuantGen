@@ -7,7 +7,7 @@ contract detail. This file is only the current state, what's open, and the cauti
 - **Every PRD §7/§11/§12 backend item is built**, P2s included (F-TRD-9 is an Autopilot template; F-UX-5 Hindi was
   dropped by the owner). A script audit maps all 184 PRD §7/§12 endpoints to controllers in `backend-quant` or
   `agent-quant`.
-- Tests: backend `./mvnw verify` 260 (unit + IT, Testcontainers, Docker must run); agent-quant `./mvnw test` 16
+- Tests: backend `./mvnw verify` 261 (unit + IT, Testcontainers, Docker must run); agent-quant `./mvnw test` 17
   (fake LLM, fake core, no cost). Dev DB at **V32**.
 - Running: :5433 dev Postgres (`docker-compose.dev.yml`), :8080 API jar (dev profile, `QG_RATE_LIMIT_ENABLED=false`,
   `-Xmx512m`), :8090 agent-quant (dev profile, Gemini key from the root `.env`). Jars and logs are in the session
@@ -15,8 +15,9 @@ contract detail. This file is only the current state, what's open, and the cauti
 
 ## Open
 1. **Live copilot turn through the core** (:8080 → :8090 → Gemini) has never been confirmed: on 2026-10-25 the
-   free-tier quota was out (clean `AI_BUSY`). Run the frontend's live e2e `-g "copilot and rule drafting"` once on
-   fresh quota, no retries.
+   free-tier quota was out (clean `AI_BUSY`); on 2026-10-29 the first call answered but Gemini returned 503
+   "overloaded" on the second (fixed in a50922a: one retry after 2 s, then `AI_BUSY`). Run the frontend's live e2e
+   `-g "copilot and rule drafting"` once, no retries.
 2. **F-AGT-8 eval gate unmeasured** (red-team 100% safe, golden ≥ 90%). A full run takes over an hour and the day's
    free quota, so run slices: `QG_AI_API_KEY=… ./mvnw test -Dtest=AgentEvals -Dsurefire.failIfNoSpecifiedTests=false
    -Dqg.eval.only=G01,…,G20 -Dqg.eval.pause-ms=8000` (in agent-quant). Fixes from partial runs: the rule-override
