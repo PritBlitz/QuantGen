@@ -345,7 +345,7 @@ other is a no-op. The account is never credited on the client's word alone.
 | GET | `/accounts/{id}/topups` | `?page&size` | `200 Page<TopupDto>` |
 | POST | `/webhooks/razorpay` | raw Razorpay event (no JWT) | `200` (`400` on a bad signature) |
 
-`TopupDto = {id, accountId, amount, currency: "INR", status: "CREATED"|"CREDITED"|"FAILED"|"EXPIRED", gateway: "RAZORPAY", gatewayOrderId, gatewayKeyId, transactionId, failureReason, createdAt, updatedAt}`
+`TopupDto = {id, accountId, amount, currency: "INR", status: "CREATED"|"CREDITED"|"FAILED"|"EXPIRED", gateway: "RAZORPAY", gatewayOrderId, gatewayKeyId, transactionId, failureReason, createdAt, updatedAt, receiptNo, gatewayPaymentId}` (the last two added 2026-10-30, §12.4 "Payments view")
 (`gatewayKeyId` is the public `rzp_test_…` key Checkout needs; the key secret never leaves the
 server. `transactionId` is the ledger transaction once `CREDITED`, otherwise null.)
 
@@ -973,6 +973,8 @@ Backend notes (V2-M1, implemented 2026-10-18):
 | POST | `/billers/{id}/fetch` | `{consumerNumber}` | `200 {billId, amount, dueDate, customerNameMasked}` |
 | POST 🔒💰 | `/bill-payments` | `{billId, fromAccountId}` | `201 BillPaymentDto` |
 | GET | `/bill-payments` | `?page&size` | `200 Page<BillPaymentDto>` |
+| GET | `/payments` | `?from&to&kind&status&q&page&size` | `200 Page<PaymentDto>`, your own payments across every kind, newest first (added 2026-10-30, see "Payments view") |
+| GET | `/payments/{receiptNo}` | | `200 PaymentDto` (your side of it), else `404` (added 2026-10-30) |
 | GET | `/saved-billers` | | `200 SavedBillerDto[]` (added 2026-10-24) |
 | POST | `/saved-billers` | `{billerId, consumerNumber, nickname?}` | `201 SavedBillerDto` (added 2026-10-24) |
 | POST | `/saved-billers/{id}/fetch` | | `200 {billId, amount, dueDate, customerNameMasked}` (added 2026-10-24) |
@@ -985,6 +987,28 @@ Backend notes (V2-M1, implemented 2026-10-18):
 
 `PaymentRequestDto = {id, fromHandle, toHandle, amount, note, status: "OPEN"|"PAID"|"DECLINED"|"EXPIRED"|"CANCELLED", transferId, expiresAt, createdAt}` ·
 `ScheduledTransferDto = {id, fromAccountId, toAccountNumberMasked, toName, amount, note, frequency, nextRunDate, endDate, remainingCount, status: "ACTIVE"|"PAUSED"|"COMPLETED"|"CANCELLED", lastRun: {date, outcome, transferId}}`
+
+**Payments view (added 2026-10-30; the owner asked for payments with receipt numbers on the dashboard):**
+- Every payment carries a `receiptNo`: `QG` + its IST creation date `yymmdd` + a sequence of at least 7 digits,
+  e.g. `QG2610300000123`. Server-generated when the payment row is created, unique, never reused; rows from before
+  2026-10-30 were numbered in creation order. These are receipts, not tax invoices. Added (at the end) to
+  `TransferDto` (all sources: manual, scheduled, Autopilot, intents, requests), `BillPaymentDto`, `TopupDto`,
+  `CardPaymentDto`. `TopupDto` also adds `gatewayPaymentId` (Razorpay's `pay_…`, null until paid).
+- `PaymentDto = {id, sourceId, receiptNo, kind: "TRANSFER"|"BILL"|"TOPUP"|"CARD"|"REFUND", direction: "IN"|"OUT",
+  amount, status, accountId, accountNumberMasked, counterparty, reference, createdAt, completedAt}`. `id` is
+  `<receiptNo>:<direction>` (stable and unique, for list keys); `sourceId` opens the existing detail (transfer, bill
+  payment, top-up, card authorization; for `REFUND` the card authorization). `status` is the source's own:
+  transfers `COMPLETED|FAILED|PENDING_REVIEW|REJECTED`; bills and refunds `COMPLETED`; top-ups
+  `CREATED|CREDITED|FAILED|EXPIRED`; card `AUTHORIZED|DECLINED|CAPTURED|REFUNDED|EXPIRED`. `counterparty` is
+  history's text (`To Aarav S. ••••1234`, `From …`, the biller, the merchant, `Razorpay`). `reference`: top-ups the
+  `pay_…` id if paid, else the `order_…` id; card and refund the merchant; otherwise null. `completedAt`: when the
+  money moved (null while it hasn't).
+- Whose rows: transfers you sent (`OUT`, every status); transfers into your accounts from someone else (`IN`, only
+  once `COMPLETED`, with the sender's `receiptNo`: one payment, one number); your bill payments (`OUT`), top-ups
+  (`IN`), payments on your cards (`OUT`) and their refunds (`IN`). A transfer between your own accounts is one `OUT` row.
+- Query: `from`/`to` are IST dates (inclusive, `from ≤ to`, else `400`); `kind` one of the kinds; `status` one of
+  the statuses above; `q` (≤ 50 chars) is an exact `receiptNo` when it looks like one, else a case-insensitive
+  match inside `counterparty`; `size` 1–100 (default 20). `GET /payments/{receiptNo}`: someone else's number → `404`.
 
 Backend notes (V2-M2 part 1: handles, resolve, transfers by handle, requests; implemented 2026-10-18):
 - **Handles** are always the full form `name@qg`, matched case-insensitively and stored lower-case. The name part
@@ -1768,7 +1792,8 @@ string, other decimals (percentages, rates) are strings too, counts are integers
 **Payments:**
 - `HandleDto = {handle, accountId, changeableAt}`
 - `BillerDto = {id, name, category: "ELECTRICITY"|"MOBILE"|"BROADBAND"|"DTH"|"GAS"|"WATER"|"CREDIT_CARD"|"INSURANCE", consumerNumberLabel, consumerNumberPattern}`
-- `BillPaymentDto = {id, billerId, billerName, category, consumerNumberMasked, amount, fromAccountId, transactionId, createdAt}`
+- `BillPaymentDto = {id, billerId, billerName, category, consumerNumberMasked, amount, fromAccountId, transactionId, createdAt, receiptNo}` (`receiptNo` added 2026-10-30)
+- `PaymentDto`: see §12.4 "Payments view"; `TransferDto` and `CardPaymentDto` also end with `receiptNo` (2026-10-30)
 - `GroupDto = {id, name, members: [{handle, displayName, balance}], expenses: ExpenseDto[], createdAt}` (member `balance` > 0: the group owes them)
 - `ExpenseDto = {id, paidByHandle, amount, description, splitType, shares: [{handle, amount}], createdAt}`; request `split.shares` = `[{handle, value}]` (rupees for `EXACT`, percent for `PERCENT`)
 - `ScheduledTransferDto.lastRun.outcome` = `SUCCEEDED` | `RETRYING` | `MISSED`

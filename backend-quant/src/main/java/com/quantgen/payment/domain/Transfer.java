@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -74,6 +75,11 @@ public class Transfer {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** PRD §12.4 "Payments view": numbered by the database on insert (V34) and read back. */
+    @Generated
+    @Column(name = "receipt_no", insertable = false, updatable = false)
+    private String receiptNo;
 
     public Transfer(UUID userId, UUID fromAccountId, UUID toAccountId, String fromAccountNumber,
                     String toAccountNumber, String toName, BigDecimal amount, String note, boolean internal,

@@ -48,7 +48,8 @@ public final class PaymentDtos {
             TransferStatus status,
             Instant createdAt,
             TransferSource source,
-            String category) {
+            String category,
+            String receiptNo) {
     }
 
     public record BeneficiaryRequest(

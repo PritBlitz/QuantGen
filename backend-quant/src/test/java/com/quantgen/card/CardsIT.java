@@ -366,6 +366,20 @@ class CardsIT extends IntegrationTest {
                 .asString()).isEqualTo("250.00");
         assertThat(settle(p.merchant(), p.authId(), "refund", null, UUID.randomUUID()).status()).isEqualTo(409);
 
+        // Payments view: the card payment (OUT) and its refund (IN), each with its own receipt number.
+        JsonNode card = get("/api/v1/payments?kind=CARD", s.accessToken()).jsonBody().get("content").get(0);
+        assertThat(card.get("sourceId").asString()).isEqualTo(p.authId());
+        assertThat(card.get("direction").asString()).isEqualTo("OUT");
+        assertThat(card.get("amount").asString()).isEqualTo("400.00");
+        assertThat(card.get("counterparty").asString()).isEqualTo("QuantGen Store");
+        assertThat(card.get("receiptNo").asString()).isEqualTo(payment.get("receiptNo").asString()).startsWith("QG");
+        JsonNode refund = get("/api/v1/payments?kind=REFUND", s.accessToken()).jsonBody().get("content").get(0);
+        assertThat(refund.get("direction").asString()).isEqualTo("IN");
+        assertThat(refund.get("amount").asString()).isEqualTo("250.00");
+        assertThat(refund.get("receiptNo").asString()).isNotEqualTo(card.get("receiptNo").asString());
+        assertThat(get("/api/v1/payments?kind=CARD", p.merchant().accessToken()).jsonBody().get("content").size())
+                .isZero(); // the merchant's view has no cardholder payments
+
         // Customers can't resolve; an admin can, once.
         assertThat(resolve(s, id, "REFUNDED", UUID.randomUUID()).status()).isEqualTo(403);
         JsonNode queue = get("/api/v1/admin/card-disputes?status=OPEN&size=100", admin.accessToken()).jsonBody();

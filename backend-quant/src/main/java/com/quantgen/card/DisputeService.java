@@ -56,7 +56,7 @@ public class DisputeService {
 
     public record CardPaymentDto(UUID authId, String merchant, String category, BigDecimal amount,
                                  BigDecimal capturedAmount, BigDecimal refundedAmount, BigDecimal disputableAmount,
-                                 String status, Instant capturedAt, UUID openDisputeId) {
+                                 String status, Instant capturedAt, UUID openDisputeId, String receiptNo) {
     }
 
     public record CardDisputeDto(UUID id, UUID cardId, UUID authId, String last4, String merchant, BigDecimal amount,
@@ -107,7 +107,7 @@ public class DisputeService {
         Long total = jdbc.queryForObject("SELECT count(*) FROM card_authorizations WHERE card_id = ? "
                 + "AND status IN ('CAPTURED', 'REFUNDED')", Long.class, cardId);
         List<CardPaymentDto> content = jdbc.query("""
-                SELECT a.id, a.merchant, a.category, a.amount, a.captured_amount, a.refunded_amount, a.status,
+                SELECT a.id, a.receipt_no, a.merchant, a.category, a.amount, a.captured_amount, a.refunded_amount, a.status,
                        a.captured_at, d.id AS dispute_id, COALESCE(d.amount, 0) AS disputed
                   FROM card_authorizations a
                   LEFT JOIN card_disputes d ON d.authorization_id = a.id AND d.status = 'OPEN'
@@ -118,7 +118,8 @@ public class DisputeService {
                 rs.getBigDecimal("refunded_amount"), rs.getBigDecimal("captured_amount")
                 .subtract(rs.getBigDecimal("refunded_amount")).subtract(rs.getBigDecimal("disputed")),
                 rs.getString("status"), rs.getTimestamp("captured_at").toInstant(),
-                rs.getObject("dispute_id", UUID.class)), cardId, pageable.getPageSize(), pageable.getOffset());
+                rs.getObject("dispute_id", UUID.class), rs.getString("receipt_no")), cardId, pageable.getPageSize(),
+                pageable.getOffset());
         return page(content, total, pageable);
     }
 

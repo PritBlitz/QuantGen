@@ -59,7 +59,8 @@ public class TopupService {
 
     public record TopupDto(UUID id, UUID accountId, BigDecimal amount, String currency, String status, String gateway,
                            String gatewayOrderId, String gatewayKeyId, UUID transactionId, String failureReason,
-                           java.time.Instant createdAt, java.time.Instant updatedAt) {
+                           java.time.Instant createdAt, java.time.Instant updatedAt, String receiptNo,
+                           String gatewayPaymentId) {
     }
 
     private record Topup(UUID id, UUID userId, UUID accountId, BigDecimal amount, String status, String orderId) {
@@ -308,7 +309,8 @@ public class TopupService {
         return new TopupDto(rs.getObject("id", UUID.class), rs.getObject("account_id", UUID.class),
                 rs.getBigDecimal("amount"), "INR", rs.getString("status"), PROVIDER, rs.getString("gateway_order_id"),
                 props.keyId(), rs.getObject("transaction_id", UUID.class), rs.getString("failure_reason"),
-                rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
+                rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+                rs.getString("receipt_no"), rs.getString("gateway_payment_id"));
     }
 
     private static byte[] sha256(byte[] data) {

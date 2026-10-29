@@ -311,7 +311,8 @@ public class TransferService {
     /** {@code category} is the sender's category for the transfer (PRD 12.2). */
     public static TransferDto toDto(Transfer t, String category) {
         return new TransferDto(t.getId(), t.getFromAccountNumber(), t.getToAccountNumber(), t.getToName(),
-                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt(), t.getSource(), category);
+                t.getAmount(), t.getNote(), t.getStatus(), t.getCreatedAt(), t.getSource(), category,
+                t.getReceiptNo());
     }
 
     private static String blankToNull(String s) {

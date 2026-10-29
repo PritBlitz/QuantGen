@@ -80,6 +80,7 @@ class CopilotIT extends IntegrationTest {
                     "toAccountNumber", Bank.firstAccountNumber(this, friend), "amount", "1.00")).status()).isEqualTo(403);
             assertThat(asAgent(token, "GET", "/api/v1/users/me/sessions", null).status()).isEqualTo(403);
             assertThat(asAgent(token, "GET", "/api/v1/admin/users", null).status()).isEqualTo(403);
+            assertThat(asAgent(token, "GET", "/api/v1/payments", null).status()).isEqualTo(403); // receipts: not agent's
             JsonNode intent = asAgent(token, "POST", "/api/v1/intents", Map.of("kind", "TRANSFER", "agent", "PAYMENTS",
                     "rationale", "You asked to pay your friend.", "conversationId", UUID.randomUUID().toString(),
                     "payload", Map.of("fromAccountId", from.toString(), "toAccountNumber",

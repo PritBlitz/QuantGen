@@ -74,7 +74,7 @@ public class BillService {
 
     public record BillPaymentDto(UUID id, UUID billerId, String billerName, String category,
                                  String consumerNumberMasked, BigDecimal amount, UUID fromAccountId,
-                                 UUID transactionId, Instant createdAt) {
+                                 UUID transactionId, Instant createdAt, String receiptNo) {
     }
 
     private record Bill(UUID id, UUID userId, BillerDto biller, String consumerNumber, BigDecimal amount,
@@ -322,7 +322,7 @@ public class BillService {
     }
 
     private static final String PAYMENT_SELECT = """
-            SELECT p.id, p.biller_id, b.name, b.category, p.consumer_number, p.amount, p.from_account_id,
+            SELECT p.id, p.receipt_no, p.biller_id, b.name, b.category, p.consumer_number, p.amount, p.from_account_id,
                    p.transaction_id, p.created_at
               FROM bill_payments p JOIN billers b ON b.id = p.biller_id
             """;
@@ -357,6 +357,7 @@ public class BillService {
         return new BillPaymentDto(rs.getObject("id", UUID.class), rs.getObject("biller_id", UUID.class),
                 rs.getString("name"), rs.getString("category"), AccountNumbers.mask(rs.getString("consumer_number")),
                 rs.getBigDecimal("amount"), rs.getObject("from_account_id", UUID.class),
-                rs.getObject("transaction_id", UUID.class), rs.getTimestamp("created_at").toInstant());
+                rs.getObject("transaction_id", UUID.class), rs.getTimestamp("created_at").toInstant(),
+                rs.getString("receipt_no"));
     }
 }
