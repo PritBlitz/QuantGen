@@ -8,7 +8,7 @@ const buttonVariants = cva(
     'relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)]',
     'text-sm font-medium select-none',
     'transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-[var(--dur-micro)] ease-[var(--ease-out-expo)]',
-    'active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50',
+    'disabled:pointer-events-none disabled:opacity-50',
     '[&_svg]:size-4 [&_svg]:shrink-0',
   ],
   {
@@ -16,16 +16,14 @@ const buttonVariants = cva(
       variant: {
         primary: [
           'bg-accent text-accent-ink',
-          'shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_8px_24px_-10px_color-mix(in_oklab,var(--accent)_70%,transparent)]',
-          'hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_10px_32px_-8px_color-mix(in_oklab,var(--accent)_85%,transparent)]',
+          'hover:bg-[color-mix(in_oklab,var(--accent)_88%,black)]',
         ],
         /** AI actions (Copilot, Autopilot compile). */
         violet: [
           'bg-violet text-violet-ink',
-          'shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_8px_24px_-10px_color-mix(in_oklab,var(--violet)_70%,transparent)]',
-          'hover:brightness-110',
+          'hover:bg-[color-mix(in_oklab,var(--violet)_88%,black)]',
         ],
-        secondary: 'bg-surface-2 text-text hairline hover:border-border-strong hover:bg-surface-3',
+        secondary: 'bg-surface text-text hairline hover:border-border-strong hover:bg-surface-2',
         ghost: 'text-text hover:bg-surface-2',
         outline: 'hairline text-text hover:border-border-strong hover:bg-surface-2',
         glass: 'glass text-text hover:border-border-strong',
@@ -36,7 +34,7 @@ const buttonVariants = cva(
         sm: 'h-8 px-3 text-[0.8125rem]',
         md: 'h-10 px-4',
         lg: 'h-12 px-6 text-base',
-        xl: 'h-14 px-8 text-base rounded-full',
+        xl: 'h-12 px-7 text-base',
         icon: 'size-10',
         'icon-sm': 'size-8',
       },

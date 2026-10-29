@@ -181,7 +181,7 @@ function CardBlock({ card, account }: { card: CardDto; account?: AccountDto }) {
       <div className="space-y-3 lg:col-span-5">
         <div
           className={cn(
-            'relative aspect-[1.586] w-full max-w-sm overflow-hidden rounded-[18px] p-5 text-white shadow-lg',
+            'relative aspect-[1.586] w-full max-w-sm overflow-hidden rounded-[12px] p-5 text-white shadow-lg',
             'bg-[radial-gradient(120%_120%_at_0%_0%,#6d5dfc_0%,#2a2350_55%,#0d0b1a_100%)]',
             frozen && 'grayscale',
           )}

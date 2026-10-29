@@ -30,7 +30,7 @@
 
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
-  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
 
   /* DESIGN.md type scale (rem) */
   --text-xs: 0.75rem;
@@ -40,13 +40,13 @@
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
   --text-3xl: 2rem;
-  --text-4xl: 3rem;
-  --text-5xl: 4.5rem;
-  --text-6xl: 7rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 4rem;
 
-  --radius-control: 12px;
-  --radius-card: 22px;
-  --radius-sheet: 28px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-sheet: 16px;
 
   --shadow-pop: var(--shadow-pop);
   --ease-expo: var(--ease-out-expo);
@@ -151,14 +151,14 @@
 
 @utility font-display {
   font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
-/* All money, quantities, prices and account numbers. */
+/* All money, quantities, prices and account numbers: the UI face with aligned figures. */
 @utility num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
 }
@@ -167,11 +167,9 @@
   border: 1px solid var(--border);
 }
 
-/* Floating chrome (rail, top bar, dock, sheets): translucent + blurred. */
+/* App chrome (rail, top bar, dock, sheets): solid surface with a hairline. */
 @utility glass {
-  background: color-mix(in oklab, var(--surface-solid) 72%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  backdrop-filter: blur(22px) saturate(1.4);
+  background: var(--surface-solid);
   border: 1px solid var(--border);
 }
 
@@ -179,36 +177,22 @@
 @utility eyebrow {
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-/* A 1px gradient top highlight on cards: light catching the edge. */
+/* Kept as no-ops so existing class names stay valid (v3 has no edge highlights or gradient text). */
 @utility edge-light {
   position: relative;
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0 12% auto;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
-  }
 }
 
 @utility text-gradient {
-  background: linear-gradient(100deg, var(--text) 10%, var(--violet) 55%, var(--cyan) 95%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--text);
 }
 
 @utility text-gradient-accent {
-  background: linear-gradient(100deg, var(--accent) 0%, var(--cyan) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent);
 }
 
 /* Dotted grid used behind hero sections and empty states. */

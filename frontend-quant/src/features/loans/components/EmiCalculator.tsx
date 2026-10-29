@@ -113,7 +113,7 @@ export function EmiCalculator({ onApply }: { onApply: (draft: LoanDraft) => void
 
       <div className="rounded-[var(--radius-card)] bg-surface-2 p-5 sm:p-6">
         <p className="text-xs uppercase tracking-[0.16em] text-muted">Monthly EMI</p>
-        <p className="mt-2 font-display text-5xl tabular-nums sm:text-6xl">
+        <p className="mt-2 font-display text-5xl tabular-nums sm:text-5xl">
           {formatINR(q?.emi ?? preview.emi)}
         </p>
         <p className="mt-1 text-xs text-muted">at a fixed 12% a year</p>

@@ -13,7 +13,7 @@ export function readTheme(): Theme {
   } catch {
     /* storage blocked */
   }
-  return 'dark'
+  return 'light'
 }
 
 export function writeTheme(theme: Theme): void {

@@ -1,6 +1,6 @@
 // Runs before first paint. Reads only the UI theme preference (never auth data).
 ;(function () {
-  var theme = 'dark'
+  var theme = 'light'
   try {
     var stored = window.localStorage.getItem('qg.theme')
     if (stored === 'light' || stored === 'dark') theme = stored

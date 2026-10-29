@@ -54,8 +54,8 @@ export function AppShell() {
         Skip to content
       </a>
 
-      {/* Desktop rail: floating glass panel. */}
-      <aside className="glass fixed inset-y-3 left-3 z-40 hidden w-[var(--rail-w)] flex-col rounded-[26px] lg:flex">
+      {/* Desktop rail: flush sidebar with a hairline edge. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[var(--rail-w)] flex-col border-r border-border bg-surface-solid lg:flex">
         <div className="flex items-center justify-between px-5 pb-2 pt-5">
           <Link to={home} aria-label="QuantGen home">
             <Logo />
@@ -78,8 +78,8 @@ export function AppShell() {
                       end={item.end}
                       className={({ isActive }) =>
                         cn(
-                          'group relative flex items-center gap-3 rounded-[12px] px-3 py-[0.5625rem] text-sm transition-colors',
-                          isActive ? 'text-text' : 'text-muted hover:text-text',
+                          'group relative flex items-center gap-3 rounded-[8px] px-3 py-2 text-sm transition-colors',
+                          isActive ? 'font-medium text-text' : 'text-muted hover:bg-surface-2 hover:text-text',
                         )
                       }
                     >
@@ -89,7 +89,7 @@ export function AppShell() {
                             <motion.span
                               layoutId="rail-active"
                               transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-                              className="absolute inset-0 -z-10 rounded-[12px] bg-surface-2 hairline"
+                              className="absolute inset-0 -z-10 rounded-[8px] bg-accent/[0.08]"
                             />
                           )}
                           <item.icon
@@ -123,7 +123,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex items-center justify-between rounded-[12px] px-3 py-2 text-sm text-muted hairline transition-colors hover:border-border-strong hover:text-text"
+            className="flex items-center justify-between rounded-[8px] px-3 py-2 text-sm text-muted hairline transition-colors hover:border-border-strong hover:text-text"
           >
             Quick actions
             <kbd className="num rounded-md bg-surface-2 px-1.5 py-0.5 text-[0.6875rem]">Ctrl K</kbd>
@@ -131,17 +131,17 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="flex min-h-dvh min-w-0 flex-col lg:pl-[calc(var(--rail-w)+1.5rem)]">
-        {/* Floating top bar. */}
-        <header className="sticky top-0 z-30 px-3 pt-3 lg:pl-0 lg:pr-3">
-          <div className="glass flex h-14 items-center gap-2 rounded-[18px] px-3 sm:px-4">
+      <div className="flex min-h-dvh min-w-0 flex-col lg:pl-[var(--rail-w)]">
+        {/* Top bar: flush, with a hairline under it. */}
+        <header className="sticky top-0 z-30 border-b border-border bg-surface-solid">
+          <div className="flex h-14 items-center gap-2 px-4 sm:px-6 lg:px-8">
             <Link to={home} className="lg:hidden" aria-label="QuantGen home">
               <LogoMark />
             </Link>
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="group ml-1 flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-[11px] bg-surface-2/70 px-3 text-left text-sm text-muted transition-colors hover:text-text sm:max-w-md"
+              className="group ml-1 flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-[8px] bg-surface-2 px-3 text-left text-sm text-muted transition-colors hover:text-text sm:max-w-md"
             >
               <Search aria-hidden="true" className="size-4 shrink-0" />
               <span className="truncate">
@@ -184,7 +184,7 @@ export function AppShell() {
                   <Button variant="ghost" className="gap-2 px-1.5">
                     <span
                       aria-hidden="true"
-                      className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-violet/40 to-cyan/30 text-xs font-semibold hairline"
+                      className="grid size-8 place-items-center rounded-full bg-accent/10 text-xs font-semibold text-accent"
                     >
                       {initials(user?.fullName)}
                     </span>
@@ -196,7 +196,7 @@ export function AppShell() {
                   <DropdownMenu.Content
                     align="end"
                     sideOffset={10}
-                    className="z-50 min-w-60 rounded-[18px] bg-surface-solid p-1.5 hairline shadow-[var(--shadow-pop)]"
+                    className="z-50 min-w-60 rounded-[12px] bg-surface-solid p-1.5 hairline shadow-[var(--shadow-pop)]"
                   >
                     <div className="px-3 py-2.5">
                       <p className="truncate text-sm font-medium">{user?.fullName}</p>
@@ -223,7 +223,7 @@ export function AppShell() {
 
         <main
           id="main"
-          className="flex-1 px-4 pb-32 pt-8 sm:px-6 lg:pb-16 lg:pl-3 lg:pr-8 lg:pt-10"
+          className="flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-8"
         >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -276,7 +276,7 @@ export function AppShell() {
 }
 
 const menuItem =
-  'flex cursor-pointer items-center gap-2.5 rounded-[11px] px-3 py-2 text-sm outline-none data-[highlighted]:bg-surface-2 [&_svg]:size-4 [&_svg]:text-muted'
+  'flex cursor-pointer items-center gap-2.5 rounded-[6px] px-3 py-2 text-sm outline-none data-[highlighted]:bg-surface-2 [&_svg]:size-4 [&_svg]:text-muted'
 
 function initials(name?: string) {
   if (!name) return '·'

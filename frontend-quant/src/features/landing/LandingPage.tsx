@@ -85,11 +85,11 @@ function Hero() {
           New: Autopilot, Copilot and Proof of Balance
         </motion.p>
         <SplitReveal
-          className="mt-8 font-display text-[clamp(3rem,10.5vw,7rem)] text-balance"
+          className="mt-8 font-display text-[clamp(2.25rem,6vw,3.75rem)] text-balance"
           lines={[
             'Banking, with the',
             <>
-              precision <span className="italic text-muted">of a quant.</span>
+              precision <span className="text-accent">of a quant.</span>
             </>,
           ]}
           delay={0.1}
@@ -199,17 +199,13 @@ function Security() {
 function FinalCta() {
   return (
     <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-10">
-      <div className="relative overflow-hidden rounded-[24px] bg-surface px-6 py-20 text-center hairline sm:px-12 sm:py-28">
-        <div
-          aria-hidden="true"
-          className="absolute left-1/2 top-0 h-64 w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/25 blur-[100px]"
-        />
+      <div className="relative overflow-hidden rounded-[10px] bg-surface px-6 py-20 text-center hairline sm:px-12 sm:py-28">
         <SplitReveal
           as="h2"
-          className="relative font-display text-[clamp(2.5rem,7vw,4.5rem)]"
+          className="relative font-display text-[clamp(1.875rem,5vw,2.75rem)]"
           lines={[
             'Open an account',
-            <span key="2" className="italic text-muted">
+            <span key="2" className="text-muted">
               in two minutes.
             </span>,
           ]}
@@ -238,8 +234,8 @@ function Footer() {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <Logo />
         <p className="flex items-center gap-2 text-xs text-muted">
-          <ShieldCheck aria-hidden="true" className="size-3.5" />A demo platform. Funding and market
-          prices are simulated; no real money moves.
+          <ShieldCheck aria-hidden="true" className="size-3.5" />A demo platform. Stock prices follow
+          NSE closing prices; funding is test-mode only and no real money moves.
         </p>
       </div>
       <p className="mt-6 text-xs text-muted">© {new Date().getFullYear()} QuantGen</p>

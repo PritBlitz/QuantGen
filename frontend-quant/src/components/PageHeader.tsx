@@ -20,7 +20,7 @@ export function PageHeader({
 }) {
   const reduce = useReducedMotion()
   return (
-    <header className="mb-8 sm:mb-10">
+    <header className="mb-6 sm:mb-8">
       {back && (
         <Link
           to={back.to}
@@ -31,17 +31,17 @@ export function PageHeader({
       )}
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          {eyebrow && <p className="eyebrow mb-3">{eyebrow}</p>}
+          {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
           <motion.h1
-            initial={reduce ? false : { opacity: 0, y: 14, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-            className="font-display text-[2.5rem] leading-[1.02] sm:text-[3.5rem]"
+            initial={reduce ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+            className="font-display text-2xl sm:text-[1.75rem]"
           >
             {title}
           </motion.h1>
           {description && (
-            <p className="mt-3 max-w-2xl text-[0.9375rem] text-muted">{description}</p>
+            <p className="mt-1.5 max-w-2xl text-sm text-muted">{description}</p>
           )}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

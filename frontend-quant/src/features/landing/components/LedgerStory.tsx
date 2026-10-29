@@ -55,7 +55,7 @@ function Visual({ active }: { active: number }) {
     ['acct 0457 · Savings', '12000.00', 'CREDIT'],
   ]
   return (
-    <div className="rounded-[20px] bg-surface p-5 hairline shadow-[var(--shadow-pop)] sm:p-6">
+    <div className="rounded-[12px] bg-surface p-5 hairline shadow-[var(--shadow-pop)] sm:p-6">
       <div className="flex items-center justify-between text-xs text-muted">
         <span className="num">journal_entry #8f3a…</span>
         <span

@@ -69,7 +69,7 @@ export function NetWorthCard({ className }: { className?: string }) {
           <div aria-live="polite" aria-atomic="true">
             <RollingMoney
               value={net}
-              className="font-display text-[clamp(2.75rem,7vw,4.75rem)] leading-none"
+              className="font-display text-[clamp(1.875rem,5vw,2.75rem)] leading-none"
             />
           </div>
           <p className="flex items-center gap-2 pb-2 text-sm text-muted">
@@ -133,7 +133,7 @@ function Breakdown({
   hint?: React.ReactNode
 }) {
   return (
-    <div className="rounded-[14px] bg-surface-2/70 px-3.5 py-3 hairline">
+    <div className="rounded-[10px] bg-surface-2/70 px-3.5 py-3 hairline">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-1 font-medium">{value}</dd>
       {hint && <dd className="mt-0.5 text-[0.6875rem] text-muted">{hint}</dd>}

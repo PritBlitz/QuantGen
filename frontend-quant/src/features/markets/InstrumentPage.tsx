@@ -115,7 +115,7 @@ export function InstrumentPage() {
               <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
                 <RollingMoney
                   value={instrument.data.price}
-                  className="font-display text-[clamp(2.5rem,8vw,4rem)]"
+                  className="font-display text-[clamp(1.875rem,5vw,2.75rem)]"
                 />
                 <ChangePct value={instrument.data.changePct24h} className="mb-2 text-sm" />
                 <span className="sr-only" aria-live="polite">

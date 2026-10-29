@@ -43,7 +43,7 @@ export function QrPage() {
         <Panel eyebrow="Get paid" title="Your code" tone="violet">
           {handle && link ? (
             <div className="flex flex-col items-center gap-5 text-center">
-              <div className="rounded-[28px] bg-surface-solid p-5 shadow-[var(--shadow-pop)] hairline">
+              <div className="rounded-[10px] bg-surface-solid p-5 shadow-[var(--shadow-pop)] hairline">
                 <QrCanvas value={link} size={240} />
               </div>
               <div>
@@ -145,7 +145,7 @@ function Scanner() {
   return (
     <Panel eyebrow="Pay someone" title="Scan a code" tone="cyan">
       <div className="space-y-4">
-        <div className="relative grid aspect-square w-full max-w-sm place-items-center overflow-hidden rounded-[24px] bg-surface-2 hairline sm:mx-auto">
+        <div className="relative grid aspect-square w-full max-w-sm place-items-center overflow-hidden rounded-[10px] bg-surface-2 hairline sm:mx-auto">
           {active ? (
             <>
               <video

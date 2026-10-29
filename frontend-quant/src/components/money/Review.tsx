@@ -14,7 +14,7 @@ export function ReviewAmount({
   return (
     <div className="text-center">
       <p className="text-xs uppercase tracking-[0.16em] text-muted">{caption}</p>
-      <p className="mt-3 font-display text-[clamp(2.75rem,12vw,4.5rem)] leading-none tabular-nums">
+      <p className="mt-3 font-display text-[clamp(1.875rem,5vw,2.75rem)] leading-none tabular-nums">
         {formatINR(value)}
       </p>
     </div>

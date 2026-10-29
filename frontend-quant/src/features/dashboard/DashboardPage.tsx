@@ -18,8 +18,7 @@ import {
 import { useAccounts } from './hooks'
 
 function greeting(hour: number) {
-  if (hour < 5) return 'Up late'
-  if (hour < 12) return 'Good morning'
+  if (hour >= 5 && hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
 }
@@ -36,16 +35,16 @@ export function DashboardPage() {
 
   return (
     <div>
-      <header className="mb-8 sm:mb-10">
-        <p className="eyebrow">{today.format(now)}</p>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-2">
         <motion.h1
-          initial={reduce ? false : { opacity: 0, y: 14, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-          className="mt-3 font-display text-[2.75rem] leading-[1.02] sm:text-[3.75rem]"
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+          className="font-display text-2xl sm:text-[1.75rem]"
         >
-          {greeting(now.getHours())}, <em className="text-gradient">{first}.</em>
+          {greeting(now.getHours())}, {first}
         </motion.h1>
+        <p className="text-sm text-muted">{today.format(now)}</p>
       </header>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6 lg:grid-cols-12">

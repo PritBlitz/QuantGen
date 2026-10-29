@@ -117,7 +117,7 @@ export function AccountDetailPage() {
               <div aria-live="polite" aria-atomic="true">
                 <RollingMoney
                   value={account.data.balance}
-                  className="font-display text-[clamp(2.5rem,8vw,4rem)]"
+                  className="font-display text-[clamp(1.875rem,5vw,2.75rem)]"
                 />
               </div>
             </div>

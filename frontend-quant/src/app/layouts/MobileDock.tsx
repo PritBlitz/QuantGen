@@ -41,7 +41,7 @@ export function MobileDock({ onOpenPalette }: { onOpenPalette: () => void }) {
     <>
       <nav
         aria-label="Main"
-        className="glass fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 grid h-16 grid-cols-5 items-center rounded-[22px] px-1 lg:hidden"
+        className="glass fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 grid h-16 grid-cols-5 items-center rounded-[12px] px-1 lg:hidden"
       >
         {cells.map((cell, i) =>
           cell === 'action' ? (
@@ -50,7 +50,7 @@ export function MobileDock({ onOpenPalette }: { onOpenPalette: () => void }) {
                 type="button"
                 onClick={() => setActionsOpen(true)}
                 aria-label="Quick actions"
-                className="grid size-12 place-items-center rounded-full bg-accent text-accent-ink shadow-[0_10px_30px_-8px_color-mix(in_oklab,var(--accent)_80%,transparent)] transition-transform active:scale-95"
+                className="grid size-12 place-items-center rounded-full bg-accent text-accent-ink transition-transform active:scale-95"
               >
                 <Plus aria-hidden="true" className="size-6" />
               </button>

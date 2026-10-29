@@ -4,10 +4,10 @@ import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MeshGradient } from '@/features/auth/components/MeshGradient'
 
-/** Split screen: form on the left, mesh gradient + grain on the right (DESIGN.md §4). */
+/** Split screen: form on the left, a quiet tinted panel on the right (DESIGN.md v3 §4). */
 export function AuthLayout() {
   return (
-    <div className="grain grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-4 py-6 sm:px-10">
         <header className="flex items-center justify-between">
           <Link to="/" aria-label="QuantGen home">
@@ -32,8 +32,8 @@ export function AuthLayout() {
         <MeshGradient />
         <div className="relative flex h-full flex-col justify-end p-14">
           <blockquote className="max-w-md">
-            <p className="font-display text-5xl text-text">
-              Every rupee, accounted for. <span className="text-muted italic">Twice.</span>
+            <p className="font-display text-4xl text-text">
+              Every rupee, accounted for. <span className="text-muted">Twice.</span>
             </p>
             <footer className="mt-6 text-sm text-muted">
               Double-entry ledger · ACID transfers · Idempotent by design

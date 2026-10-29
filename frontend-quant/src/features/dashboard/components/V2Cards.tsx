@@ -41,7 +41,7 @@ export function CopilotStrip({ className }: { className?: string }) {
       aria-label="Ask Copilot"
       className={cn(
         'relative isolate overflow-hidden rounded-[var(--radius-card)] p-5 hairline sm:p-6',
-        'bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_oklab,var(--violet)_22%,transparent),transparent_55%),radial-gradient(100%_120%_at_100%_100%,color-mix(in_oklab,var(--cyan)_14%,transparent),transparent_60%)] bg-surface',
+        'bg-surface',
         className,
       )}
     >

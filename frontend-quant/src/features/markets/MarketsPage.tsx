@@ -117,7 +117,7 @@ export function MarketsPage() {
     <div>
       <PageHeader
         title="Markets"
-        description="Simulated prices that move every 3 seconds. Market orders fill instantly."
+        description="Anchored to each day’s NSE closing price, then simulated every 3 seconds between closes. Market orders fill instantly."
         actions={<FeedBadge />}
       />
 

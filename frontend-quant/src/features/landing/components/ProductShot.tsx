@@ -21,12 +21,12 @@ export function ProductShot({ className }: { className?: string }) {
     >
       <motion.div
         style={reduce ? undefined : { y: yBack, rotate }}
-        className="rounded-[20px] bg-surface p-3 hairline shadow-[var(--shadow-pop)] sm:p-4"
+        className="rounded-[12px] bg-surface p-3 hairline shadow-[var(--shadow-pop)] sm:p-4"
       >
-        <div className="grid grid-cols-1 gap-3 rounded-[14px] bg-bg p-4 sm:grid-cols-[1.4fr_1fr] sm:p-6">
+        <div className="grid grid-cols-1 gap-3 rounded-[10px] bg-bg p-4 sm:grid-cols-[1.4fr_1fr] sm:p-6">
           <div className="rounded-[var(--radius-card)] bg-surface p-5 hairline">
             <p className="text-xs uppercase tracking-[0.16em] text-muted">Net worth</p>
-            <p className="mt-3 font-display text-[clamp(2.25rem,11vw,4.5rem)] leading-none">
+            <p className="mt-3 font-display text-[clamp(1.875rem,5vw,2.75rem)] leading-none">
               ₹4,82,615.20
             </p>
             <p className="mt-3 text-sm">

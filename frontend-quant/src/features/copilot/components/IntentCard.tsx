@@ -140,7 +140,7 @@ export function IntentCard({ intent: fromServer }: { intent: IntentDto }) {
       className={cn(
         'overflow-hidden rounded-[var(--radius-card)] bg-surface-solid hairline',
         status === 'PROPOSED' &&
-          'border-violet/45 shadow-[0_10px_32px_-18px_color-mix(in_oklab,var(--violet)_80%,transparent)]',
+          'border-violet/45',
       )}
     >
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">

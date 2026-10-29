@@ -37,9 +37,9 @@ export function QuickActions({ className }: { className?: string }) {
           >
             <Link
               to={to}
-              className="group flex h-full min-h-[5.5rem] flex-col items-start justify-between gap-2 rounded-[16px] bg-surface-2/70 p-3.5 text-[0.8125rem] font-medium transition-[transform,border-color,background-color] duration-[var(--dur-micro)] hairline hover:border-border-strong hover:bg-surface-2 active:scale-[0.97]"
+              className="group flex h-full min-h-[5.5rem] flex-col items-start justify-between gap-2 rounded-[10px] bg-surface p-3.5 text-[0.8125rem] font-medium transition-[border-color,background-color] duration-[var(--dur-micro)] hairline hover:border-border-strong hover:bg-surface-2"
             >
-              <span className="grid size-9 place-items-center rounded-xl bg-accent text-accent-ink shadow-[0_6px_18px_-8px_color-mix(in_oklab,var(--accent)_80%,transparent)] transition-transform group-hover:-translate-y-0.5">
+              <span className="grid size-9 place-items-center rounded-full bg-accent/10 text-accent">
                 <Icon aria-hidden="true" className="size-4" />
               </span>
               {label}

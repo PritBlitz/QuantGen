@@ -4,7 +4,7 @@ import { useReducedMotion } from 'motion/react'
 import { useEffect } from 'react'
 import { Outlet } from 'react-router'
 
-/** Landing only: Lenis smooth scroll (off under reduced motion) + grain. */
+/** Landing only: Lenis smooth scroll (off under reduced motion). */
 export function LandingLayout() {
   const reduce = useReducedMotion()
 
@@ -15,7 +15,7 @@ export function LandingLayout() {
   }, [reduce])
 
   return (
-    <div className="grain min-h-dvh overflow-x-clip">
+    <div className="min-h-dvh overflow-x-clip">
       <Outlet />
     </div>
   )
