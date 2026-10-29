@@ -10,9 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,15 +25,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * F-TRD-10 strategy backtester over simulated daily closes (D-035: market data is simulated, and only 7 days of
- * ticks are kept). Each symbol has a fixed, deterministic daily price path from 2020-01-01, so the same request
- * always gives the same result. Whole shares, no fees; SMA_CROSS / RSI / BUY_THE_DIP split the cash equally per
+ * F-TRD-10 strategy backtester over daily closes from {@link MarketHistory} (D-046: real NSE closes for the real
+ * companies, a deterministic walk outside the data and for the fictional QGEN), so the same request always gives the
+ * same result. Whole shares, no fees; SMA_CROSS / RSI / BUY_THE_DIP split the cash equally per
  * symbol and go all in or all out; REBALANCE resets the portfolio to its weights every {@code everyDays} days.
  */
 @Service
 public class BacktestService {
 
-    static final LocalDate HISTORY_START = LocalDate.of(2020, 1, 1);
     static final LocalDate EARLIEST_FROM = LocalDate.of(2021, 1, 1);
     static final int MAX_DAYS = 1826;
     static final int MAX_POINTS = 400;
@@ -60,7 +57,6 @@ public class BacktestService {
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
     private final Clock clock;
-    private final Map<String, double[]> paths = new ConcurrentHashMap<>();
 
     public BacktestService(JdbcTemplate jdbc, JsonMapper json, Clock clock) {
         this.jdbc = jdbc;
@@ -68,24 +64,11 @@ public class BacktestService {
         this.clock = clock;
     }
 
-    // ------------------------------------------------------------------ simulated history
+    // ------------------------------------------------------------------ history
 
     /** Daily close of {@code symbol} on {@code day} (deterministic, 2 dp). */
     double close(String symbol, LocalDate day) {
-        double[] path = paths.computeIfAbsent(symbol, BacktestService::path);
-        return path[(int) ChronoUnit.DAYS.between(HISTORY_START, day)];
-    }
-
-    private static double[] path(String symbol) {
-        int days = (int) ChronoUnit.DAYS.between(HISTORY_START, LocalDate.of(2031, 1, 1));
-        Random r = new Random(0x5eed_0000L ^ symbol.hashCode());
-        double[] p = new double[days];
-        p[0] = 100 + Math.floorMod(symbol.hashCode(), 2900);
-        for (int i = 1; i < days; i++) {
-            p[i] = Math.max(1.0, p[i - 1] * Math.exp(0.0003 + 0.018 * r.nextGaussian()));
-            p[i] = Math.round(p[i] * 100) / 100.0;
-        }
-        return p;
+        return MarketHistory.close(symbol, day);
     }
 
     // ------------------------------------------------------------------ API

@@ -75,6 +75,7 @@ you make a new one.
 | D-043 | Analytics computed live; the nightly roll-up waits for a slow query | Accepted |
 | D-044 | Free-tier LLM through an OpenAI-compatible client (Gemini by default) | Accepted |
 | D-045 | `agent-quant` is stateless; the core stores conversations and traces | Accepted |
+| D-046 | Backtests replay real NSE daily closes (vendored public dataset); live prices stay simulated | Accepted |
 
 ---
 
@@ -512,3 +513,20 @@ you make a new one.
 - **Trade-off:** the core's DB grows with chat data (deleted after 30 days, F-AGT-7), and the internal turn
   request carries the recent history each time (capped). Simpler ops, one fewer place holding customer data.
 - **Revisit when:** back-office agents need long-running state of their own.
+
+### D-046 · Backtests replay real NSE daily closes; live prices stay simulated
+- **Date / status:** 2026-10-29 · Accepted (refines D-035; the owner asked for real market data)
+- **Context:** backtests on a random walk "prove the machinery, not a strategy" (D-035). A public dataset now gives
+  real daily OHLCV for the 14 real companies from 2021-01-01 to 2026-01-22: Hugging Face
+  `xxparthparekhxx/indian-stock-market-minute-data`, MIT as declared by the uploader (vendor: Upstox; exchange
+  rights sit with NSE). Picked and checked by the frontend session, re-validated by the backend.
+- **Decision:** vendor the daily file (1.1 MB CSV + `SOURCE.md` with attribution) in
+  `backend-quant/src/main/resources/market/`. `MarketHistory` serves backtest closes: real closes where they exist
+  (non-trading days carry the last close; warm-up days before 2021 hold the first), then the same deterministic walk
+  from the last real close. QGEN (fictional) keeps its simulated path. Live ticks, order matching and portfolio
+  values stay on the simulator, so nothing a customer holds moves when this ships. No schema or contract change.
+- **Trade-off:** backtests after 2026-01-22 are simulated again; live prices don't match the real closes (e.g. the
+  simulator's HDFC is ~₹1,650, the bonus-adjusted real close ~₹919). Rebasing live prices would revalue every
+  holding and could trigger open limit/stop orders at once, so it needs its own decision. Fine for a demo; a
+  commercial launch needs a licensed feed.
+- **Revisit when:** a licensed feed is affordable, or the owner wants live prices rebased (then pause open orders).

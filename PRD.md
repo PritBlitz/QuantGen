@@ -1486,8 +1486,9 @@ Backend notes (V2-M7, implemented 2026-10-18):
 - **Backtests:** request `{strategy, symbols (1–5), from ≥ 2021-01-01, to ≤ today, ≥ 30 days and ≤ 5 years apart,
   initialCash 1,000–1,00,00,000}`. Strategy bounds: `SMA_CROSS` fast 2–100, slow fast+1–250; `RSI` period 2–50,
   buyBelow 1–98, sellAbove > buyBelow ≤ 99; `BUY_THE_DIP` dropPct 0.5–50 (vs the 20-day high), takeProfitPct
-  0.5–100; `REBALANCE` everyDays 1–365, weights for exactly the symbols, summing to 100. Prices are **simulated
-  daily closes** (deterministic per symbol, so the same request gives the same result; D-035). Whole shares, no
+  0.5–100; `REBALANCE` everyDays 1–365, weights for exactly the symbols, summing to 100. Prices are **real NSE
+  daily closes** for the 14 real companies up to 2026-01-22, then a deterministic walk from the last real close; QGEN
+  is simulated throughout (2026-10-29, D-046; same request, same result). Shapes are unchanged. Whole shares, no
   fees; the non-rebalance strategies split cash equally per symbol, all in / all out. `equity` ≤ 400 points.
   `winRatePct` = profitable sells / all sells. `GET /backtests` = the last 20 (older ones are deleted).
 - **Tax P&L:** `fy` like `2026-27` (default: the current FY), else `400`; `format=json|csv` (else `400`). Sells
