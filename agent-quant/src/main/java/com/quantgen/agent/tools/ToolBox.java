@@ -144,7 +144,9 @@ public class ToolBox {
         }
         CoreResponse res = core.get(turn.token(), "/api/v1/accounts");
         if (!res.ok()) {
-            return null;
+            // Fail closed: a guard that can't check the balance doesn't wave the proposal through.
+            return "Refused: the balance couldn't be checked just now, so no transfer is proposed. Tell the user to try "
+                    + "again in a moment or make the transfer themselves in the app.";
         }
         String from = p.path("fromAccountId").asString("");
         String to = p.path("toAccountNumber").asString("");

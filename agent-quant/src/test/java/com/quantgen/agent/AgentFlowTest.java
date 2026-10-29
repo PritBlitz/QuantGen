@@ -45,6 +45,7 @@ class AgentFlowTest {
     static final ConcurrentLinkedQueue<Object> llmScript = new ConcurrentLinkedQueue<>();
     static final List<String> llmRequests = new CopyOnWriteArrayList<>();
     static final List<String> coreCalls = new CopyOnWriteArrayList<>();
+    static volatile boolean accountsDown;
     static HttpServer llm;
     static HttpServer core;
 
@@ -66,7 +67,9 @@ class AgentFlowTest {
                 coreCalls.add(ex.getRequestMethod() + " " + ex.getRequestURI() + " "
                         + ex.getRequestHeaders().getFirst("Authorization"));
                 String path = ex.getRequestURI().getPath();
-                if (path.equals("/api/v1/accounts")) {
+                if (path.equals("/api/v1/accounts") && accountsDown) {
+                    reply(ex, 503, "{\"code\":\"INTERNAL_ERROR\"}");
+                } else if (path.equals("/api/v1/accounts")) {
                     reply(ex, 200, "[{\"id\":\"" + ACCOUNT + "\",\"type\":\"SAVINGS\",\"accountNumber\":\"123456789012\","
                             + "\"balance\":\"5000.00\"}]");
                 } else if (path.equals("/api/v1/payees/resolve")) {
@@ -103,6 +106,7 @@ class AgentFlowTest {
         llmScript.clear();
         llmRequests.clear();
         coreCalls.clear();
+        accountsDown = false;
     }
 
     // ------------------------------------------------------------------ script helpers
@@ -190,6 +194,17 @@ class AgentFlowTest {
         llmScript.add(message("Proposed.", null));
         llmScript.add(message("Review and approve the card.", null));
         assertThat(turn("s3cret", "pay aarav 1000").body()).contains("event:intent");
+
+        // The guard fails closed: if the balance can't be read, nothing is proposed.
+        reset();
+        accountsDown = true;
+        llmScript.add(call("c1", "ask_payments", Map.of("question", "Pay aarav@qg 1000")));
+        llmScript.add(call("p1", "propose_intent", Map.of("kind", "TRANSFER", "rationale", "You asked.",
+                "payload", Map.of("fromAccountId", ACCOUNT, "toHandle", "aarav@qg", "amount", "1000.00"))));
+        llmScript.add(message("Couldn't check.", null));
+        llmScript.add(message("Please try again in a moment.", null));
+        assertThat(turn("s3cret", "pay aarav 1000").body()).doesNotContain("event:intent");
+        assertThat(coreCalls).noneMatch(c -> c.contains("/api/v1/intents"));
     }
 
     @Test
