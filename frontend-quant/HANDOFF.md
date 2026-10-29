@@ -1,6 +1,8 @@
 # Frontend → Backend handoff
 
-## 2026-10-29 (quantgen-73): full live run green, copilot still not answering  ← READ THIS FIRST
+## 2026-10-29 (quantgen-73): full live run green, copilot answered for real  ← READ THIS FIRST
+- **Update (a50922a):** the copilot ANSWERED end to end (CHAT OK 15:57:37Z, 3492/208 tokens). Cause of the earlier
+  failure: Gemini 503 'overloaded'; the backend now retries a 503 once, then returns AI_BUSY. Compile was AI_BUSY (the form fallback works).
 - The owner closed the JanSathi project that had taken :8080/:5173. The backend (backend-quant-fe) brought the stack
   up from a clean worktree at **e720917** (dev DB V32). All 6 flags were set off first.
 - **Live e2e 13/13**, unit 167/167 (one login test times out only under full parallel load, then passes),
